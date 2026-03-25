@@ -13,6 +13,9 @@ from deface.centerface import CenterFace
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
+from pillow_heif import register_heif_opener
+register_heif_opener()  # enables Pillow to open HEIC/HEIF (iPhone default format)
+
 load_dotenv()
 
 logging.basicConfig(level=logging.INFO)
@@ -31,10 +34,15 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 centerface = CenterFace()
 
 ALLOWED_IMAGE_TYPES = {
-    'image/jpeg', 'image/jpg', 'image/png', 'image/webp'
+    'image/jpeg', 'image/jpg', 'image/png', 'image/webp',
+    'image/heic', 'image/heif',             # iPhone default
 }
 ALLOWED_VIDEO_TYPES = {
-    'video/mp4', 'video/quicktime', 'video/webm'
+    'video/mp4', 'video/quicktime', 'video/webm',
+    'video/3gpp', 'video/3gpp2',            # older Android
+    'video/x-m4v',                          # iOS M4V
+    'video/avi', 'video/x-msvideo',         # AVI
+    'video/x-matroska',                     # MKV
 }
 ALLOWED_TYPES = ALLOWED_IMAGE_TYPES | ALLOWED_VIDEO_TYPES
 
@@ -306,7 +314,20 @@ def process_media():
         return jsonify({'error': 'Empty file'}), 400
 
     # 3. MIME + magic byte validation
+    # Fall back to extension-based detection when browser sends application/octet-stream
     content_type = upload.content_type or ''
+    if content_type not in ALLOWED_TYPES:
+        ext = Path(upload.filename or '').suffix.lower()
+        ext_map = {
+            '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+            '.png': 'image/png', '.webp': 'image/webp',
+            '.heic': 'image/heic', '.heif': 'image/heif',
+            '.mp4': 'video/mp4', '.mov': 'video/quicktime',
+            '.webm': 'video/webm', '.3gp': 'video/3gpp',
+            '.m4v': 'video/x-m4v', '.avi': 'video/avi',
+            '.mkv': 'video/x-matroska',
+        }
+        content_type = ext_map.get(ext, content_type)
     if content_type not in ALLOWED_TYPES:
         return jsonify({'error': f'Unsupported file type: {content_type}'}), 415
     if not validate_file(file_bytes, content_type):
