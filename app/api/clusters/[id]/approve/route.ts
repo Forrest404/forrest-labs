@@ -78,7 +78,7 @@ export async function GET(
     )
   }
 
-  if (cluster.status === 'auto_confirmed') {
+  if (cluster.status === 'confirmed' || cluster.status === 'auto_confirmed') {
     return new Response(
       buildHtml(
         '#052e16', '#86efac',
@@ -104,7 +104,7 @@ export async function GET(
   const { error: updateError } = await supabase
     .from('clusters')
     .update({
-      status: 'auto_confirmed',
+      status: 'confirmed',
       reviewed_by: 'founder',
       reviewed_at: new Date().toISOString(),
     })

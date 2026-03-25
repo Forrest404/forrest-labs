@@ -607,7 +607,7 @@ Deno.serve(async (_req) => {
         .update({ cluster_id: clusterId, status: 'clustered' })
         .in('id', reportIds)
 
-      // 7. If auto_confirmed, create alert
+      // 7. If auto_confirmed, create alert and check for matching warning zones
       if (final_status === 'auto_confirmed') {
         await supabase
           .from('alerts')
@@ -619,6 +619,30 @@ Deno.serve(async (_req) => {
             },
             { onConflict: 'cluster_id', ignoreDuplicates: true },
           )
+
+        // Convert active warning zones within 500m to strike_confirmed
+        const { data: activeWarnings } = await supabase
+          .from('warning_clusters')
+          .select('id, centroid_lat, centroid_lon')
+          .eq('status', 'active')
+
+        if (activeWarnings) {
+          for (const w of activeWarnings) {
+            const dist = haversineMetres(
+              centroid.lat, centroid.lon,
+              w.centroid_lat, w.centroid_lon,
+            )
+            if (dist <= 500) {
+              await supabase
+                .from('warning_clusters')
+                .update({
+                  status: 'strike_confirmed',
+                  converted_to_strike: clusterId,
+                })
+                .eq('id', w.id)
+            }
+          }
+        }
       }
 
       // 8. Push notification for non-discarded clusters

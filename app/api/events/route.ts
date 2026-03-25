@@ -52,9 +52,6 @@ export async function GET(request: NextRequest) {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     )
 
-    // NOTE: the approve endpoint sets status = 'auto_confirmed' for both
-    // AI-auto and founder-confirmed clusters. There is no separate 'confirmed'
-    // value in the schema, so this single status covers both cases.
     let query = supabase
       .from('clusters')
       .select(`
@@ -69,7 +66,7 @@ export async function GET(request: NextRequest) {
         status,
         ai_reasoning
       `)
-      .eq('status', 'auto_confirmed')
+      .in('status', ['confirmed', 'auto_confirmed'])
       .order('created_at', { ascending: false })
       .limit(limit)
 

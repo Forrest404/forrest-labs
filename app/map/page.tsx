@@ -17,7 +17,7 @@ interface Cluster {
   id: string
   centroid_lat: number
   centroid_lon: number
-  status: 'confirmed' | 'auto_confirmed'
+  status: 'confirmed' | 'auto_confirmed' | 'pending_review'
   confidence_score: number
   display_radius_metres: number
   dominant_event_types: string[]
@@ -26,12 +26,17 @@ interface Cluster {
   created_at: string
 }
 
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const MAP_STYLES = [
+  { id: 'mapbox://styles/mapbox/dark-v11', label: 'Dark', color: '#1a1a2e' },
+  { id: 'mapbox://styles/mapbox/satellite-v9', label: 'Satellite', color: '#2d4a1e' },
+  { id: 'mapbox://styles/mapbox/satellite-streets-v12', label: 'Sat + Roads', color: '#1e3a2d' },
+  { id: 'mapbox://styles/mapbox/streets-v12', label: 'Streets', color: '#2c3e50' },
+] as const
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Returns a closed ring of [lon, lat] coordinates approximating a circle
- *  of `radiusMeters` centred at [lon, lat]. Uses equirectangular projection
- *  which is accurate enough for radii under ~10 km. */
 function circlePolygon(
   lon: number,
   lat: number,
@@ -56,6 +61,7 @@ function circlePolygon(
 // ─── Map page ─────────────────────────────────────────────────────────────────
 
 export default function MapPage() {
+  // ── Existing state ───────────────────────────────────────────────────────
   const [mapLoaded, setMapLoaded] = useState(false)
   const [clusters, setClusters] = useState<Cluster[]>([])
   const [selectedCluster, setSelectedCluster] = useState<Cluster | null>(null)
@@ -65,11 +71,33 @@ export default function MapPage() {
   const [showFullReasoning, setShowFullReasoning] = useState(false)
   const [shareLabel, setShareLabel] = useState('Share this alert')
 
+  // ── New state ────────────────────────────────────────────────────────────
+  const [mapStyle, setMapStyle] = useState('mapbox://styles/mapbox/dark-v11')
+  const [showControls, setShowControls] = useState(true)
+  const [mouseCoords, setMouseCoords] = useState({ lat: '33.8938', lon: '35.5018' })
+  const [layerStrikeZones, setLayerStrikeZones] = useState(true)
+  const [layerLabels, setLayerLabels] = useState(false)
+  const [layerHeatDensity, setLayerHeatDensity] = useState(false)
+
+  // ── Refs ─────────────────────────────────────────────────────────────────
   const mapContainer = useRef<HTMLDivElement>(null)
   const map = useRef<any>(null)
   const supabase = useRef(createClient())
+  const locationNamesRef = useRef<Record<string, string>>({})
+  const clustersRef = useRef<Cluster[]>([])
+  const pulseFrameRef = useRef<number>(0)
+  const layerStrikeZonesRef = useRef(true)
+  const layerLabelsRef = useRef(false)
+  const layerHeatDensityRef = useRef(false)
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
+  // ── Sync refs ────────────────────────────────────────────────────────────
+  useEffect(() => { locationNamesRef.current = locationNames }, [locationNames])
+  useEffect(() => { clustersRef.current = clusters }, [clusters])
+  useEffect(() => { layerStrikeZonesRef.current = layerStrikeZones }, [layerStrikeZones])
+  useEffect(() => { layerLabelsRef.current = layerLabels }, [layerLabels])
+  useEffect(() => { layerHeatDensityRef.current = layerHeatDensity }, [layerHeatDensity])
+
+  // ── Helpers ──────────────────────────────────────────────────────────────
 
   function timeAgo(dateStr: string): string {
     const diff = Date.now() - new Date(dateStr).getTime()
@@ -91,7 +119,7 @@ export default function MapPage() {
     return '#ef4444'
   }
 
-  // ── Mapbox helpers ─────────────────────────────────────────────────────────
+  // ── Mapbox helpers ──────────────────────────────────────────────────────
 
   const fetchLocationName = useCallback(async (
     lat: number,
@@ -130,7 +158,11 @@ export default function MapPage() {
           type: 'Polygon' as const,
           coordinates: [circlePolygon(c.centroid_lon, c.centroid_lat, c.display_radius_metres)],
         },
-        properties: { id: c.id, status: c.status },
+        properties: {
+          id: c.id,
+          status: c.status,
+          confidence_score: c.confidence_score,
+        },
       })),
     }
 
@@ -152,20 +184,68 @@ export default function MapPage() {
           ai_reasoning: c.ai_reasoning,
           created_at: c.created_at,
           status: c.status,
+          location_name: locationNamesRef.current[c.id] ?? '',
         },
       })),
+    }
+
+    // Pulse source — most recent cluster with 1.3× radius
+    const mostRecent = clusterData[0]
+    const pulseGeojson = {
+      type: 'FeatureCollection' as const,
+      features: mostRecent
+        ? [
+            {
+              type: 'Feature' as const,
+              geometry: {
+                type: 'Polygon' as const,
+                coordinates: [
+                  circlePolygon(
+                    mostRecent.centroid_lon,
+                    mostRecent.centroid_lat,
+                    mostRecent.display_radius_metres * 1.3,
+                  ),
+                ],
+              },
+              properties: {
+                id: mostRecent.id,
+                status: mostRecent.status,
+              },
+            },
+          ]
+        : [],
     }
 
     if (map.current.getSource('clusters-dots')) {
       map.current.getSource('clusters-radius').setData(radiusGeojson)
       map.current.getSource('clusters-dots').setData(dotGeojson)
+      if (map.current.getSource('clusters-pulse')) {
+        map.current.getSource('clusters-pulse').setData(pulseGeojson)
+      }
       return
     }
 
     map.current.addSource('clusters-radius', { type: 'geojson', data: radiusGeojson })
-    map.current.addSource('clusters-dots',   { type: 'geojson', data: dotGeojson })
+    map.current.addSource('clusters-dots', { type: 'geojson', data: dotGeojson })
+    map.current.addSource('clusters-pulse', { type: 'geojson', data: pulseGeojson })
 
-    // Radius fill
+    // Pulse fill (underneath everything)
+    map.current.addLayer({
+      id: 'cluster-pulse',
+      type: 'fill',
+      source: 'clusters-pulse',
+      paint: {
+        'fill-color': [
+          'case',
+          ['==', ['get', 'status'], 'confirmed'], '#22c55e',
+          ['==', ['get', 'status'], 'auto_confirmed'], '#f97316',
+          '#ef4444',
+        ],
+        'fill-opacity': 0.1,
+      },
+    })
+
+    // Radius fill — opacity driven by confidence
     map.current.addLayer({
       id: 'cluster-radius',
       type: 'fill',
@@ -173,14 +253,22 @@ export default function MapPage() {
       paint: {
         'fill-color': [
           'case',
+          ['==', ['get', 'status'], 'confirmed'], '#22c55e',
           ['==', ['get', 'status'], 'auto_confirmed'], '#f97316',
           '#ef4444',
         ],
-        'fill-opacity': 0.15,
+        'fill-opacity': [
+          'interpolate',
+          ['linear'],
+          ['get', 'confidence_score'],
+          50, 0.1,
+          85, 0.2,
+          100, 0.3,
+        ],
       },
     })
 
-    // Radius outline
+    // Radius outline — width driven by confidence
     map.current.addLayer({
       id: 'cluster-radius-outline',
       type: 'line',
@@ -188,11 +276,19 @@ export default function MapPage() {
       paint: {
         'line-color': [
           'case',
+          ['==', ['get', 'status'], 'confirmed'], '#22c55e',
           ['==', ['get', 'status'], 'auto_confirmed'], '#f97316',
           '#ef4444',
         ],
-        'line-width': 1.5,
-        'line-opacity': 0.6,
+        'line-width': [
+          'interpolate',
+          ['linear'],
+          ['get', 'confidence_score'],
+          50, 1.0,
+          85, 1.5,
+          100, 2.5,
+        ],
+        'line-opacity': 0.8,
       },
     })
 
@@ -205,6 +301,7 @@ export default function MapPage() {
         'circle-radius': 7,
         'circle-color': [
           'case',
+          ['==', ['get', 'status'], 'confirmed'], '#22c55e',
           ['==', ['get', 'status'], 'auto_confirmed'], '#f97316',
           '#ef4444',
         ],
@@ -214,24 +311,132 @@ export default function MapPage() {
         'circle-stroke-opacity': 0.8,
       },
     })
+  }, [])
 
-    // Click handler
-    map.current.on('click', 'cluster-dots', (e: any) => {
+  // ── Attach map event handlers (separate from updateMapSource) ───────────
+
+  const attachMapHandlers = useCallback(() => {
+    if (!map.current) return
+
+    const onClick = (e: any) => {
       const props = e.features[0].properties
-      const cluster = clusterData.find((c) => c.id === props.id)
+      const data = clustersRef.current
+      const cluster = data.find((c) => c.id === props.id)
       if (cluster) {
         setSelectedCluster(cluster)
         fetchLocationName(cluster.centroid_lat, cluster.centroid_lon, cluster.id)
       }
-    })
+    }
+    const onEnter = () => {
+      if (map.current) map.current.getCanvas().style.cursor = 'pointer'
+    }
+    const onLeave = () => {
+      if (map.current) map.current.getCanvas().style.cursor = ''
+    }
 
-    map.current.on('mouseenter', 'cluster-dots', () => {
-      map.current.getCanvas().style.cursor = 'pointer'
-    })
-    map.current.on('mouseleave', 'cluster-dots', () => {
-      map.current.getCanvas().style.cursor = ''
-    })
+    // Remove any previous handlers to avoid duplicates
+    map.current.off('click', 'cluster-dots', onClick)
+    map.current.off('mouseenter', 'cluster-dots', onEnter)
+    map.current.off('mouseleave', 'cluster-dots', onLeave)
+
+    map.current.on('click', 'cluster-dots', onClick)
+    map.current.on('mouseenter', 'cluster-dots', onEnter)
+    map.current.on('mouseleave', 'cluster-dots', onLeave)
   }, [fetchLocationName])
+
+  // ── Start pulse animation ──────────────────────────────────────────────
+
+  const startPulseAnimation = useCallback(() => {
+    cancelAnimationFrame(pulseFrameRef.current)
+    const animate = () => {
+      if (!map.current || !map.current.getLayer('cluster-pulse')) return
+      const t = performance.now() / 1000
+      const opacity = 0.05 + 0.15 * ((Math.sin(t * 2) + 1) / 2)
+      map.current.setPaintProperty('cluster-pulse', 'fill-opacity', opacity)
+      pulseFrameRef.current = requestAnimationFrame(animate)
+    }
+    pulseFrameRef.current = requestAnimationFrame(animate)
+  }, [])
+
+  // ── Re-add optional layers after style change ──────────────────────────
+
+  const reAddOptionalLayers = useCallback(() => {
+    if (!map.current) return
+
+    // Strike zone visibility
+    if (!layerStrikeZonesRef.current) {
+      if (map.current.getLayer('cluster-radius'))
+        map.current.setLayoutProperty('cluster-radius', 'visibility', 'none')
+      if (map.current.getLayer('cluster-radius-outline'))
+        map.current.setLayoutProperty('cluster-radius-outline', 'visibility', 'none')
+      if (map.current.getLayer('cluster-dots'))
+        map.current.setLayoutProperty('cluster-dots', 'visibility', 'none')
+    }
+
+    // Labels
+    if (layerLabelsRef.current && !map.current.getLayer('cluster-labels')) {
+      map.current.addLayer({
+        id: 'cluster-labels',
+        type: 'symbol',
+        source: 'clusters-dots',
+        layout: {
+          'text-field': ['get', 'location_name'],
+          'text-size': 11,
+          'text-offset': [0, 1.5],
+          'text-anchor': 'top',
+          'text-max-width': 10,
+        },
+        paint: {
+          'text-color': '#ffffff',
+          'text-halo-color': 'rgba(0,0,0,0.8)',
+          'text-halo-width': 1.5,
+        },
+      })
+    }
+
+    // Heat density
+    if (layerHeatDensityRef.current && !map.current.getLayer('strike-heat')) {
+      map.current.addLayer(
+        {
+          id: 'strike-heat',
+          type: 'heatmap',
+          source: 'clusters-dots',
+          maxzoom: 15,
+          paint: {
+            'heatmap-weight': [
+              'interpolate', ['linear'],
+              ['get', 'report_count'],
+              0, 0, 20, 1,
+            ],
+            'heatmap-intensity': [
+              'interpolate', ['linear'],
+              ['zoom'], 0, 1, 15, 3,
+            ],
+            'heatmap-color': [
+              'interpolate', ['linear'],
+              ['heatmap-density'],
+              0, 'rgba(0,0,0,0)',
+              0.2, 'rgba(239,68,68,0.3)',
+              0.5, 'rgba(239,68,68,0.6)',
+              0.8, 'rgba(239,68,68,0.85)',
+              1, 'rgba(255,255,255,1)',
+            ],
+            'heatmap-radius': [
+              'interpolate', ['linear'],
+              ['zoom'], 0, 20, 15, 60,
+            ],
+            'heatmap-opacity': 0.7,
+          },
+        },
+        'cluster-dots',
+      )
+    }
+
+    // Pulse
+    startPulseAnimation()
+  }, [startPulseAnimation])
+
+  // ── Data loading (unchanged) ────────────────────────────────────────────
 
   const loadClusters = useCallback(async () => {
     const { data } = await supabase.current
@@ -277,10 +482,14 @@ export default function MapPage() {
       .subscribe()
   }, [updateMapSource])
 
-  // ── Effect 1: map init ─────────────────────────────────────────────────────
+  // ── Effect 1: map init ────────────────────────────────────────────────
 
   useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth < 640)
+    const checkMobile = () => {
+      const mobile = window.innerWidth < 640
+      setIsMobile(mobile)
+      setShowControls(!mobile)
+    }
     checkMobile()
     window.addEventListener('resize', checkMobile)
 
@@ -313,10 +522,37 @@ export default function MapPage() {
         'bottom-right'
       )
 
+      // Coordinates on mousemove
+      map.current.on('mousemove', (e: any) => {
+        setMouseCoords({
+          lat: e.lngLat.lat.toFixed(4),
+          lon: e.lngLat.lng.toFixed(4),
+        })
+      })
+
+      // Mobile: update coords on map move (no mousemove on touch)
+      map.current.on('moveend', () => {
+        if (!map.current) return
+        const center = map.current.getCenter()
+        setMouseCoords({
+          lat: center.lat.toFixed(4),
+          lon: center.lng.toFixed(4),
+        })
+      })
+
+      // Re-add custom layers after any style change
+      map.current.on('style.load', () => {
+        updateMapSource(clustersRef.current)
+        attachMapHandlers()
+        reAddOptionalLayers()
+      })
+
       map.current.on('load', () => {
         setMapLoaded(true)
         loadClusters()
         setupRealtimeSubscription()
+        attachMapHandlers()
+        startPulseAnimation()
       })
     }
     document.head.appendChild(script)
@@ -326,14 +562,15 @@ export default function MapPage() {
     return () => {
       window.removeEventListener('resize', checkMobile)
       sb.removeAllChannels()
+      cancelAnimationFrame(pulseFrameRef.current)
       if (map.current) map.current.remove()
     }
-  }, [loadClusters, setupRealtimeSubscription])
+  }, [loadClusters, setupRealtimeSubscription, attachMapHandlers, reAddOptionalLayers, startPulseAnimation])
 
-  // ── Effect 2: filter ───────────────────────────────────────────────────────
+  // ── Effect 2: filter ──────────────────────────────────────────────────
 
   useEffect(() => {
-    if (!map.current || !map.current.getSource('clusters')) return
+    if (!map.current || !map.current.getSource('clusters-dots')) return
 
     const now = Date.now()
     const oneHour = 60 * 60 * 1000
@@ -351,14 +588,132 @@ export default function MapPage() {
     updateMapSource(filtered)
   }, [activeFilter, clusters, updateMapSource])
 
-  // ── Effect 3: reset panel state when selection changes ────────────────────
+  // ── Effect 3: reset panel state when selection changes ────────────────
 
   useEffect(() => {
     setShowFullReasoning(false)
     setShareLabel('Share this alert')
   }, [selectedCluster])
 
-  // ── Share handler ──────────────────────────────────────────────────────────
+  // ── Layer toggle handlers ─────────────────────────────────────────────
+
+  const toggleStrikeZones = useCallback((on: boolean) => {
+    setLayerStrikeZones(on)
+    if (!map.current) return
+    const vis = on ? 'visible' : 'none'
+    if (map.current.getLayer('cluster-radius'))
+      map.current.setLayoutProperty('cluster-radius', 'visibility', vis)
+    if (map.current.getLayer('cluster-radius-outline'))
+      map.current.setLayoutProperty('cluster-radius-outline', 'visibility', vis)
+    if (map.current.getLayer('cluster-dots'))
+      map.current.setLayoutProperty('cluster-dots', 'visibility', vis)
+    if (map.current.getLayer('cluster-pulse'))
+      map.current.setLayoutProperty('cluster-pulse', 'visibility', vis)
+  }, [])
+
+  const toggleLabels = useCallback((on: boolean) => {
+    setLayerLabels(on)
+    if (!map.current) return
+    if (on) {
+      if (!map.current.getLayer('cluster-labels')) {
+        map.current.addLayer({
+          id: 'cluster-labels',
+          type: 'symbol',
+          source: 'clusters-dots',
+          layout: {
+            'text-field': ['get', 'location_name'],
+            'text-size': 11,
+            'text-offset': [0, 1.5],
+            'text-anchor': 'top',
+            'text-max-width': 10,
+          },
+          paint: {
+            'text-color': '#ffffff',
+            'text-halo-color': 'rgba(0,0,0,0.8)',
+            'text-halo-width': 1.5,
+          },
+        })
+      }
+    } else {
+      if (map.current.getLayer('cluster-labels')) {
+        map.current.removeLayer('cluster-labels')
+      }
+    }
+  }, [])
+
+  const toggleHeatDensity = useCallback((on: boolean) => {
+    setLayerHeatDensity(on)
+    if (!map.current) return
+    if (on) {
+      if (!map.current.getLayer('strike-heat')) {
+        map.current.addLayer(
+          {
+            id: 'strike-heat',
+            type: 'heatmap',
+            source: 'clusters-dots',
+            maxzoom: 15,
+            paint: {
+              'heatmap-weight': [
+                'interpolate', ['linear'],
+                ['get', 'report_count'],
+                0, 0, 20, 1,
+              ],
+              'heatmap-intensity': [
+                'interpolate', ['linear'],
+                ['zoom'], 0, 1, 15, 3,
+              ],
+              'heatmap-color': [
+                'interpolate', ['linear'],
+                ['heatmap-density'],
+                0, 'rgba(0,0,0,0)',
+                0.2, 'rgba(239,68,68,0.3)',
+                0.5, 'rgba(239,68,68,0.6)',
+                0.8, 'rgba(239,68,68,0.85)',
+                1, 'rgba(255,255,255,1)',
+              ],
+              'heatmap-radius': [
+                'interpolate', ['linear'],
+                ['zoom'], 0, 20, 15, 60,
+              ],
+              'heatmap-opacity': 0.7,
+            },
+          },
+          'cluster-dots',
+        )
+      }
+    } else {
+      if (map.current.getLayer('strike-heat')) {
+        map.current.removeLayer('strike-heat')
+      }
+    }
+  }, [])
+
+  const changeStyle = useCallback((styleId: string) => {
+    if (!map.current) return
+    map.current.setStyle(styleId)
+    setMapStyle(styleId)
+  }, [])
+
+  const toggleRoads = useCallback((on: boolean) => {
+    if (on && mapStyle === 'mapbox://styles/mapbox/satellite-v9') {
+      changeStyle('mapbox://styles/mapbox/satellite-streets-v12')
+    } else if (!on && mapStyle === 'mapbox://styles/mapbox/satellite-streets-v12') {
+      changeStyle('mapbox://styles/mapbox/satellite-v9')
+    }
+  }, [mapStyle, changeStyle])
+
+  const toggleSatellite = useCallback(() => {
+    const styleMap: Record<string, string> = {
+      'mapbox://styles/mapbox/dark-v11': 'mapbox://styles/mapbox/satellite-v9',
+      'mapbox://styles/mapbox/streets-v12': 'mapbox://styles/mapbox/satellite-streets-v12',
+      'mapbox://styles/mapbox/satellite-v9': 'mapbox://styles/mapbox/dark-v11',
+      'mapbox://styles/mapbox/satellite-streets-v12': 'mapbox://styles/mapbox/streets-v12',
+    }
+    const target = styleMap[mapStyle]
+    if (target) changeStyle(target)
+  }, [mapStyle, changeStyle])
+
+  // ── Share handler ─────────────────────────────────────────────────────
 
   const handleShare = useCallback(async () => {
     const url = window.location.origin + '/map'
@@ -379,9 +734,17 @@ export default function MapPage() {
     }
   }, [])
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  // ── Derived values ────────────────────────────────────────────────────
 
   const recentCluster = clusters[0] ?? null
+  const isSatelliteStyle =
+    mapStyle === 'mapbox://styles/mapbox/satellite-v9' ||
+    mapStyle === 'mapbox://styles/mapbox/satellite-streets-v12'
+  const roadsDisabled = !isSatelliteStyle
+  const roadsOn = mapStyle === 'mapbox://styles/mapbox/satellite-streets-v12'
+  const satelliteOn = isSatelliteStyle
+
+  // ── Render ────────────────────────────────────────────────────────────
 
   return (
     <div
@@ -405,7 +768,7 @@ export default function MapPage() {
       {/* Map container */}
       <div ref={mapContainer} style={{ position: 'absolute', inset: 0 }} />
 
-      {/* Loading overlay — fades out once map is ready */}
+      {/* Loading overlay */}
       <div
         style={{
           position: 'absolute',
@@ -516,6 +879,363 @@ export default function MapPage() {
         </a>
       </div>
 
+      {/* ── Mobile controls toggle button ──────────────────────────────── */}
+      {isMobile && (
+        <button
+          type="button"
+          onClick={() => setShowControls((v) => !v)}
+          aria-label="Toggle map controls"
+          style={{
+            position: 'absolute',
+            top: 56,
+            right: 12,
+            width: 36,
+            height: 36,
+            borderRadius: 8,
+            background: 'rgba(10,10,15,0.9)',
+            border: '0.5px solid rgba(255,255,255,0.15)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            zIndex: 6,
+          }}
+        >
+          {/* Layers icon — 3 stacked bars */}
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <rect x="0" y="1" width="14" height="2" rx="1" fill="white" />
+            <rect x="0" y="6" width="14" height="2" rx="1" fill="white" />
+            <rect x="0" y="11" width="14" height="2" rx="1" fill="white" />
+          </svg>
+        </button>
+      )}
+
+      {/* ── PART 1: Style switcher ─────────────────────────────────────── */}
+      {(showControls || !isMobile) && (
+        <div
+          style={{
+            position: 'absolute',
+            top: isMobile ? 100 : 56,
+            right: 12,
+            background: 'rgba(10,10,15,0.9)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            borderRadius: 12,
+            border: '0.5px solid rgba(255,255,255,0.1)',
+            padding: 10,
+            zIndex: 5,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 10,
+              color: 'rgba(255,255,255,0.5)',
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              marginBottom: 8,
+            }}
+          >
+            Map style
+          </div>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: 6,
+            }}
+          >
+            {MAP_STYLES.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => changeStyle(s.id)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  padding: 0,
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                }}
+              >
+                <div
+                  style={{
+                    width: 64,
+                    height: 64,
+                    borderRadius: 8,
+                    background: s.color,
+                    border:
+                      mapStyle === s.id
+                        ? '2px solid #ef4444'
+                        : '1px solid rgba(255,255,255,0.2)',
+                    boxSizing: 'border-box',
+                  }}
+                />
+                <div
+                  style={{
+                    fontSize: 10,
+                    color: '#ffffff',
+                    marginTop: 4,
+                  }}
+                >
+                  {s.label}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── PART 2: Layer controls ─────────────────────────────────────── */}
+      {(showControls || !isMobile) && (
+        <div
+          style={{
+            position: 'absolute',
+            top: isMobile ? 100 + 170 + 8 : 56 + 170 + 8,
+            right: 12,
+            background: 'rgba(10,10,15,0.9)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            borderRadius: 12,
+            border: '0.5px solid rgba(255,255,255,0.1)',
+            padding: 10,
+            zIndex: 5,
+            width: 158,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 10,
+              color: 'rgba(255,255,255,0.5)',
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              marginBottom: 8,
+            }}
+          >
+            Layers
+          </div>
+
+          {/* Layer rows */}
+          {[
+            {
+              dot: '#ef4444',
+              label: 'Strike zones',
+              on: layerStrikeZones,
+              toggle: toggleStrikeZones,
+              disabled: false,
+            },
+            {
+              dot: '#f97316',
+              label: 'Labels',
+              on: layerLabels,
+              toggle: toggleLabels,
+              disabled: false,
+            },
+            {
+              dot: '#3b82f6',
+              label: 'Roads',
+              on: roadsOn,
+              toggle: toggleRoads,
+              disabled: roadsDisabled,
+            },
+            {
+              dot: '#22c55e',
+              label: 'Satellite',
+              on: satelliteOn,
+              toggle: toggleSatellite,
+              disabled: false,
+            },
+            {
+              dot: '#a855f7',
+              label: 'Density heat',
+              on: layerHeatDensity,
+              toggle: toggleHeatDensity,
+              disabled: false,
+            },
+          ].map((layer) => (
+            <div
+              key={layer.label}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                marginBottom: 8,
+                opacity: layer.disabled ? 0.35 : 1,
+              }}
+            >
+              {/* Dot */}
+              <span
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  background: layer.dot,
+                  flexShrink: 0,
+                }}
+              />
+              {/* Label */}
+              <span
+                style={{
+                  flex: 1,
+                  fontSize: 13,
+                  color: '#ffffff',
+                }}
+              >
+                {layer.label}
+              </span>
+              {/* iOS toggle */}
+              <button
+                type="button"
+                disabled={layer.disabled}
+                onClick={() => {
+                  if (layer.label === 'Satellite') {
+                    toggleSatellite()
+                  } else {
+                    layer.toggle(!layer.on)
+                  }
+                }}
+                style={{
+                  position: 'relative',
+                  width: 28,
+                  height: 16,
+                  borderRadius: 8,
+                  background: layer.on ? '#ef4444' : '#374151',
+                  border: 'none',
+                  cursor: layer.disabled ? 'not-allowed' : 'pointer',
+                  flexShrink: 0,
+                  padding: 0,
+                  transition: 'background 0.2s',
+                }}
+              >
+                <span
+                  style={{
+                    position: 'absolute',
+                    top: 2,
+                    left: layer.on ? 14 : 2,
+                    width: 12,
+                    height: 12,
+                    borderRadius: '50%',
+                    background: '#ffffff',
+                    transition: 'left 0.2s',
+                  }}
+                />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── PART 3: Coordinates display ────────────────────────────────── */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: 8,
+          left: 8,
+          background: 'rgba(10,10,15,0.7)',
+          borderRadius: 6,
+          padding: '4px 10px',
+          fontSize: 11,
+          color: 'rgba(255,255,255,0.5)',
+          zIndex: 5,
+          fontFamily: 'monospace',
+        }}
+      >
+        {mouseCoords.lat}° N {'  '} {mouseCoords.lon}° E
+      </div>
+
+      {/* ── PART 5: Mini legend ────────────────────────────────────────── */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: 32,
+          right: 8,
+          background: 'rgba(10,10,15,0.85)',
+          backdropFilter: 'blur(8px)',
+          WebkitBackdropFilter: 'blur(8px)',
+          borderRadius: 8,
+          padding: '8px 12px',
+          zIndex: 5,
+        }}
+      >
+        <div
+          style={{
+            fontSize: 10,
+            color: 'rgba(255,255,255,0.5)',
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            marginBottom: 6,
+          }}
+        >
+          Strike confidence
+        </div>
+        {/* Confirmed 85+ */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            fontSize: 11,
+            color: 'rgba(255,255,255,0.7)',
+            marginBottom: 5,
+          }}
+        >
+          <span
+            style={{
+              width: 20,
+              height: 2.5,
+              background: '#22c55e',
+              borderRadius: 2,
+              flexShrink: 0,
+            }}
+          />
+          Confirmed 85+
+        </div>
+        {/* Probable 50–84 */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            fontSize: 11,
+            color: 'rgba(255,255,255,0.7)',
+            marginBottom: 5,
+          }}
+        >
+          <span
+            style={{
+              width: 20,
+              height: 1.5,
+              background: '#22c55e',
+              borderRadius: 2,
+              flexShrink: 0,
+            }}
+          />
+          Probable 50–84
+        </div>
+        {/* Auto-confirmed */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            fontSize: 11,
+            color: 'rgba(255,255,255,0.7)',
+          }}
+        >
+          <span
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: '50%',
+              background: '#f97316',
+              flexShrink: 0,
+              marginLeft: 6,
+              marginRight: 6,
+            }}
+          />
+          Auto-confirmed
+        </div>
+      </div>
+
       {/* Filter bar */}
       <div
         style={{
@@ -586,7 +1306,7 @@ export default function MapPage() {
                   borderTop: '0.5px solid rgba(255,255,255,0.08)',
                   padding: '20px 16px',
                   zIndex: 6,
-                  boxSizing: 'border-box',
+                  boxSizing: 'border-box' as const,
                 }
               : {
                   position: 'absolute',
@@ -601,7 +1321,7 @@ export default function MapPage() {
                   borderLeft: '0.5px solid rgba(255,255,255,0.08)',
                   padding: '20px 16px',
                   zIndex: 6,
-                  boxSizing: 'border-box',
+                  boxSizing: 'border-box' as const,
                 }
           }
         >

@@ -78,7 +78,7 @@ export async function GET(
     )
   }
 
-  if (cluster.status === 'auto_confirmed') {
+  if (cluster.status === 'confirmed' || cluster.status === 'auto_confirmed') {
     return new Response(
       buildHtml(
         '#450a0a', '#fca5a5',
