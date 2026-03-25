@@ -774,8 +774,8 @@ export default function MapPage() {
       map.current = new window.mapboxgl.Map({
         container: mapContainer.current,
         style: 'mapbox://styles/mapbox/dark-v11',
-        center: [35.5018, 33.8938],
-        zoom: 12,
+        center: [35.86, 33.87],
+        zoom: 8,
         attributionControl: false,
       })
 
@@ -1250,7 +1250,7 @@ export default function MapPage() {
         <div
           style={{
             position: 'absolute',
-            top: isMobile ? 100 : 56,
+            top: isMobile ? 100 : (showBanner ? 56 + 38 + 8 : 56 + 8),
             right: 12,
             background: 'rgba(10,10,15,0.9)',
             backdropFilter: 'blur(12px)',
@@ -1259,6 +1259,7 @@ export default function MapPage() {
             border: '0.5px solid rgba(255,255,255,0.1)',
             padding: 10,
             zIndex: 5,
+            transition: 'top 0.3s',
           }}
         >
           <div
@@ -1325,7 +1326,7 @@ export default function MapPage() {
         <div
           style={{
             position: 'absolute',
-            top: isMobile ? 100 + 170 + 8 : 56 + 170 + 8,
+            top: isMobile ? 100 + 212 + 12 : (showBanner ? 56 + 38 + 8 + 212 + 12 : 56 + 8 + 212 + 12),
             right: 12,
             background: 'rgba(10,10,15,0.9)',
             backdropFilter: 'blur(12px)',
@@ -1481,7 +1482,7 @@ export default function MapPage() {
       <div
         style={{
           position: 'absolute',
-          bottom: 32,
+          bottom: 96,
           right: 8,
           background: 'rgba(10,10,15,0.85)',
           backdropFilter: 'blur(8px)',
