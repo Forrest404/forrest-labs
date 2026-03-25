@@ -26,7 +26,7 @@ function clientIp(req: NextRequest): string {
 
 const rateLimitStore = new Map<string, { count: number; resetAt: number }>()
 
-const RATE_LIMIT = 5
+const RATE_LIMIT = 1
 const RATE_WINDOW_MS = 10 * 60 * 1000 // 10 minutes
 
 // ── validation ────────────────────────────────────────────────────────────────

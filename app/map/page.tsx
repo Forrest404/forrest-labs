@@ -603,7 +603,6 @@ export default function MapPage() {
           event: '*',
           schema: 'public',
           table: 'clusters',
-          filter: 'status=in.(confirmed,auto_confirmed)',
         },
         (payload: RealtimePostgresChangesPayload<Cluster>) => {
           if (
@@ -611,6 +610,7 @@ export default function MapPage() {
             payload.eventType === 'UPDATE'
           ) {
             const newCluster = payload.new as Cluster
+            if (newCluster.status !== 'confirmed' && newCluster.status !== 'auto_confirmed') return
             setClusters((prev) => {
               const exists = prev.find((c) => c.id === newCluster.id)
               const updated = exists
@@ -633,11 +633,11 @@ export default function MapPage() {
           event: '*',
           schema: 'public',
           table: 'warning_clusters',
-          filter: 'status=in.(active,all_clear)',
         },
         (payload: RealtimePostgresChangesPayload<WarningCluster>) => {
           if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
             const newWarning = payload.new as WarningCluster
+            if (newWarning.status !== 'active' && newWarning.status !== 'all_clear' && newWarning.status !== 'strike_confirmed') return
             setWarningClusters((prev) => {
               const exists = prev.find((w) => w.id === newWarning.id)
               const updated = exists
