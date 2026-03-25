@@ -98,6 +98,18 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (typeof lat !== 'number' || typeof lon !== 'number') {
     return NextResponse.json({ error: 'lat and lon must be numbers' }, { status: 400 })
   }
+  if (lat < -90 || lat > 90) {
+    return NextResponse.json(
+      { error: 'lat must be between -90 and 90' },
+      { status: 400 },
+    )
+  }
+  if (lon < -180 || lon > 180) {
+    return NextResponse.json(
+      { error: 'lon must be between -180 and 180' },
+      { status: 400 },
+    )
+  }
   if (!isDistanceBand(distance_band)) {
     return NextResponse.json({ error: 'Invalid distance_band' }, { status: 400 })
   }

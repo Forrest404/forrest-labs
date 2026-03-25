@@ -315,7 +315,7 @@ Return a JSON object with exactly these fields:
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
+      model: 'claude-sonnet-4-20250514',
       max_tokens: 300,
       system: `You are a humanitarian analyst reviewing civilian incident reports from a conflict zone. Be concise and factual. Return only valid JSON with no markdown formatting, no code blocks, no preamble.`,
       messages: [{ role: 'user', content: prompt }],
@@ -378,6 +378,8 @@ async function sendPushNotification(
   concerns: string[],
   status: string,
 ): Promise<void> {
+  if (!NTFY_CHANNEL || !REVIEW_SECRET || !APP_URL) return
+
   const isAuto = status === 'auto_confirmed'
 
   const location = `${centroidLat.toFixed(3)}, ${centroidLon.toFixed(3)}`
