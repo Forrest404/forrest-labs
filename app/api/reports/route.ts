@@ -19,6 +19,16 @@ function clientIp(req: NextRequest): string {
   )
 }
 
+// ── rate limiting ─────────────────────────────────────────────────────────────
+// NOTE: in-memory rate limiting resets on cold start and does not coordinate
+// across Vercel function instances. This is acceptable for MVP. For production,
+// replace with Redis (e.g. Upstash) using the same ip_hash as the key.
+
+const rateLimitStore = new Map<string, { count: number; resetAt: number }>()
+
+const RATE_LIMIT = 5
+const RATE_WINDOW_MS = 10 * 60 * 1000 // 10 minutes
+
 // ── validation ────────────────────────────────────────────────────────────────
 
 const DISTANCE_BANDS = ['under_500m', '500m_1km', '1km_3km', 'over_3km'] as const
@@ -53,6 +63,29 @@ function isEventTypeArray(v: unknown): v is EventType[] {
 // ── handler ───────────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
+  // Hash IP immediately — never use or store raw IP address
+  const ip_hash = await sha256hex(clientIp(req))
+
+  // Rate limit check (uses hashed IP, not raw)
+  const now = Date.now()
+  const existing = rateLimitStore.get(ip_hash)
+
+  if (existing) {
+    if (now < existing.resetAt) {
+      if (existing.count >= RATE_LIMIT) {
+        return NextResponse.json(
+          { error: 'Too many reports. Please wait before submitting again.' },
+          { status: 429 },
+        )
+      }
+      existing.count++
+    } else {
+      rateLimitStore.set(ip_hash, { count: 1, resetAt: now + RATE_WINDOW_MS })
+    }
+  } else {
+    rateLimitStore.set(ip_hash, { count: 1, resetAt: now + RATE_WINDOW_MS })
+  }
+
   let body: unknown
   try {
     body = await req.json()
@@ -75,11 +108,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'session_id is required' }, { status: 400 })
   }
 
-  // Hash both identifiers before any storage — never persist raw values
-  const [session_hash, ip_hash] = await Promise.all([
-    sha256hex(session_id),
-    sha256hex(clientIp(req)),
-  ])
+  // Hash session_id before storage — never persist raw values
+  const session_hash = await sha256hex(session_id)
 
   const supabase = createServiceClient()
   const { data, error } = await supabase

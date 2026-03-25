@@ -63,7 +63,7 @@ export async function GET(
   // Check cluster exists and is in a reviewable state
   const { data: cluster, error: fetchError } = await supabase
     .from('clusters')
-    .select('id, status, display_radius_metres')
+    .select('id, status, display_radius_metres, centroid_lat, centroid_lon')
     .eq('id', id)
     .single()
 
@@ -122,6 +122,12 @@ export async function GET(
     )
   }
 
+  // Reverse-geocode the cluster centroid for a human-readable location name
+  const locationName = await getLocationName(
+    cluster.centroid_lat,
+    cluster.centroid_lon,
+  )
+
   // Create alert record
   await supabase
     .from('alerts')
@@ -130,9 +136,16 @@ export async function GET(
         cluster_id: id,
         confirmed_by: 'founder',
         radius_metres: cluster.display_radius_metres,
+        location_name: locationName,
       },
       { onConflict: 'cluster_id', ignoreDuplicates: true },
     )
+
+  // Store location name on the cluster too (non-fatal)
+  await supabase
+    .from('clusters')
+    .update({ location_name: locationName })
+    .eq('id', id)
 
   // Replace the ntfy notification with a confirmed status
   const ntfyChannel = process.env.NTFY_CHANNEL
@@ -157,6 +170,20 @@ export async function GET(
     ),
     { status: 200, headers: { 'Content-Type': 'text/html' } },
   )
+}
+
+async function getLocationName(lat: number, lon: number): Promise<string> {
+  try {
+    const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
+    const url =
+      `https://api.mapbox.com/geocoding/v5/mapbox.places/${lon},${lat}.json` +
+      `?access_token=${token}&types=neighborhood,locality,place&limit=1`
+    const res = await fetch(url)
+    const data = await res.json() as { features: { place_name: string }[] }
+    return data.features?.[0]?.place_name ?? `${lat.toFixed(3)}, ${lon.toFixed(3)}`
+  } catch {
+    return `${lat.toFixed(3)}, ${lon.toFixed(3)}`
+  }
 }
 
 function buildHtml(

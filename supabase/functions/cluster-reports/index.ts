@@ -315,7 +315,7 @@ Return a JSON object with exactly these fields:
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 300,
       system: `You are a humanitarian analyst reviewing civilian incident reports from a conflict zone. Be concise and factual. Return only valid JSON with no markdown formatting, no code blocks, no preamble.`,
       messages: [{ role: 'user', content: prompt }],
@@ -323,7 +323,9 @@ Return a JSON object with exactly these fields:
   })
 
   if (!response.ok) {
-    throw new Error(`Anthropic API error: ${response.status}`)
+    const errorBody = await response.text()
+    console.error('Anthropic API error body:', errorBody)
+    throw new Error(`Anthropic API error: ${response.status} ${errorBody}`)
   }
 
   const data = await response.json()
@@ -382,11 +384,11 @@ async function sendPushNotification(
   const types = dominantTypes.join(' · ').replace(/_/g, ' ')
 
   const body = isAuto
-    ? `AUTO-CONFIRMED\n${location}\n${reportCount} reports · Score ${confidenceScore}/100\n${types}`
-    : `REVIEW NEEDED\n${location}\n${reportCount} reports · Score ${confidenceScore}/100\n${types}${reasoning ? '\n\nAI: ' + reasoning : ''}${concerns.length > 0 ? '\n\nConcerns:\n' + concerns.map((c) => '• ' + c).join('\n') : ''}`
+    ? `AUTO-CONFIRMED\n${location}\n${reportCount} reports | Score ${confidenceScore}/100\n${types}`
+    : `REVIEW NEEDED\n${location}\n${reportCount} reports | Score ${confidenceScore}/100\n${types}${reasoning ? '\n\nAI: ' + reasoning : ''}${concerns.length > 0 ? '\n\nConcerns:\n' + concerns.map((c) => '- ' + c).join('\n') : ''}`
 
   const headers: Record<string, string> = {
-    'Title': isAuto ? 'Forrest Labs — Auto-confirmed' : 'Forrest Labs — Review needed',
+    'Title': isAuto ? 'Forrest Labs - Auto-confirmed' : 'Forrest Labs - Review needed',
     'Priority': isAuto ? 'default' : 'high',
     'Tags': isAuto ? 'white_check_mark' : 'warning',
     'Content-Type': 'text/plain',
@@ -487,7 +489,7 @@ Deno.serve(async (_req) => {
       // 4. Determine initial status from calculated score
       let status: string
       if (scores.confidence_score >= 85) status = 'auto_confirmed'
-      else if (scores.confidence_score >= 50) status = 'pending_review'
+      else if (scores.confidence_score >= 30) status = 'pending_review'
       else status = 'discarded'
 
       // 4b. AI analysis for non-discarded clusters
@@ -535,12 +537,12 @@ Deno.serve(async (_req) => {
           ai_reasoning = aiResult.reasoning
           ai_concerns = aiResult.concerns
 
-          // Claude can override to discard; otherwise re-threshold the adjusted score
-          if (aiResult.recommendation === 'discard') {
-            final_status = 'discarded'
-          } else if (final_confidence >= 85) {
+          // Re-threshold based on adjusted score.
+          // Claude can only discard if the adjusted score also falls below 30 —
+          // the founder always has final say on borderline clusters.
+          if (final_confidence >= 85) {
             final_status = 'auto_confirmed'
-          } else if (final_confidence >= 50) {
+          } else if (final_confidence >= 30) {
             final_status = 'pending_review'
           } else {
             final_status = 'discarded'

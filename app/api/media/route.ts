@@ -25,10 +25,15 @@ export async function POST(request: NextRequest) {
 
     const allowedTypes = [
       'image/jpeg', 'image/jpg', 'image/png',
-      'image/webp', 'video/mp4', 'video/quicktime',
-      'video/webm',
+      'image/webp', 'image/heic', 'image/heif',
+      'video/mp4', 'video/quicktime', 'video/webm',
+      'video/3gpp', 'video/x-m4v', 'video/avi',
+      'video/x-matroska',
     ]
-    if (!allowedTypes.includes(file.type)) {
+    // Some browsers/OS report HEIC as application/octet-stream — allow by extension
+    const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
+    const heicExts = ['heic', 'heif']
+    if (!allowedTypes.includes(file.type) && !heicExts.includes(ext)) {
       return NextResponse.json(
         { error: 'Unsupported file type' },
         { status: 415 }
