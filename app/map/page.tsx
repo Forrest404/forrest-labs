@@ -1287,7 +1287,7 @@ export default function MapPage() {
           aria-label="Toggle map controls"
           style={{
             position: 'absolute',
-            top: 56,
+            top: showBanner ? 94 : 56,
             right: 12,
             width: 36,
             height: 36,
@@ -1299,6 +1299,7 @@ export default function MapPage() {
             justifyContent: 'center',
             cursor: 'pointer',
             zIndex: 6,
+            transition: 'top 0.3s',
           }}
         >
           {/* Layers icon — 3 stacked bars */}
@@ -1315,7 +1316,7 @@ export default function MapPage() {
         <div
           style={{
             position: 'absolute',
-            top: isMobile ? 100 : (showBanner ? 56 + 38 + 8 : 56 + 8),
+            top: isMobile ? (showBanner ? 138 : 100) : (showBanner ? 56 + 38 + 8 : 56 + 8),
             right: 12,
             background: 'rgba(10,10,15,0.9)',
             backdropFilter: 'blur(12px)',
@@ -1442,7 +1443,7 @@ export default function MapPage() {
         <div
           style={{
             position: 'absolute',
-            top: isMobile ? 100 + 212 + 12 : (showBanner ? 56 + 38 + 8 + 212 + 12 : 56 + 8 + 212 + 12),
+            top: isMobile ? (showBanner ? 138 + 268 + 12 : 100 + 268 + 12) : (showBanner ? 56 + 38 + 8 + 268 + 12 : 56 + 8 + 268 + 12),
             right: 12,
             background: 'rgba(10,10,15,0.9)',
             backdropFilter: 'blur(12px)',
