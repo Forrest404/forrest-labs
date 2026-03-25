@@ -20,4 +20,4 @@ COPY . .
 
 EXPOSE $PORT
 
-CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-8000} --workers 2 --timeout 180 --log-level info main:app"]
+CMD ["sh", "-c", "python -c 'import cv2; import deface; print(\"imports ok\")' && gunicorn --bind 0.0.0.0:${PORT:-8000} --workers 2 --timeout 180 --log-level info main:app"]
