@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'crypto'
 import { createServiceClient } from '@/lib/supabase/service'
 import { NextRequest } from 'next/server'
 
@@ -10,8 +11,29 @@ export async function GET(
   const key = searchParams.get('key')
   const reviewSecret = process.env.REVIEW_SECRET_KEY
 
-  // Validate secret key
-  if (!key || !reviewSecret || key !== reviewSecret) {
+  // Validate secret key (timing-safe comparison)
+  if (!key || !reviewSecret) {
+    return new Response(
+      buildHtml(
+        '#450a0a', '#fca5a5',
+        '✗ Unauthorised',
+        'Invalid or missing review key.',
+      ),
+      { status: 401, headers: { 'Content-Type': 'text/html' } },
+    )
+  }
+  try {
+    if (!timingSafeEqual(Buffer.from(key), Buffer.from(reviewSecret))) {
+      return new Response(
+        buildHtml(
+          '#450a0a', '#fca5a5',
+          '✗ Unauthorised',
+          'Invalid or missing review key.',
+        ),
+        { status: 401, headers: { 'Content-Type': 'text/html' } },
+      )
+    }
+  } catch {
     return new Response(
       buildHtml(
         '#450a0a', '#fca5a5',
@@ -22,7 +44,7 @@ export async function GET(
     )
   }
 
-  // Validate cluster ID format (basic UUID check)
+  // Validate cluster ID format (full UUID check)
   const uuidRegex =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   if (!uuidRegex.test(id)) {
@@ -56,7 +78,7 @@ export async function GET(
     )
   }
 
-  if (cluster.status === 'confirmed') {
+  if (cluster.status === 'auto_confirmed') {
     return new Response(
       buildHtml(
         '#450a0a', '#fca5a5',
@@ -67,7 +89,7 @@ export async function GET(
     )
   }
 
-  if (cluster.status === 'rejected') {
+  if (cluster.status === 'discarded') {
     return new Response(
       buildHtml(
         '#450a0a', '#fca5a5',
@@ -82,13 +104,14 @@ export async function GET(
   const { error: updateError } = await supabase
     .from('clusters')
     .update({
-      status: 'rejected',
+      status: 'discarded',
       reviewed_by: 'founder',
       reviewed_at: new Date().toISOString(),
     })
     .eq('id', id)
 
   if (updateError) {
+    console.error('Failed to reject cluster:', updateError.message)
     return new Response(
       buildHtml(
         '#450a0a', '#fca5a5',
@@ -137,19 +160,19 @@ function buildHtml(
   flex-direction: column;
   gap: 12px;
 ">
-  <p style="font-size: 12px; letter-spacing: 0.2em; opacity: 0.6; margin: 0;">
+  <p style="font-size: 16px; letter-spacing: 0.2em; opacity: 0.6; margin: 0;">
     FORREST LABS
   </p>
   <h1 style="font-size: 28px; font-weight: 600; margin: 0;">
     ${heading}
   </h1>
-  <p style="font-size: 15px; opacity: 0.8; margin: 0; max-width: 300px; line-height: 1.6;">
+  <p style="font-size: 16px; opacity: 0.8; margin: 0; max-width: 300px; line-height: 1.6;">
     ${message}
   </p>
   <a href="/map" style="
     margin-top: 20px;
     color: ${textColor};
-    font-size: 14px;
+    font-size: 16px;
     text-decoration: none;
     border: 1px solid ${textColor};
     padding: 10px 20px;

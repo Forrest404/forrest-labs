@@ -91,6 +91,20 @@ export async function POST(request: NextRequest) {
         body: workerFormData,
         signal: controller.signal,
       })
+    } catch (fetchError) {
+      clearTimeout(timeoutId)
+      if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+        // Mark the report so the clustering algorithm doesn't count it as processing
+        await supabase
+          .from('reports')
+          .update({ media_status: 'rejected' })
+          .eq('id', reportId)
+        return NextResponse.json(
+          { error: 'Media processing timed out' },
+          { status: 504 }
+        )
+      }
+      throw fetchError
     } finally {
       clearTimeout(timeoutId)
     }
@@ -118,14 +132,6 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Media API error:', error)
-
-    if (error instanceof Error && error.name === 'AbortError') {
-      return NextResponse.json(
-        { error: 'Media processing timed out' },
-        { status: 504 }
-      )
-    }
-
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

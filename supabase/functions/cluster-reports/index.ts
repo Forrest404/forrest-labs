@@ -327,6 +327,9 @@ Return a JSON object with exactly these fields:
   }
 
   const data = await response.json()
+  if (!data.content?.[0]?.text) {
+    throw new Error('Unexpected Anthropic response shape')
+  }
   const text = (data.content[0].text as string).trim()
 
   // Strip any accidental markdown code blocks
@@ -375,11 +378,6 @@ async function sendPushNotification(
 ): Promise<void> {
   const isAuto = status === 'auto_confirmed'
 
-  const approveUrl =
-    `${APP_URL}/api/clusters/${clusterId}/approve?key=${REVIEW_SECRET}`
-  const rejectUrl =
-    `${APP_URL}/api/clusters/${clusterId}/reject?key=${REVIEW_SECRET}`
-
   const location = `${centroidLat.toFixed(3)}, ${centroidLon.toFixed(3)}`
   const types = dominantTypes.join(' · ').replace(/_/g, ' ')
 
@@ -395,6 +393,10 @@ async function sendPushNotification(
   }
 
   if (!isAuto) {
+    const approveUrl =
+      `${APP_URL}/api/clusters/${clusterId}/approve?key=${REVIEW_SECRET}`
+    const rejectUrl =
+      `${APP_URL}/api/clusters/${clusterId}/reject?key=${REVIEW_SECRET}`
     headers['Actions'] =
       `view, Approve, ${approveUrl}, clear=true; ` +
       `view, Reject, ${rejectUrl}, clear=true`

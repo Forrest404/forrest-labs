@@ -121,7 +121,7 @@ export default function ReportPage() {
   // Step 5 — Submission
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
-  const [submittedReportId, setSubmittedReportId] = useState<string | null>(null)
+  const [_submittedReportId, setSubmittedReportId] = useState<string | null>(null)
   const [mediaUploading, setMediaUploading] = useState(false)
   const [mediaUploadComplete, setMediaUploadComplete] = useState(false)
 
@@ -138,7 +138,6 @@ export default function ReportPage() {
       if (elapsed < TEN_MINUTES) {
         const minsLeft = Math.ceil((TEN_MINUTES - elapsed) / 60000)
         const minsAgo = Math.floor(elapsed / 60000)
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setRateLimitMinutesLeft(minsLeft)
         setRateLimitMinutesAgo(minsAgo)
         setTimeout(() => {
@@ -154,7 +153,6 @@ export default function ReportPage() {
   // ── GPS on mount ────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!navigator.geolocation) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setGpsStatus('error')
       return
     }
@@ -301,6 +299,7 @@ export default function ReportPage() {
     } finally {
       setSubmitting(false)
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lat, lon, distanceBand, eventTypes, mediaFile])
 
   const uploadMedia = useCallback(async (file: File, reportId: string): Promise<void> => {
@@ -308,11 +307,20 @@ export default function ReportPage() {
     formData.append('file', file)
     formData.append('report_id', reportId)
 
-    const response = await fetch('/api/media', {
-      method: 'POST',
-      body: formData,
-      // No Content-Type header — browser sets multipart/form-data + boundary automatically
-    })
+    const uploadController = new AbortController()
+    const uploadTimeoutId = setTimeout(() => uploadController.abort(), 200000)
+
+    let response: Response
+    try {
+      response = await fetch('/api/media', {
+        method: 'POST',
+        body: formData,
+        signal: uploadController.signal,
+        // No Content-Type header — browser sets multipart/form-data + boundary automatically
+      })
+    } finally {
+      clearTimeout(uploadTimeoutId)
+    }
 
     if (!response.ok) {
       throw new Error('Media upload failed')
@@ -551,12 +559,12 @@ export default function ReportPage() {
             </p>
 
             {mediaUploading && (
-              <p style={{ fontSize: 13, color: '#6b7280', marginTop: 12, marginBottom: 0 }}>
+              <p style={{ fontSize: 16, color: '#6b7280', marginTop: 12, marginBottom: 0 }}>
                 Your photo or video is being reviewed.
               </p>
             )}
             {mediaUploadComplete && (
-              <p style={{ fontSize: 13, color: '#6b7280', marginTop: 12, marginBottom: 0 }}>
+              <p style={{ fontSize: 16, color: '#6b7280', marginTop: 12, marginBottom: 0 }}>
                 Your photo or video has been submitted for review.
               </p>
             )}
