@@ -121,8 +121,8 @@ export default function ReportPage() {
   // Step 5 — Submission
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
-  const [submittedReportId, setSubmittedReportId] = useState<string | null>(null)
-  const [mediaUploading, setMediaUploading] = useState(false)
+  const [_submittedReportId, setSubmittedReportId] = useState<string | null>(null)
+  const [_mediaUploading, setMediaUploading] = useState(false)
 
   // Success screen
   const [shareButtonText, setShareButtonText] = useState('Share this page')
@@ -137,6 +137,7 @@ export default function ReportPage() {
       if (elapsed < TEN_MINUTES) {
         const minsLeft = Math.ceil((TEN_MINUTES - elapsed) / 60000)
         const minsAgo = Math.floor(elapsed / 60000)
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setRateLimitMinutesLeft(minsLeft)
         setRateLimitMinutesAgo(minsAgo)
         setTimeout(() => {
@@ -152,6 +153,7 @@ export default function ReportPage() {
   // ── GPS on mount ────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!navigator.geolocation) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setGpsStatus('error')
       return
     }
@@ -502,7 +504,7 @@ export default function ReportPage() {
             {mediaFile && (
               <p
                 style={{
-                  fontSize: 13,
+                  fontSize: 16,
                   color: '#6b7280',
                   marginTop: 12,
                   marginBottom: 0,
@@ -591,7 +593,7 @@ export default function ReportPage() {
               <span
                 style={{
                   color: '#ef4444',
-                  fontSize: 11,
+                  fontSize: 16,
                   letterSpacing: '0.2em',
                   fontWeight: 500,
                   textTransform: 'uppercase',
@@ -603,7 +605,7 @@ export default function ReportPage() {
                 href="/map"
                 style={{
                   color: '#9ca3af',
-                  fontSize: 14,
+                  fontSize: 16,
                   textDecoration: 'none',
                 }}
               >
@@ -693,7 +695,7 @@ export default function ReportPage() {
                         {locationName}
                       </span>
                     </div>
-                    <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>
+                    <p style={{ fontSize: 16, color: '#6b7280', margin: 0 }}>
                       Approximate only. Your identity is never stored.
                     </p>
                   </div>
@@ -701,7 +703,7 @@ export default function ReportPage() {
 
                 {(gpsStatus === 'denied' || gpsStatus === 'error') && (
                   <div style={{ marginBottom: 20 }}>
-                    <p style={{ fontSize: 14, color: '#ef4444', marginBottom: 12, marginTop: 0 }}>
+                    <p style={{ fontSize: 16, color: '#ef4444', marginBottom: 12, marginTop: 0 }}>
                       Location access denied.
                     </p>
                     <input
@@ -803,7 +805,7 @@ export default function ReportPage() {
                         </svg>
                         <span
                           style={{
-                            fontSize: 14,
+                            fontSize: 16,
                             fontWeight: 500,
                             color: '#ffffff',
                             marginTop: 8,
@@ -814,7 +816,7 @@ export default function ReportPage() {
                         </span>
                         <span
                           style={{
-                            fontSize: 12,
+                            fontSize: 16,
                             color: '#9ca3af',
                             marginTop: 2,
                             textAlign: 'center',
@@ -966,7 +968,7 @@ export default function ReportPage() {
                       color: '#a5b4fc',
                       borderRadius: 20,
                       padding: '3px 10px',
-                      fontSize: 11,
+                      fontSize: 16,
                     }}
                   >
                     Optional — helps verification
@@ -1010,10 +1012,10 @@ export default function ReportPage() {
                       <polyline points="8,8 12,4 16,8" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                       <line x1="4" y1="20" x2="20" y2="20" stroke="#6b7280" strokeWidth="2" strokeLinecap="round" />
                     </svg>
-                    <span style={{ fontSize: 14, color: '#9ca3af' }}>
+                    <span style={{ fontSize: 16, color: '#9ca3af' }}>
                       Tap to add photo or video
                     </span>
-                    <span style={{ fontSize: 12, color: '#4b5563' }}>
+                    <span style={{ fontSize: 16, color: '#4b5563' }}>
                       Max 50MB · Faces auto-blurred before publication
                     </span>
                   </div>
@@ -1045,7 +1047,7 @@ export default function ReportPage() {
                         muted
                       />
                     )}
-                    <p style={{ fontSize: 12, color: '#9ca3af', marginTop: 6, marginBottom: 4 }}>
+                    <p style={{ fontSize: 16, color: '#9ca3af', marginTop: 6, marginBottom: 4 }}>
                       {mediaFile && mediaFile.name.length > 30
                         ? mediaFile.name.slice(0, 30) + '…'
                         : mediaFile?.name}
@@ -1054,7 +1056,7 @@ export default function ReportPage() {
                       type="button"
                       onClick={clearMedia}
                       style={{
-                        fontSize: 12,
+                        fontSize: 16,
                         color: '#ef4444',
                         background: 'transparent',
                         border: 'none',
@@ -1068,7 +1070,7 @@ export default function ReportPage() {
                 )}
 
                 {mediaSizeError && (
-                  <p style={{ fontSize: 13, color: '#ef4444', marginBottom: 12, marginTop: 0 }}>
+                  <p style={{ fontSize: 16, color: '#ef4444', marginBottom: 12, marginTop: 0 }}>
                     File too large. Max 50MB.
                   </p>
                 )}
@@ -1152,21 +1154,21 @@ export default function ReportPage() {
                     marginBottom: 20,
                   }}
                 >
-                  <p style={{ fontSize: 14, fontWeight: 500, color: '#ffffff', margin: '0 0 8px 0' }}>
+                  <p style={{ fontSize: 16, fontWeight: 500, color: '#ffffff', margin: '0 0 8px 0' }}>
                     {effectiveLocationName || 'Beirut area'}
                   </p>
                   {distanceBand && (
-                    <p style={{ fontSize: 13, color: '#86efac', margin: '0 0 4px 0' }}>
+                    <p style={{ fontSize: 16, color: '#86efac', margin: '0 0 4px 0' }}>
                       {DISTANCE_LABELS[distanceBand]}
                     </p>
                   )}
                   {formattedEventTypes && (
-                    <p style={{ fontSize: 13, color: '#86efac', margin: '0 0 4px 0' }}>
+                    <p style={{ fontSize: 16, color: '#86efac', margin: '0 0 4px 0' }}>
                       {formattedEventTypes}
                     </p>
                   )}
                   {mediaFile && (
-                    <p style={{ fontSize: 13, color: '#86efac', margin: '0' }}>
+                    <p style={{ fontSize: 16, color: '#86efac', margin: '0' }}>
                       {isImage ? 'Photo attached' : 'Video attached'}
                     </p>
                   )}
@@ -1174,7 +1176,7 @@ export default function ReportPage() {
 
                 <p
                   style={{
-                    fontSize: 12,
+                    fontSize: 16,
                     color: '#6b7280',
                     lineHeight: 1.6,
                     marginBottom: 24,
@@ -1230,7 +1232,7 @@ export default function ReportPage() {
                 </button>
 
                 {submitError && (
-                  <p style={{ fontSize: 13, color: '#ef4444', margin: '0 0 10px 0' }}>
+                  <p style={{ fontSize: 16, color: '#ef4444', margin: '0 0 10px 0' }}>
                     {submitError}
                   </p>
                 )}
