@@ -26,6 +26,21 @@ interface Cluster {
   created_at: string
 }
 
+interface WarningCluster {
+  id: string
+  centroid_lat: number
+  centroid_lon: number
+  status: 'active' | 'all_clear'
+  warning_count: number
+  dominant_warning_type: string
+  confidence_score: number
+  location_name: string | null
+  source_detail: string | null
+  created_at: string
+  expires_at: string | null
+  all_clear_votes: number
+}
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const MAP_STYLES = [
@@ -79,6 +94,11 @@ export default function MapPage() {
   const [layerLabels, setLayerLabels] = useState(false)
   const [layerHeatDensity, setLayerHeatDensity] = useState(false)
 
+  // ── Warning state ──────────────────────────────────────────────────────
+  const [warningClusters, setWarningClusters] = useState<WarningCluster[]>([])
+  const [selectedWarning, setSelectedWarning] = useState<WarningCluster | null>(null)
+  const [allClearSent, setAllClearSent] = useState(false)
+
   // ── Refs ─────────────────────────────────────────────────────────────────
   const mapContainer = useRef<HTMLDivElement>(null)
   const map = useRef<any>(null)
@@ -89,6 +109,7 @@ export default function MapPage() {
   const layerStrikeZonesRef = useRef(true)
   const layerLabelsRef = useRef(false)
   const layerHeatDensityRef = useRef(false)
+  const warningClustersRef = useRef<WarningCluster[]>([])
 
   // ── Sync refs ────────────────────────────────────────────────────────────
   useEffect(() => { locationNamesRef.current = locationNames }, [locationNames])
@@ -96,6 +117,7 @@ export default function MapPage() {
   useEffect(() => { layerStrikeZonesRef.current = layerStrikeZones }, [layerStrikeZones])
   useEffect(() => { layerLabelsRef.current = layerLabels }, [layerLabels])
   useEffect(() => { layerHeatDensityRef.current = layerHeatDensity }, [layerHeatDensity])
+  useEffect(() => { warningClustersRef.current = warningClusters }, [warningClusters])
 
   // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -117,6 +139,14 @@ export default function MapPage() {
     if (score >= 85) return '#22c55e'
     if (score >= 50) return '#f97316'
     return '#ef4444'
+  }
+
+  function formatWarningType(type: string): string {
+    const labels: Record<string, string> = {
+      official_order: 'Official IDF order', phone_call: 'IDF phone call',
+      leaflet_drop: 'Leaflet drop', community_warning: 'Community warning', other: 'Unspecified warning',
+    }
+    return labels[type] ?? type
   }
 
   // ── Mapbox helpers ──────────────────────────────────────────────────────
@@ -313,6 +343,90 @@ export default function MapPage() {
     })
   }, [])
 
+  // ── Warning source/layers ─────────────────────────────────────────────
+
+  const updateWarningSource = useCallback((data: WarningCluster[]) => {
+    if (!map.current) return
+
+    const geojson = {
+      type: 'FeatureCollection' as const,
+      features: data.map((w) => ({
+        type: 'Feature' as const,
+        geometry: { type: 'Point' as const, coordinates: [w.centroid_lon, w.centroid_lat] },
+        properties: {
+          id: w.id,
+          warning_count: w.warning_count,
+          dominant_warning_type: w.dominant_warning_type,
+          confidence_score: w.confidence_score,
+          status: w.status,
+          location_name: w.location_name ?? '',
+          created_at: w.created_at,
+          expires_at: w.expires_at ?? '',
+        },
+      })),
+    }
+
+    if (map.current.getSource('warnings')) {
+      map.current.getSource('warnings').setData(geojson)
+      return
+    }
+
+    map.current.addSource('warnings', { type: 'geojson', data: geojson })
+
+    // Warning radius circle
+    map.current.addLayer({
+      id: 'warning-radius',
+      type: 'circle',
+      source: 'warnings',
+      paint: {
+        'circle-radius': [
+          'interpolate', ['linear'], ['zoom'],
+          8, ['/', ['get', 'warning_count'], 2],
+          12, ['*', ['get', 'warning_count'], 4],
+          16, ['*', ['get', 'warning_count'], 12],
+        ],
+        'circle-color': ['case', ['==', ['get', 'status'], 'all_clear'], '#22c55e', '#f97316'],
+        'circle-opacity': 0.12,
+        'circle-stroke-color': ['case', ['==', ['get', 'status'], 'all_clear'], '#22c55e', '#f97316'],
+        'circle-stroke-width': 1.5,
+        'circle-stroke-opacity': 0.7,
+      },
+    }, map.current.getLayer('cluster-radius') ? 'cluster-radius' : undefined)
+
+    // Warning centre dots
+    map.current.addLayer({
+      id: 'warning-dots',
+      type: 'circle',
+      source: 'warnings',
+      paint: {
+        'circle-radius': 7,
+        'circle-color': ['case', ['==', ['get', 'status'], 'all_clear'], '#22c55e', '#f97316'],
+        'circle-stroke-color': '#ffffff',
+        'circle-stroke-width': 1.5,
+      },
+    }, map.current.getLayer('cluster-dots') ? 'cluster-dots' : undefined)
+
+    // Warning labels
+    map.current.addLayer({
+      id: 'warning-labels',
+      type: 'symbol',
+      source: 'warnings',
+      filter: ['==', ['get', 'status'], 'active'],
+      layout: {
+        'text-field': 'WARNING',
+        'text-size': 9,
+        'text-offset': [0, -1.4],
+        'text-anchor': 'bottom',
+        'text-letter-spacing': 0.1,
+      },
+      paint: {
+        'text-color': '#f97316',
+        'text-halo-color': 'rgba(0,0,0,0.8)',
+        'text-halo-width': 1.5,
+      },
+    })
+  }, [])
+
   // ── Attach map event handlers (separate from updateMapSource) ───────────
 
   const attachMapHandlers = useCallback(() => {
@@ -342,6 +456,23 @@ export default function MapPage() {
     map.current.on('click', 'cluster-dots', onClick)
     map.current.on('mouseenter', 'cluster-dots', onEnter)
     map.current.on('mouseleave', 'cluster-dots', onLeave)
+
+    // Warning dot click
+    const onWarningClick = (e: any) => {
+      const props = e.features[0].properties
+      const data = warningClustersRef.current
+      const warning = data.find((w) => w.id === props.id)
+      if (warning) {
+        setSelectedWarning(warning)
+        setSelectedCluster(null)
+      }
+    }
+    map.current.off('click', 'warning-dots', onWarningClick)
+    map.current.on('click', 'warning-dots', onWarningClick)
+    map.current.off('mouseenter', 'warning-dots', onEnter)
+    map.current.on('mouseenter', 'warning-dots', onEnter)
+    map.current.off('mouseleave', 'warning-dots', onLeave)
+    map.current.on('mouseleave', 'warning-dots', onLeave)
   }, [fetchLocationName])
 
   // ── Start pulse animation ──────────────────────────────────────────────
@@ -449,7 +580,19 @@ export default function MapPage() {
     const rows = (data ?? []) as Cluster[]
     setClusters(rows)
     updateMapSource(rows)
-  }, [updateMapSource])
+
+    // Also load warning clusters
+    const { data: warnData } = await supabase.current
+      .from('warning_clusters')
+      .select('*')
+      .in('status', ['active', 'all_clear'])
+      .order('created_at', { ascending: false })
+      .limit(50)
+
+    const warnRows = (warnData ?? []) as WarningCluster[]
+    setWarningClusters(warnRows)
+    updateWarningSource(warnRows)
+  }, [updateMapSource, updateWarningSource])
 
   const setupRealtimeSubscription = useCallback(() => {
     supabase.current
@@ -480,7 +623,50 @@ export default function MapPage() {
         }
       )
       .subscribe()
-  }, [updateMapSource])
+
+    // Warning clusters realtime
+    supabase.current
+      .channel('warnings-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'warning_clusters',
+          filter: 'status=in.(active,all_clear)',
+        },
+        (payload: RealtimePostgresChangesPayload<WarningCluster>) => {
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            const newWarning = payload.new as WarningCluster
+            setWarningClusters((prev) => {
+              const exists = prev.find((w) => w.id === newWarning.id)
+              const updated = exists
+                ? prev.map((w) => (w.id === newWarning.id ? newWarning : w))
+                : [newWarning, ...prev]
+              updateWarningSource(updated)
+              return updated
+            })
+          }
+        }
+      )
+      .subscribe()
+  }, [updateMapSource, updateWarningSource])
+
+  // ── All clear handler ──────────────────────────────────────────────────
+
+  const handleAllClear = useCallback(async () => {
+    if (!selectedWarning) return
+    let sessionId = sessionStorage.getItem('fl_session_id')
+    if (!sessionId) { sessionId = crypto.randomUUID(); sessionStorage.setItem('fl_session_id', sessionId) }
+    try {
+      const res = await fetch(`/api/warnings/${selectedWarning.id}/all-clear`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sessionId }),
+      })
+      if (res.ok) setAllClearSent(true)
+    } catch { /* ignore */ }
+  }, [selectedWarning])
 
   // ── Effect 1: map init ────────────────────────────────────────────────
 
@@ -548,6 +734,7 @@ export default function MapPage() {
           return
         }
         updateMapSource(clustersRef.current)
+        updateWarningSource(warningClustersRef.current)
         attachMapHandlers()
         reAddOptionalLayers()
       })
@@ -599,6 +786,10 @@ export default function MapPage() {
     setShowFullReasoning(false)
     setShareLabel('Share this alert')
   }, [selectedCluster])
+
+  useEffect(() => {
+    setAllClearSent(false)
+  }, [selectedWarning])
 
   // ── Layer toggle handlers ─────────────────────────────────────────────
 
@@ -742,6 +933,7 @@ export default function MapPage() {
   // ── Derived values ────────────────────────────────────────────────────
 
   const recentCluster = clusters[0] ?? null
+  const activeWarningCount = warningClusters.filter((w) => w.status === 'active').length
   const isSatelliteStyle =
     mapStyle === 'mapbox://styles/mapbox/satellite-v9' ||
     mapStyle === 'mapbox://styles/mapbox/satellite-streets-v12'
@@ -849,20 +1041,20 @@ export default function MapPage() {
         </div>
 
         {/* Centre summary */}
-        <div
-          style={{
-            flex: 1,
-            textAlign: 'center',
-            color: 'rgba(255,255,255,0.7)',
-            fontSize: 13,
-            overflow: 'hidden',
-            whiteSpace: 'nowrap',
-            textOverflow: 'ellipsis',
-          }}
-        >
-          {recentCluster
-            ? `${locationNames[recentCluster.id] ?? 'Loading location...'} · ${recentCluster.report_count} reports · ${timeAgo(recentCluster.created_at)}`
-            : 'Monitoring active — no confirmed incidents'}
+        <div style={{ flex: 1, textAlign: 'center', overflow: 'hidden' }}>
+          {activeWarningCount > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 2 }}>
+              <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: '#f97316', animation: 'pulse-dot 1.4s ease-in-out infinite' }} />
+              <span style={{ color: '#f97316', fontSize: 11, fontWeight: 500 }}>
+                {activeWarningCount} evacuation warning{activeWarningCount !== 1 ? 's' : ''} active
+              </span>
+            </div>
+          )}
+          <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+            {recentCluster
+              ? `${locationNames[recentCluster.id] ?? 'Loading location...'} · ${recentCluster.report_count} reports · ${timeAgo(recentCluster.created_at)}`
+              : 'Monitoring active — no confirmed incidents'}
+          </div>
         </div>
 
         {/* Report button */}
@@ -1239,6 +1431,16 @@ export default function MapPage() {
           />
           Auto-confirmed
         </div>
+        {/* Evacuation warning */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'rgba(255,255,255,0.7)', marginTop: 8, marginBottom: 5 }}>
+          <span style={{ width: 20, height: 1.5, background: '#f97316', borderRadius: 2, flexShrink: 0, borderTop: '1px dashed #f97316' }} />
+          Evacuation warning
+        </div>
+        {/* All clear */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', flexShrink: 0, marginLeft: 6, marginRight: 6 }} />
+          All clear reported
+        </div>
       </div>
 
       {/* Filter bar */}
@@ -1528,6 +1730,110 @@ export default function MapPage() {
             }}
           >
             {shareLabel}
+          </button>
+        </div>
+      )}
+
+      {/* Warning side panel */}
+      {selectedWarning && (
+        <div
+          style={
+            isMobile
+              ? {
+                  position: 'absolute', bottom: 0, left: 0, right: 0, borderRadius: '16px 16px 0 0', maxHeight: '70vh', overflowY: 'auto',
+                  background: 'rgba(15,17,27,0.97)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
+                  borderTop: '0.5px solid rgba(255,255,255,0.08)', padding: '20px 16px', zIndex: 6, boxSizing: 'border-box' as const,
+                }
+              : {
+                  position: 'absolute', top: 56, right: 0, width: 320, height: 'calc(100vh - 56px)', overflowY: 'auto',
+                  background: 'rgba(15,17,27,0.97)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
+                  borderLeft: '0.5px solid rgba(255,255,255,0.08)', padding: '20px 16px', zIndex: 6, boxSizing: 'border-box' as const,
+                }
+          }
+        >
+          <button type="button" onClick={() => setSelectedWarning(null)} aria-label="Close panel" style={{
+            position: 'absolute', top: 12, right: 12, background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%',
+            width: 28, height: 28, color: '#ffffff', cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1,
+          }}>×</button>
+
+          {/* Status badge */}
+          <div style={{ marginBottom: 8 }}>
+            <span style={{
+              display: 'inline-block',
+              background: selectedWarning.status === 'all_clear' ? '#052e16' : '#431407',
+              color: selectedWarning.status === 'all_clear' ? '#86efac' : '#fdba74',
+              fontSize: 11, padding: '3px 9px', borderRadius: 20, fontWeight: 500,
+            }}>
+              {selectedWarning.status === 'all_clear' ? 'All clear' : 'Active warning'}
+            </span>
+          </div>
+
+          {/* Location */}
+          <p style={{ fontSize: 18, fontWeight: 500, color: '#ffffff', margin: '8px 0 4px 0', paddingRight: 36 }}>
+            {selectedWarning.location_name ?? 'Unknown location'}
+          </p>
+          <p style={{ fontSize: 13, color: '#9ca3af', margin: '0 0 4px 0' }}>
+            Warning received {timeAgo(selectedWarning.created_at)}
+          </p>
+
+          <div style={{ borderTop: '0.5px solid rgba(255,255,255,0.08)', margin: '12px 0' }} />
+
+          {/* Warning type */}
+          <div style={{ marginBottom: 14 }}>
+            <span style={{
+              display: 'inline-block', background: '#431407', color: '#fdba74',
+              fontSize: 11, padding: '3px 9px', borderRadius: 20,
+            }}>
+              {formatWarningType(selectedWarning.dominant_warning_type)}
+            </span>
+          </div>
+
+          {/* Report count */}
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 13, color: '#ffffff' }}>
+              {selectedWarning.warning_count} people reported this warning
+            </div>
+          </div>
+
+          {/* Expires */}
+          {selectedWarning.status === 'active' && selectedWarning.expires_at && (
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4 }}>Expires</div>
+              <div style={{ fontSize: 13, color: '#ffffff' }}>{timeAgo(selectedWarning.expires_at)}</div>
+            </div>
+          )}
+
+          {/* Source detail */}
+          {selectedWarning.source_detail && (
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 6 }}>What was reported</div>
+              <p style={{
+                fontSize: 13, color: '#9ca3af', lineHeight: 1.6, margin: 0, fontStyle: 'italic',
+                overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' as const,
+              }}>
+                {selectedWarning.source_detail}
+              </p>
+            </div>
+          )}
+
+          {/* All clear button */}
+          {selectedWarning.status === 'active' && (
+            <button type="button" onClick={handleAllClear} disabled={allClearSent} style={{
+              width: '100%', height: 48, background: 'transparent',
+              border: allClearSent ? '1px solid #6b7280' : '1px solid #22c55e',
+              color: allClearSent ? '#6b7280' : '#22c55e',
+              borderRadius: 8, fontSize: 14, cursor: allClearSent ? 'default' : 'pointer', marginBottom: 8, boxSizing: 'border-box',
+            }}>
+              {allClearSent ? 'All clear reported ✓' : 'Report all clear'}
+            </button>
+          )}
+
+          {/* Share */}
+          <button type="button" onClick={handleShare} style={{
+            width: '100%', background: 'rgba(255,255,255,0.08)', border: '0.5px solid rgba(255,255,255,0.15)',
+            color: '#ffffff', borderRadius: 8, padding: 10, fontSize: 13, cursor: 'pointer', marginTop: 4, boxSizing: 'border-box',
+          }}>
+            Share this warning
           </button>
         </div>
       )}
