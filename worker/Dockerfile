@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y \
     libgomp1 \
     libgl1 \
     ffmpeg \
+    libheif-dev \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
