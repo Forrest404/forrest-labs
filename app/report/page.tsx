@@ -121,8 +121,9 @@ export default function ReportPage() {
   // Step 5 — Submission
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
-  const [_submittedReportId, setSubmittedReportId] = useState<string | null>(null)
-  const [_mediaUploading, setMediaUploading] = useState(false)
+  const [submittedReportId, setSubmittedReportId] = useState<string | null>(null)
+  const [mediaUploading, setMediaUploading] = useState(false)
+  const [mediaUploadComplete, setMediaUploadComplete] = useState(false)
 
   // Success screen
   const [shareButtonText, setShareButtonText] = useState('Share this page')
@@ -234,8 +235,17 @@ export default function ReportPage() {
   }, [mediaPreviewUrl])
 
   const handleSubmit = useCallback(async () => {
+    // Offline guard — return early so button stays enabled
+    if (!navigator.onLine) {
+      setSubmitError('No internet connection. Please check your connection and try again.')
+      return
+    }
+
     setSubmitting(true)
     setSubmitError(null)
+
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 15000)
 
     try {
       let sessionId = sessionStorage.getItem('fl_session_id')
@@ -244,9 +254,10 @@ export default function ReportPage() {
         sessionStorage.setItem('fl_session_id', sessionId)
       }
 
-      const res = await fetch('/api/reports', {
+      const reportResponse = await fetch('/api/reports', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           lat,
           lon,
@@ -255,27 +266,64 @@ export default function ReportPage() {
           session_id: sessionId,
         }),
       })
+      clearTimeout(timeoutId)
 
-      if (res.ok) {
-        const data = (await res.json()) as { success: boolean; id: string }
-        localStorage.setItem(
-          'fl_last_report',
-          JSON.stringify({ timestamp: Date.now(), id: data.id })
-        )
-        if (mediaFile) {
-          setSubmittedReportId(data.id)
-          setMediaUploading(true)
-        }
-        setCurrentStep('success')
-      } else {
-        setSubmitError('Something went wrong. Please try again.')
-        setSubmitting(false)
+      if (!reportResponse.ok) {
+        const errorData = (await reportResponse.json()) as { error?: string }
+        throw new Error(errorData.error ?? 'Failed to submit report')
       }
-    } catch {
-      setSubmitError('Something went wrong. Please try again.')
+
+      const reportData = (await reportResponse.json()) as { success: boolean; id: string }
+      const reportId = reportData.id
+
+      localStorage.setItem('fl_last_report', JSON.stringify({ timestamp: Date.now(), id: reportId }))
+
+      if (mediaFile) {
+        setSubmittedReportId(reportId)
+        setMediaUploading(true)
+        uploadMedia(mediaFile, reportId).catch((err: unknown) => {
+          console.error('Media upload failed:', err)
+          setMediaUploading(false)
+        })
+      }
+
+      setCurrentStep('success')
+
+    } catch (error) {
+      clearTimeout(timeoutId)
+      if (error instanceof Error && error.name === 'AbortError') {
+        setSubmitError('Request timed out. Please try again.')
+      } else if (error instanceof TypeError) {
+        setSubmitError('Could not reach the server. Please check your connection and try again.')
+      } else {
+        setSubmitError(error instanceof Error ? error.message : 'Something went wrong. Please try again.')
+      }
+    } finally {
       setSubmitting(false)
     }
   }, [lat, lon, distanceBand, eventTypes, mediaFile])
+
+  const uploadMedia = useCallback(async (file: File, reportId: string): Promise<void> => {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('report_id', reportId)
+
+    const response = await fetch('/api/media', {
+      method: 'POST',
+      body: formData,
+      // No Content-Type header — browser sets multipart/form-data + boundary automatically
+    })
+
+    if (!response.ok) {
+      throw new Error('Media upload failed')
+    }
+
+    const data = (await response.json()) as { success: boolean; url: string; faces_detected: number }
+    if (data.success) {
+      setMediaUploading(false)
+      setMediaUploadComplete(true)
+    }
+  }, [])
 
   const handleShare = useCallback(async () => {
     const url = window.location.origin + '/report'
@@ -316,6 +364,7 @@ export default function ReportPage() {
     setSubmitError(null)
     setSubmittedReportId(null)
     setMediaUploading(false)
+    setMediaUploadComplete(false)
     setRateLimitMinutesLeft(null)
     setShareButtonText('Share this page')
     // Re-trigger GPS
@@ -501,16 +550,14 @@ export default function ReportPage() {
               Thank you. Aid organisations can now see activity in this area.
             </p>
 
-            {mediaFile && (
-              <p
-                style={{
-                  fontSize: 16,
-                  color: '#6b7280',
-                  marginTop: 12,
-                  marginBottom: 0,
-                }}
-              >
-                Your photo or video will appear on the map once reviewed.
+            {mediaUploading && (
+              <p style={{ fontSize: 13, color: '#6b7280', marginTop: 12, marginBottom: 0 }}>
+                Your photo or video is being reviewed.
+              </p>
+            )}
+            {mediaUploadComplete && (
+              <p style={{ fontSize: 13, color: '#6b7280', marginTop: 12, marginBottom: 0 }}>
+                Your photo or video has been submitted for review.
               </p>
             )}
 
@@ -1194,19 +1241,18 @@ export default function ReportPage() {
                   style={{
                     width: '100%',
                     height: 56,
-                    background: '#ef4444',
+                    background: submitting ? '#991b1b' : '#ef4444',
                     color: '#ffffff',
                     border: 'none',
                     borderRadius: 8,
                     fontSize: 16,
                     fontWeight: 600,
                     cursor: submitting ? 'not-allowed' : 'pointer',
-                    opacity: submitting ? 0.8 : 1,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: 10,
-                    marginBottom: submitError ? 10 : 10,
+                    marginBottom: 10,
                     boxSizing: 'border-box',
                   }}
                 >
@@ -1232,7 +1278,7 @@ export default function ReportPage() {
                 </button>
 
                 {submitError && (
-                  <p style={{ fontSize: 16, color: '#ef4444', margin: '0 0 10px 0' }}>
+                  <p style={{ fontSize: 13, color: '#ef4444', textAlign: 'center', marginTop: 12, lineHeight: 1.5, marginBottom: 0 }}>
                     {submitError}
                   </p>
                 )}

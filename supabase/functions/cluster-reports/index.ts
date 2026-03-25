@@ -254,6 +254,159 @@ function clusterReports(reports: Report[]): Array<{
     }))
 }
 
+// ── AI analysis ───────────────────────────────────────────────────────────────
+
+const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY')
+
+async function analyseWithClaude(
+  cluster: {
+    centroid_lat: number
+    centroid_lon: number
+    report_count: number
+    spread_metres: number
+    time_window_seconds: number
+    unique_sessions: number
+    unique_ips: number
+    dominant_event_types: string[]
+    confidence_score: number
+    fraud_score: number
+    has_approved_media: boolean
+    in_lebanon: boolean
+  },
+): Promise<{
+  confidence_adjustment: number
+  reasoning: string
+  concerns: string[]
+  recommendation: 'confirm' | 'review' | 'discard'
+}> {
+  const prompt = `Review this cluster of civilian incident reports and assess whether it represents a genuine incident.
+
+CLUSTER DATA:
+- Location: ${cluster.centroid_lat.toFixed(4)}, ${cluster.centroid_lon.toFixed(4)}
+- Report count: ${cluster.report_count}
+- Geographic spread: ${Math.round(cluster.spread_metres)}m
+- Time window: ${cluster.time_window_seconds}s
+- Unique devices: ${cluster.unique_sessions} of ${cluster.report_count}
+- Unique networks: ${cluster.unique_ips} of ${cluster.report_count}
+- Event types: ${cluster.dominant_event_types.join(', ')}
+- Pre-calculated confidence: ${cluster.confidence_score}/100
+- Fraud score: ${cluster.fraud_score}/100
+- Has verified media: ${cluster.has_approved_media}
+- Known conflict zone: ${cluster.in_lebanon}
+
+FRAUD INDICATORS:
+- Device diversity: ${Math.round((cluster.unique_sessions / cluster.report_count) * 100)}%
+- Network diversity: ${Math.round((cluster.unique_ips / cluster.report_count) * 100)}%
+- Avg seconds between reports: ${Math.round(cluster.time_window_seconds / Math.max(cluster.report_count - 1, 1))}
+
+Return a JSON object with exactly these fields:
+{
+  "confidence_adjustment": <float 0.7-1.3>,
+  "reasoning": "<two sentences max>",
+  "concerns": ["<specific concern>"],
+  "recommendation": "<confirm|review|discard>"
+}`
+
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': ANTHROPIC_API_KEY!,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 300,
+      system: `You are a humanitarian analyst reviewing civilian incident reports from a conflict zone. Be concise and factual. Return only valid JSON with no markdown formatting, no code blocks, no preamble.`,
+      messages: [{ role: 'user', content: prompt }],
+    }),
+  })
+
+  if (!response.ok) {
+    throw new Error(`Anthropic API error: ${response.status}`)
+  }
+
+  const data = await response.json()
+  const text = (data.content[0].text as string).trim()
+
+  // Strip any accidental markdown code blocks
+  const cleaned = text
+    .replace(/```json\n?/g, '')
+    .replace(/```\n?/g, '')
+    .trim()
+
+  const parsed = JSON.parse(cleaned)
+
+  const adjustment = Math.min(
+    Math.max(parseFloat(parsed.confidence_adjustment) || 1.0, 0.7),
+    1.3,
+  )
+
+  const recommendation = ['confirm', 'review', 'discard'].includes(parsed.recommendation)
+    ? (parsed.recommendation as 'confirm' | 'review' | 'discard')
+    : 'review'
+
+  return {
+    confidence_adjustment: adjustment,
+    reasoning: String(parsed.reasoning ?? '').slice(0, 500),
+    concerns: Array.isArray(parsed.concerns)
+      ? parsed.concerns.slice(0, 5).map(String)
+      : [],
+    recommendation,
+  }
+}
+
+// ── Push notification ─────────────────────────────────────────────────────────
+
+const NTFY_CHANNEL = Deno.env.get('NTFY_CHANNEL')
+const APP_URL = Deno.env.get('NEXT_PUBLIC_APP_URL') ?? ''
+const REVIEW_SECRET = Deno.env.get('REVIEW_SECRET_KEY')
+
+async function sendPushNotification(
+  clusterId: string,
+  centroidLat: number,
+  centroidLon: number,
+  reportCount: number,
+  confidenceScore: number,
+  dominantTypes: string[],
+  reasoning: string | null,
+  concerns: string[],
+  status: string,
+): Promise<void> {
+  const isAuto = status === 'auto_confirmed'
+
+  const approveUrl =
+    `${APP_URL}/api/clusters/${clusterId}/approve?key=${REVIEW_SECRET}`
+  const rejectUrl =
+    `${APP_URL}/api/clusters/${clusterId}/reject?key=${REVIEW_SECRET}`
+
+  const location = `${centroidLat.toFixed(3)}, ${centroidLon.toFixed(3)}`
+  const types = dominantTypes.join(' · ').replace(/_/g, ' ')
+
+  const body = isAuto
+    ? `AUTO-CONFIRMED\n${location}\n${reportCount} reports · Score ${confidenceScore}/100\n${types}`
+    : `REVIEW NEEDED\n${location}\n${reportCount} reports · Score ${confidenceScore}/100\n${types}${reasoning ? '\n\nAI: ' + reasoning : ''}${concerns.length > 0 ? '\n\nConcerns:\n' + concerns.map((c) => '• ' + c).join('\n') : ''}`
+
+  const headers: Record<string, string> = {
+    'Title': isAuto ? 'Forrest Labs — Auto-confirmed' : 'Forrest Labs — Review needed',
+    'Priority': isAuto ? 'default' : 'high',
+    'Tags': isAuto ? 'white_check_mark' : 'warning',
+    'Content-Type': 'text/plain',
+  }
+
+  if (!isAuto) {
+    headers['Actions'] =
+      `view, Approve, ${approveUrl}, clear=true; ` +
+      `view, Reject, ${rejectUrl}, clear=true`
+  }
+
+  await fetch(`https://ntfy.sh/${NTFY_CHANNEL}`, {
+    method: 'POST',
+    headers,
+    body,
+  })
+}
+
 // ── Main handler ──────────────────────────────────────────────────────────────
 
 Deno.serve(async (_req) => {
@@ -329,11 +482,73 @@ Deno.serve(async (_req) => {
 
       const scores = calculateConfidence(clusterData, clusterReports)
 
-      // 4. Determine status
+      // 4. Determine initial status from calculated score
       let status: string
       if (scores.confidence_score >= 85) status = 'auto_confirmed'
       else if (scores.confidence_score >= 50) status = 'pending_review'
       else status = 'discarded'
+
+      // 4b. AI analysis for non-discarded clusters
+      let ai_reasoning: string | null = null
+      let ai_concerns: string[] = []
+      let final_confidence = scores.confidence_score
+      let final_status = status
+
+      if (status === 'pending_review' || status === 'auto_confirmed') {
+        try {
+          const inLebanon = (
+            centroid.lat >= 33.05 &&
+            centroid.lat <= 34.69 &&
+            centroid.lon >= 35.10 &&
+            centroid.lon <= 36.62
+          )
+          const hasApprovedMedia = clusterReports.some(
+            (r) => r.media_status === 'approved',
+          )
+
+          const aiResult = await analyseWithClaude({
+            centroid_lat: centroid.lat,
+            centroid_lon: centroid.lon,
+            report_count: clusterReports.length,
+            spread_metres: spread,
+            time_window_seconds: timeWindow,
+            unique_sessions: uniqueSessions,
+            unique_ips: uniqueIps,
+            dominant_event_types: dominantTypes,
+            confidence_score: scores.confidence_score,
+            fraud_score: scores.fraud_score,
+            has_approved_media: hasApprovedMedia,
+            in_lebanon: inLebanon,
+          })
+
+          // Apply Claude's adjustment to the score
+          final_confidence = Math.min(
+            Math.max(
+              Math.round(scores.confidence_score * aiResult.confidence_adjustment),
+              0,
+            ),
+            100,
+          )
+
+          ai_reasoning = aiResult.reasoning
+          ai_concerns = aiResult.concerns
+
+          // Claude can override to discard; otherwise re-threshold the adjusted score
+          if (aiResult.recommendation === 'discard') {
+            final_status = 'discarded'
+          } else if (final_confidence >= 85) {
+            final_status = 'auto_confirmed'
+          } else if (final_confidence >= 50) {
+            final_status = 'pending_review'
+          } else {
+            final_status = 'discarded'
+          }
+        } catch (aiError) {
+          // AI analysis is non-fatal — proceed with pre-calculated score
+          console.error('AI analysis failed:', aiError)
+          ai_reasoning = 'AI analysis unavailable — using calculated score only'
+        }
+      }
 
       // 5. Check for existing cluster with overlapping reports
       const { data: existing } = await supabase
@@ -344,24 +559,29 @@ Deno.serve(async (_req) => {
 
       let clusterId: string
 
+      const upsertPayload = {
+        ...scores,
+        confidence_score: final_confidence,
+        centroid_lat: centroid.lat,
+        centroid_lon: centroid.lon,
+        report_ids: reportIds,
+        report_count: clusterReports.length,
+        spread_metres: spread,
+        time_window_seconds: timeWindow,
+        unique_sessions: uniqueSessions,
+        unique_ips: uniqueIps,
+        dominant_event_types: dominantTypes,
+        display_radius_metres: displayRadius,
+        status: final_status,
+        ai_reasoning,
+        ai_concerns,
+      }
+
       if (existing) {
         // Update existing cluster
         const { data: updated } = await supabase
           .from('clusters')
-          .update({
-            ...scores,
-            centroid_lat: centroid.lat,
-            centroid_lon: centroid.lon,
-            report_ids: reportIds,
-            report_count: clusterReports.length,
-            spread_metres: spread,
-            time_window_seconds: timeWindow,
-            unique_sessions: uniqueSessions,
-            unique_ips: uniqueIps,
-            dominant_event_types: dominantTypes,
-            display_radius_metres: displayRadius,
-            status,
-          })
+          .update(upsertPayload)
           .eq('id', existing.id)
           .select('id')
           .single()
@@ -370,20 +590,7 @@ Deno.serve(async (_req) => {
         // Insert new cluster
         const { data: inserted, error: insertError } = await supabase
           .from('clusters')
-          .insert({
-            ...scores,
-            centroid_lat: centroid.lat,
-            centroid_lon: centroid.lon,
-            report_ids: reportIds,
-            report_count: clusterReports.length,
-            spread_metres: spread,
-            time_window_seconds: timeWindow,
-            unique_sessions: uniqueSessions,
-            unique_ips: uniqueIps,
-            dominant_event_types: dominantTypes,
-            display_radius_metres: displayRadius,
-            status,
-          })
+          .insert(upsertPayload)
           .select('id')
           .single()
         if (insertError) throw insertError
@@ -397,7 +604,7 @@ Deno.serve(async (_req) => {
         .in('id', reportIds)
 
       // 7. If auto_confirmed, create alert
-      if (status === 'auto_confirmed') {
+      if (final_status === 'auto_confirmed') {
         await supabase
           .from('alerts')
           .upsert(
@@ -408,6 +615,25 @@ Deno.serve(async (_req) => {
             },
             { onConflict: 'cluster_id', ignoreDuplicates: true },
           )
+      }
+
+      // 8. Push notification for non-discarded clusters
+      if (final_status === 'pending_review' || final_status === 'auto_confirmed') {
+        try {
+          await sendPushNotification(
+            clusterId,
+            centroid.lat,
+            centroid.lon,
+            clusterReports.length,
+            final_confidence,
+            dominantTypes,
+            ai_reasoning,
+            ai_concerns,
+            final_status,
+          )
+        } catch (notifyError) {
+          console.error('Push notification failed:', notifyError)
+        }
       }
 
       processed++
