@@ -8,12 +8,16 @@ from pathlib import Path
 import cv2
 import numpy as np
 from PIL import Image
+import pillow_heif
 from flask import Flask, request, jsonify
 from deface.centerface import CenterFace
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# Register HEIC/HEIF support with Pillow so iPhone photos decode correctly
+pillow_heif.register_heif_opener()
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -32,6 +36,7 @@ centerface = CenterFace()
 
 ALLOWED_IMAGE_TYPES = {
     'image/jpeg', 'image/jpg', 'image/png', 'image/webp',
+    'image/heic', 'image/heif',
 }
 ALLOWED_VIDEO_TYPES = {
     'video/mp4', 'video/quicktime', 'video/webm',
@@ -108,20 +113,21 @@ def blur_faces(image_array: np.ndarray) -> tuple[np.ndarray, int]:
     Returns (blurred_array, number_of_faces_found).
     """
     h, w = image_array.shape[:2]
-    dets, _ = centerface(image_array, threshold=0.2)
+    # Lower threshold catches angled, small, and partially obscured faces
+    dets, _ = centerface(image_array, threshold=0.1)
 
     faces_found = len(dets)
 
     for det in dets:
         x1, y1, x2, y2 = map(int, det[:4])
 
-        # Expand bounding box by 30% (15% each side) to catch hair/ears
+        # Expand bounding box by 50% (25% each side) to cover hair, ears, neck
         fw = x2 - x1
         fh = y2 - y1
-        x1 = max(0, x1 - int(fw * 0.15))
-        y1 = max(0, y1 - int(fh * 0.15))
-        x2 = min(w, x2 + int(fw * 0.15))
-        y2 = min(h, y2 + int(fh * 0.15))
+        x1 = max(0, x1 - int(fw * 0.25))
+        y1 = max(0, y1 - int(fh * 0.25))
+        x2 = min(w, x2 + int(fw * 0.25))
+        y2 = min(h, y2 + int(fh * 0.25))
 
         # Kernel size proportional to face area; minimum 51, always odd
         area = (x2 - x1) * (y2 - y1)
@@ -142,7 +148,7 @@ def verify_no_faces(image_array: np.ndarray) -> bool:
     remain after blurring.
     Returns True if clean, False if faces are still detectable.
     """
-    dets, _ = centerface(image_array, threshold=0.35)
+    dets, _ = centerface(image_array, threshold=0.2)
     return len(dets) == 0
 
 
@@ -151,7 +157,7 @@ def verify_no_faces(image_array: np.ndarray) -> bool:
 # ---------------------------------------------------------------------------
 
 def process_image(file_bytes: bytes, report_id: str) -> dict:
-    # 1. Strip EXIF
+    # 1. Strip EXIF (pillow-heif handles HEIC/HEIF transparently via register_heif_opener)
     clean_bytes = strip_exif(file_bytes)
 
     # 2. Decode to numpy array
@@ -317,6 +323,7 @@ def process_media():
         ext_map = {
             '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
             '.png': 'image/png', '.webp': 'image/webp',
+            '.heic': 'image/heic', '.heif': 'image/heif',
             '.mp4': 'video/mp4', '.mov': 'video/quicktime',
             '.webm': 'video/webm', '.3gp': 'video/3gpp',
             '.m4v': 'video/x-m4v', '.avi': 'video/avi',
