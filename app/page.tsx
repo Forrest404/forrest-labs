@@ -435,22 +435,24 @@ export default function HomePage() {
         {/* Stats grid */}
         <div className="hp-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 44, maxWidth: 680, width: '100%', animation: 'fade-up 0.8s 0.45s ease both' }}>
           {([
-            { key: 'reports_today' as const, label: t('stat_reports'), amber: false },
-            { key: 'confirmed_incidents' as const, label: t('stat_confirmed'), amber: false },
-            { key: 'active_warnings' as const, label: t('stat_warnings'), amber: true },
-            { key: null, label: t('stat_uptime'), amber: false },
+            { key: 'reports_today' as const, label: t('stat_reports'), accent: null },
+            { key: 'confirmed_incidents' as const, label: t('stat_confirmed'), accent: 'red' as const },
+            { key: 'active_warnings' as const, label: t('stat_warnings'), accent: 'amber' as const },
+            { key: null, label: t('stat_uptime'), accent: null },
           ]).map((s, i) => {
             const val = s.key ? displayStats[s.key] : 0
-            const isAmber = s.amber && val > 0
+            const isAmber = s.accent === 'amber' && val > 0
+            const isRed = s.accent === 'red' && val > 0
+            const accentColor = isAmber ? 'rgba(249,115,22,' : isRed ? 'rgba(239,68,68,' : null
             return (
               <div key={i} style={{
-                background: isAmber ? 'rgba(249,115,22,0.04)' : 'rgba(239,68,68,0.04)',
-                border: `1px solid ${isAmber ? 'rgba(249,115,22,0.2)' : 'rgba(239,68,68,0.12)'}`,
+                background: accentColor ? `${accentColor}0.04)` : 'rgba(239,68,68,0.04)',
+                border: `1px solid ${accentColor ? `${accentColor}0.2)` : 'rgba(239,68,68,0.12)'}`,
                 borderRadius: 8, padding: '16px 20px', position: 'relative', overflow: 'hidden',
               }}>
-                {cornerAccent('tl', isAmber ? 'rgba(249,115,22,0.5)' : undefined)}
-                {cornerAccent('br', isAmber ? 'rgba(249,115,22,0.5)' : undefined)}
-                <div style={{ fontSize: 32, fontWeight: 500, color: isAmber ? '#f97316' : '#ffffff', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em', fontFamily: 'monospace' }}>
+                {cornerAccent('tl', accentColor ? `${accentColor}0.5)` : undefined)}
+                {cornerAccent('br', accentColor ? `${accentColor}0.5)` : undefined)}
+                <div style={{ fontSize: 32, fontWeight: 500, color: isAmber ? '#f97316' : isRed ? '#ef4444' : '#ffffff', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em', fontFamily: 'monospace' }}>
                   {s.key ? val : '99.9%'}
                 </div>
                 <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 4, fontFamily: 'monospace' }}>{s.label}</div>
