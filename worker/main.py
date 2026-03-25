@@ -104,7 +104,7 @@ def blur_faces(image_array: np.ndarray) -> tuple[np.ndarray, int]:
     Returns (blurred_array, number_of_faces_found).
     """
     h, w = image_array.shape[:2]
-    dets, _ = centerface(image_array, h, w, threshold=0.2)
+    dets, _ = centerface(image_array, threshold=0.2)
 
     faces_found = len(dets)
 
@@ -138,8 +138,7 @@ def verify_no_faces(image_array: np.ndarray) -> bool:
     remain after blurring.
     Returns True if clean, False if faces are still detectable.
     """
-    h, w = image_array.shape[:2]
-    dets, _ = centerface(image_array, h, w, threshold=0.35)
+    dets, _ = centerface(image_array, threshold=0.35)
     return len(dets) == 0
 
 
@@ -164,7 +163,7 @@ def process_image(file_bytes: bytes, report_id: str) -> dict:
     if not verify_no_faces(blurred_array):
         logger.warning("Faces still detected after first pass, re-blurring (report_id=%s)", report_id)
         h, w = blurred_array.shape[:2]
-        dets, _ = centerface(blurred_array, h, w, threshold=0.15)
+        dets, _ = centerface(blurred_array, threshold=0.15)
         for det in dets:
             x1, y1, x2, y2 = map(int, det[:4])
             fw = x2 - x1
