@@ -122,6 +122,21 @@ export async function GET(
     )
   }
 
+  // Replace the ntfy notification with a rejected status
+  const ntfyChannel = process.env.NTFY_CHANNEL
+  if (ntfyChannel) {
+    await fetch(`https://ntfy.sh/${ntfyChannel}`, {
+      method: 'POST',
+      headers: {
+        'Title': 'Forrest Labs - Rejected',
+        'Tags': 'x',
+        'Priority': 'low',
+        'Content-Type': 'text/plain',
+      },
+      body: `REJECTED by founder\nCluster ${id.slice(0, 8)}`,
+    }).catch(() => {})
+  }
+
   return new Response(
     buildHtml(
       '#450a0a', '#fca5a5',

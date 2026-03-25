@@ -134,6 +134,21 @@ export async function GET(
       { onConflict: 'cluster_id', ignoreDuplicates: true },
     )
 
+  // Replace the ntfy notification with a confirmed status
+  const ntfyChannel = process.env.NTFY_CHANNEL
+  if (ntfyChannel) {
+    await fetch(`https://ntfy.sh/${ntfyChannel}`, {
+      method: 'POST',
+      headers: {
+        'Title': 'Forrest Labs - Confirmed',
+        'Tags': 'white_check_mark',
+        'Priority': 'low',
+        'Content-Type': 'text/plain',
+      },
+      body: `CONFIRMED by founder\nCluster ${id.slice(0, 8)}`,
+    }).catch(() => {})
+  }
+
   return new Response(
     buildHtml(
       '#052e16', '#86efac',
