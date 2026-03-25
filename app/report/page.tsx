@@ -723,7 +723,7 @@ export default function ReportPage() {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div dir={lang === 'ar' ? 'rtl' : 'ltr'} style={{ background: '#0a0a0f', minHeight: '100vh', fontFamily: 'system-ui, -apple-system, sans-serif', paddingBottom: 200, color: '#ffffff' }}>
+    <div dir={lang === 'ar' ? 'rtl' : 'ltr'} style={{ background: '#0a0a0f', minHeight: '100vh', fontFamily: 'system-ui, -apple-system, sans-serif', paddingBottom: 220, color: '#ffffff', overflowX: 'hidden' }}>
       <style>{`
         @keyframes pulse-fade { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
@@ -738,7 +738,7 @@ export default function ReportPage() {
             <p style={{ fontSize: 16, color: '#9ca3af', lineHeight: 1.6, maxWidth: 280, margin: 0 }}>
               {t('rate_limit_pre')} {rateLimitMinutesAgo} {rateLimitMinutesAgo !== 1 ? t('rate_limit_mins') : t('rate_limit_min')}{t('rate_limit_mid')} {rateLimitMinutesLeft} {rateLimitMinutesLeft !== 1 ? t('rate_limit_mins') : t('rate_limit_min')}.
             </p>
-            <a href="/map" style={{ color: '#ef4444', fontSize: 16, textDecoration: 'none', marginTop: 8 }}>{t('btn_view_map')} →</a>
+            <a href="/map" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ef4444', fontSize: 16, textDecoration: 'none', marginTop: 8, minHeight: 48 }}>{t('btn_view_map')} →</a>
           </div>
 
         /* ── Step 0: Report type selection ──────────────────────────────── */
@@ -950,7 +950,7 @@ export default function ReportPage() {
               <div>
                 <h1 style={{ fontSize: 24, fontWeight: 700, color: '#ffffff', marginBottom: 6, marginTop: 0 }}>{t('step2_heading')}</h1>
                 <p style={{ fontSize: 16, color: '#9ca3af', marginBottom: 28, marginTop: 0 }}>{t('step2_sub')}</p>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 24 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10, marginBottom: 24 }}>
                   {DISTANCE_KEYS.map((card) => {
                     const selected = distanceBand === card.value
                     const svgSize = (card.r + card.strokeWidth) * 2 + 4

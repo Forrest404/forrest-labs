@@ -12,9 +12,25 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://forrest-labsorg.vercel.app'
+
 export const metadata: Metadata = {
-  title: "Forrest Labs",
-  description: "Civilian safety reporting for conflict zones",
+  title: 'Forrest Labs — Civilian Safety Reporting',
+  description: 'Real-time civilian incident reporting for conflict zones. Report what you see or hear. AI verifies. Aid responds. No app required.',
+  openGraph: {
+    title: 'Forrest Labs — Civilian Safety Reporting',
+    description: 'Real-time civilian incident reporting for conflict zones.',
+    url: appUrl,
+    siteName: 'Forrest Labs',
+    type: 'website',
+    images: [{ url: `${appUrl}/api/og`, width: 1200, height: 630, alt: 'Forrest Labs — Civilian Safety Reporting' }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Forrest Labs',
+    description: 'Real-time civilian incident reporting for conflict zones.',
+    images: [`${appUrl}/api/og`],
+  },
 };
 
 export default function RootLayout({
