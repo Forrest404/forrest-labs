@@ -101,6 +101,14 @@ ALTER PUBLICATION supabase_realtime
 
 -- ── Auto-update updated_at ──────────────────────────────────
 
+CREATE OR REPLACE FUNCTION public.handle_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 CREATE TRIGGER warning_clusters_updated_at
   BEFORE UPDATE ON public.warning_clusters
   FOR EACH ROW EXECUTE FUNCTION
