@@ -13,9 +13,6 @@ from deface.centerface import CenterFace
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
-from pillow_heif import register_heif_opener
-register_heif_opener()  # enables Pillow to open HEIC/HEIF (iPhone default format)
-
 load_dotenv()
 
 logging.basicConfig(level=logging.INFO)
@@ -35,7 +32,6 @@ centerface = CenterFace()
 
 ALLOWED_IMAGE_TYPES = {
     'image/jpeg', 'image/jpg', 'image/png', 'image/webp',
-    'image/heic', 'image/heif',             # iPhone default
 }
 ALLOWED_VIDEO_TYPES = {
     'video/mp4', 'video/quicktime', 'video/webm',
@@ -321,7 +317,6 @@ def process_media():
         ext_map = {
             '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
             '.png': 'image/png', '.webp': 'image/webp',
-            '.heic': 'image/heic', '.heif': 'image/heif',
             '.mp4': 'video/mp4', '.mov': 'video/quicktime',
             '.webm': 'video/webm', '.3gp': 'video/3gpp',
             '.m4v': 'video/x-m4v', '.avi': 'video/avi',
