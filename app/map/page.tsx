@@ -540,8 +540,13 @@ export default function MapPage() {
         })
       })
 
-      // Re-add custom layers after any style change
+      // Re-add custom layers after style *changes* (not initial load)
+      let initialStyleLoaded = false
       map.current.on('style.load', () => {
+        if (!initialStyleLoaded) {
+          initialStyleLoaded = true
+          return
+        }
         updateMapSource(clustersRef.current)
         attachMapHandlers()
         reAddOptionalLayers()
