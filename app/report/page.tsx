@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { createClient } from '@/lib/supabase/client'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -78,11 +79,22 @@ const STRINGS = {
     err_network: 'Could not reach the server. Please check your connection and try again.',
     err_generic: 'Something went wrong. Please try again.',
     warn_step2_heading: 'How were you warned?',
-    warn_official: 'Official IDF order (X / social media)',
+    warn_official: 'Official IDF order',
+    warn_official_sub: 'Posted on X / social media',
     warn_phone: 'Phone call from IDF',
-    warn_leaflet: 'Leaflet dropped from aircraft',
-    warn_community: 'Community warning (neighbour / group chat)',
+    warn_phone_sub: 'Automated robo-call warning',
+    warn_leaflet: 'Leaflet from aircraft',
+    warn_leaflet_sub: 'Printed warning dropped overhead',
+    warn_community: 'Community warning',
+    warn_community_sub: 'Neighbour or group chat',
     warn_other: 'Other / not sure',
+    warn_other_sub: 'Something else warned me',
+    step0_strike_time: 'Takes 15 seconds',
+    step0_warning_time: 'Appears on map in under 2 minutes',
+    step0_active_warnings: 'active warnings in your area',
+    step0_no_warnings: 'No active warnings',
+    copy_warning: 'Copy warning to share',
+    copied: 'Copied!',
     warn_step3_heading: 'Any details?',
     warn_step3_sub: 'What did the warning say? What area was mentioned?',
     warn_step3_placeholder: 'e.g. Warning said to evacuate Nabatieh immediately...',
@@ -155,11 +167,22 @@ const STRINGS = {
     err_network: 'تعذر الوصول إلى الخادم. يرجى التحقق من اتصالك والمحاولة مجدداً.',
     err_generic: 'حدث خطأ ما. يرجى المحاولة مجدداً.',
     warn_step2_heading: 'كيف تلقيت التحذير؟',
-    warn_official: 'أمر رسمي من جيش الاحتلال (وسائل التواصل)',
+    warn_official: 'أمر رسمي من جيش الاحتلال',
+    warn_official_sub: 'نُشر على وسائل التواصل الاجتماعي',
     warn_phone: 'مكالمة هاتفية من جيش الاحتلال',
-    warn_leaflet: 'منشورات أُسقطت من طائرات',
-    warn_community: 'تحذير مجتمعي (جار / دردشة جماعية)',
+    warn_phone_sub: 'مكالمة تحذير آلية',
+    warn_leaflet: 'منشورات من الطائرات',
+    warn_leaflet_sub: 'منشورات مطبوعة أُسقطت من الأعلى',
+    warn_community: 'تحذير مجتمعي',
+    warn_community_sub: 'جار أو دردشة جماعية',
     warn_other: 'أخرى / غير متأكد',
+    warn_other_sub: 'شيء آخر حذرني',
+    step0_strike_time: 'يستغرق 15 ثانية',
+    step0_warning_time: 'يظهر على الخريطة في أقل من دقيقتين',
+    step0_active_warnings: 'تحذيرات نشطة في منطقتك',
+    step0_no_warnings: 'لا توجد تحذيرات نشطة',
+    copy_warning: 'نسخ التحذير للمشاركة',
+    copied: 'تم النسخ!',
     warn_step3_heading: 'أي تفاصيل؟',
     warn_step3_sub: 'ماذا قال التحذير؟ أي منطقة ذُكرت؟',
     warn_step3_placeholder: 'مثلاً: قال التحذير بإخلاء النبطية فوراً...',
@@ -232,11 +255,22 @@ const STRINGS = {
     err_network: 'Impossible de joindre le serveur. Veuillez vérifier et réessayer.',
     err_generic: "Quelque chose s'est mal passé. Veuillez réessayer.",
     warn_step2_heading: 'Comment avez-vous été averti ?',
-    warn_official: 'Ordre officiel IDF (réseaux sociaux)',
+    warn_official: 'Ordre officiel IDF',
+    warn_official_sub: 'Publié sur les réseaux sociaux',
     warn_phone: 'Appel téléphonique IDF',
-    warn_leaflet: "Tracts largués depuis un avion",
-    warn_community: 'Avertissement communautaire (voisin / groupe)',
+    warn_phone_sub: 'Appel automatique d\'avertissement',
+    warn_leaflet: 'Tracts depuis un avion',
+    warn_leaflet_sub: 'Avertissement imprimé largué',
+    warn_community: 'Avertissement communautaire',
+    warn_community_sub: 'Voisin ou groupe de discussion',
     warn_other: 'Autre / pas sûr',
+    warn_other_sub: 'Autre chose m\'a averti',
+    step0_strike_time: 'Prend 15 secondes',
+    step0_warning_time: 'Apparaît sur la carte en moins de 2 minutes',
+    step0_active_warnings: 'avertissements actifs dans votre zone',
+    step0_no_warnings: 'Aucun avertissement actif',
+    copy_warning: 'Copier l\'avertissement',
+    copied: 'Copié !',
     warn_step3_heading: 'Des détails ?',
     warn_step3_sub: "Qu'a dit l'avertissement ? Quelle zone ?",
     warn_step3_placeholder: "Ex: L'avertissement demandait d'évacuer Nabatieh...",
@@ -293,13 +327,15 @@ const EVENT_KEYS: { value: EventValue; label: StringKey; colour: string }[] = [
   { value: 'other', label: 'event_other', colour: '#374151' },
 ]
 
-const WARNING_OPTIONS: { value: WarningType; label: StringKey; dotColor: string }[] = [
-  { value: 'official_order', label: 'warn_official', dotColor: '#f97316' },
-  { value: 'phone_call', label: 'warn_phone', dotColor: '#f97316' },
-  { value: 'leaflet_drop', label: 'warn_leaflet', dotColor: '#f97316' },
-  { value: 'community_warning', label: 'warn_community', dotColor: '#f97316' },
-  { value: 'other', label: 'warn_other', dotColor: '#6b7280' },
+const WARNING_OPTIONS: { value: WarningType; label: StringKey; sub: StringKey; dotColor: string }[] = [
+  { value: 'official_order', label: 'warn_official', sub: 'warn_official_sub', dotColor: '#f97316' },
+  { value: 'phone_call', label: 'warn_phone', sub: 'warn_phone_sub', dotColor: '#f97316' },
+  { value: 'leaflet_drop', label: 'warn_leaflet', sub: 'warn_leaflet_sub', dotColor: '#f97316' },
+  { value: 'community_warning', label: 'warn_community', sub: 'warn_community_sub', dotColor: '#f97316' },
+  { value: 'other', label: 'warn_other', sub: 'warn_other_sub', dotColor: '#6b7280' },
 ]
+
+const EXAMPLE_CHIPS = ['Evacuate south of Litani', 'Leave Nabatieh immediately', 'Clear the area by sunset']
 
 const DISTANCE_LABELS: Record<DistanceBand, string> = {
   under_500m: 'Under 500m away',
@@ -369,6 +405,10 @@ export default function ReportPage() {
 
   // Success screen
   const [shareButtonText, setShareButtonText] = useState('Share')
+  const [copyWarningText, setCopyWarningText] = useState('copy')
+
+  // Step 0 — active warning count
+  const [activeWarningCount, setActiveWarningCount] = useState<number | null>(null)
 
   // ── Mount: lang, URL params, rate limit, GPS ─────────────────────────────
 
@@ -384,6 +424,14 @@ export default function ReportPage() {
     if (params.get('type') === 'warning') {
       setReportType('warning')
     }
+  }, [])
+
+  // Fetch active warning count for step 0
+  useEffect(() => {
+    const sb = createClient()
+    sb.from('warning_clusters').select('id', { count: 'exact', head: true })
+      .eq('status', 'active')
+      .then(({ count }) => { setActiveWarningCount(count ?? 0) })
   }, [])
 
   // Rate limit check
@@ -706,27 +754,38 @@ export default function ReportPage() {
               {/* Card A — Strike */}
               <div onClick={() => { setReportType('strike'); setCurrentStep(1) }} style={{
                 background: '#1a0a0a', border: '1.5px solid #ef4444', borderRadius: 12, padding: 20, cursor: 'pointer', position: 'relative',
+                boxShadow: '0 0 20px rgba(239,68,68,0.15)',
               }}>
-                <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: '#ef4444', marginBottom: 12 }} />
+                <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: '#ef4444', marginBottom: 12, animation: 'pulse-fade 1.4s ease-in-out infinite' }} />
                 <h2 style={{ fontSize: 18, fontWeight: 600, color: '#ffffff', margin: '0 0 6px 0' }}>{t('step0_strike')}</h2>
                 <p style={{ fontSize: 16, color: '#9ca3af', margin: 0, lineHeight: 1.5 }}>{t('step0_strike_sub')}</p>
+                <p style={{ fontSize: 12, color: '#ef4444', marginTop: 8, marginBottom: 0 }}>{t('step0_strike_time')}</p>
                 <span style={{ position: 'absolute', bottom: 20, right: 20, color: '#ef4444', fontSize: 16, fontWeight: 600 }}>→</span>
               </div>
 
               {/* Card B — Warning */}
               <div onClick={() => { setReportType('warning'); setWarningStep(1) }} style={{
                 background: '#1a130a', border: '1.5px solid #f97316', borderRadius: 12, padding: 20, cursor: 'pointer', position: 'relative',
+                boxShadow: '0 0 20px rgba(249,115,22,0.15)',
               }}>
-                <svg width="18" height="18" viewBox="0 0 18 18" fill="none" style={{ marginBottom: 12 }}>
-                  <path d="M9 2L16 15H2L9 2Z" stroke="#f97316" strokeWidth="1.5" fill="none" strokeLinejoin="round" />
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" style={{ marginBottom: 12 }}>
+                  <path d="M12 3L22 20H2L12 3Z" stroke="#f97316" strokeWidth="1.5" fill="none" strokeLinejoin="round" />
                 </svg>
                 <h2 style={{ fontSize: 18, fontWeight: 600, color: '#ffffff', margin: '0 0 6px 0' }}>{t('step0_warning')}</h2>
                 <p style={{ fontSize: 16, color: '#9ca3af', margin: 0, lineHeight: 1.5 }}>{t('step0_warning_sub')}</p>
+                <p style={{ fontSize: 12, color: '#f97316', marginTop: 8, marginBottom: 0 }}>{t('step0_warning_time')}</p>
                 <span style={{ position: 'absolute', bottom: 20, right: 20, color: '#f97316', fontSize: 16, fontWeight: 600 }}>→</span>
               </div>
             </div>
 
-            <p style={{ fontSize: 16, color: '#4b5563', textAlign: 'center', marginTop: 20 }}>{t('anon_note')}</p>
+            {/* Active warnings indicator */}
+            {activeWarningCount !== null && (
+              <p style={{ fontSize: 12, color: activeWarningCount > 0 ? '#f97316' : '#4b5563', textAlign: 'center', marginTop: 12, marginBottom: 0 }}>
+                {activeWarningCount > 0 ? `${activeWarningCount} ${t('step0_active_warnings')}` : t('step0_no_warnings')}
+              </p>
+            )}
+
+            <p style={{ fontSize: 16, color: '#4b5563', textAlign: 'center', marginTop: 12 }}>{t('anon_note')}</p>
           </div>
 
         /* ── Warning success screen ────────────────────────────────────── */
@@ -741,8 +800,14 @@ export default function ReportPage() {
               <p style={{ fontSize: 16, color: '#fdba74', margin: 0, lineHeight: 1.6 }}>{t('warn_stay_safe')}</p>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 32, width: '100%', maxWidth: 320 }}>
-              <a href="/map" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 52, background: '#f97316', color: '#ffffff', borderRadius: 8, fontSize: 16, fontWeight: 600, textDecoration: 'none', boxSizing: 'border-box' }}>{t('btn_view_map')}</a>
-              <button type="button" onClick={handleShare} style={{ height: 52, background: 'transparent', border: '1px solid #f97316', color: '#f97316', borderRadius: 8, fontSize: 16, cursor: 'pointer', width: '100%' }}>{shareButtonText === 'Share' ? t('btn_share') : shareButtonText}</button>
+              <a href={`/map?lat=${lat}&lon=${lon}&zoom=14`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 52, background: '#f97316', color: '#ffffff', borderRadius: 8, fontSize: 16, fontWeight: 600, textDecoration: 'none', boxSizing: 'border-box' }}>{t('btn_view_map')}</a>
+              <button type="button" onClick={async () => {
+                const text = `⚠️ Evacuation warning reported near ${effectiveLocationName || 'my area'}. Check live map: ${window.location.origin}/map`
+                try { await navigator.clipboard.writeText(text); setCopyWarningText(t('copied')); setTimeout(() => setCopyWarningText('copy'), 2000) } catch { /* ignore */ }
+              }} style={{ height: 52, background: 'transparent', border: '1px solid #f97316', color: '#f97316', borderRadius: 8, fontSize: 16, cursor: 'pointer', width: '100%' }}>
+                {copyWarningText === 'copy' ? t('copy_warning') : copyWarningText}
+              </button>
+              <button type="button" onClick={handleShare} style={{ height: 52, background: 'transparent', border: '1px solid #374151', color: '#9ca3af', borderRadius: 8, fontSize: 16, cursor: 'pointer', width: '100%' }}>{shareButtonText === 'Share' ? t('btn_share') : shareButtonText}</button>
               <button type="button" onClick={handleReportAnother} style={{ height: 52, background: 'transparent', border: '1px solid #374151', color: '#9ca3af', borderRadius: 8, fontSize: 16, cursor: 'pointer', width: '100%' }}>{t('btn_report_another')}</button>
             </div>
           </div>
@@ -801,13 +866,24 @@ export default function ReportPage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 24, marginTop: 20 }}>
                   {WARNING_OPTIONS.map((opt) => {
                     const selected = warningType === opt.value
+                    const iconColor = selected ? '#fb923c' : '#4b5563'
+                    const iconMap: Record<WarningType, React.ReactNode> = {
+                      official_order: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="5" width="6" height="6" rx="1" stroke={iconColor} strokeWidth="1.5" /><path d="M7 6L14 3V13L7 10" stroke={iconColor} strokeWidth="1.5" strokeLinejoin="round" /></svg>,
+                      phone_call: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 2C3 2 4 2 5 4C5.5 5 4.5 6 4 6.5C4 6.5 5.5 9 8 10.5C8.5 10 9.5 9 10.5 9.5C12.5 10.5 12.5 11.5 12.5 11.5C12.5 13 11 14 9 13C6 11.5 3.5 8.5 2 5.5C1 3.5 2 2 3 2Z" stroke={iconColor} strokeWidth="1.3" fill="none" /></svg>,
+                      leaflet_drop: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="3" y="1" width="10" height="14" rx="1.5" stroke={iconColor} strokeWidth="1.3" /><line x1="5.5" y1="5" x2="10.5" y2="5" stroke={iconColor} strokeWidth="1" /><line x1="5.5" y1="8" x2="10.5" y2="8" stroke={iconColor} strokeWidth="1" /><line x1="5.5" y1="11" x2="8.5" y2="11" stroke={iconColor} strokeWidth="1" /></svg>,
+                      community_warning: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="5.5" cy="4" r="2" stroke={iconColor} strokeWidth="1.2" /><circle cx="10.5" cy="4" r="2" stroke={iconColor} strokeWidth="1.2" /><path d="M1 13C1 10 3 9 5.5 9C6.5 9 7 9.2 7.5 9.5" stroke={iconColor} strokeWidth="1.2" /><path d="M15 13C15 10 13 9 10.5 9C9.5 9 9 9.2 8.5 9.5" stroke={iconColor} strokeWidth="1.2" /></svg>,
+                      other: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke={iconColor} strokeWidth="1.3" /><path d="M6 6C6 4.5 7 4 8 4C9 4 10 4.8 10 6C10 7 9 7.3 8 8V9" stroke={iconColor} strokeWidth="1.2" strokeLinecap="round" fill="none" /><circle cx="8" cy="11.5" r="0.7" fill={iconColor} /></svg>,
+                    }
                     return (
                       <button key={opt.value} type="button" onClick={() => setWarningType(opt.value)} style={{
-                        minHeight: 56, borderRadius: 8, padding: '0 16px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', textAlign: 'left', width: '100%', boxSizing: 'border-box',
-                        background: selected ? '#1a130a' : '#0f172a', border: selected ? '1.5px solid #f97316' : '1px solid #1f2937',
+                        minHeight: 64, borderRadius: 8, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', textAlign: 'left', width: '100%', boxSizing: 'border-box',
+                        background: selected ? 'rgba(249,115,22,0.1)' : '#0f172a', border: selected ? '1.5px solid #f97316' : '1px solid #1f2937',
                       }}>
-                        <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: opt.dotColor, flexShrink: 0 }} />
-                        <span style={{ fontSize: 16, color: '#ffffff' }}>{t(opt.label)}</span>
+                        <span style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>{iconMap[opt.value]}</span>
+                        <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                          <span style={{ fontSize: 16, color: '#ffffff' }}>{t(opt.label)}</span>
+                          <span style={{ fontSize: 12, color: '#6b7280' }}>{t(opt.sub)}</span>
+                        </span>
                       </button>
                     )
                   })}
@@ -822,10 +898,19 @@ export default function ReportPage() {
             {activeWarnings && warningStep === 3 && (
               <div>
                 <h1 style={{ fontSize: 24, fontWeight: 700, color: '#ffffff', marginBottom: 6, marginTop: 0 }}>{t('warn_step3_heading')}</h1>
-                <p style={{ fontSize: 16, color: '#9ca3af', marginBottom: 20, marginTop: 0 }}>{t('warn_step3_sub')}</p>
+                <p style={{ fontSize: 16, color: '#9ca3af', marginBottom: 12, marginTop: 0 }}>{t('warn_step3_sub')}</p>
+                {/* Example chips */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+                  {EXAMPLE_CHIPS.map((chip) => (
+                    <button key={chip} type="button" onClick={() => setSourceDetail(chip)} style={{
+                      background: 'rgba(249,115,22,0.08)', border: '1px solid rgba(249,115,22,0.3)', color: '#fdba74',
+                      borderRadius: 20, padding: '4px 12px', fontSize: 12, cursor: 'pointer',
+                    }}>{chip}</button>
+                  ))}
+                </div>
                 <textarea value={sourceDetail} onChange={(e) => setSourceDetail(e.target.value)} maxLength={200} placeholder={t('warn_step3_placeholder')}
                   style={{ width: '100%', minHeight: 80, background: '#111827', border: '1px solid #374151', borderRadius: 8, color: '#ffffff', fontSize: 16, padding: 12, boxSizing: 'border-box', outline: 'none', resize: 'vertical', fontFamily: 'inherit' }} />
-                <p style={{ fontSize: 14, color: '#6b7280', textAlign: 'right', margin: '4px 0 16px 0' }}>{sourceDetail.length} / 200</p>
+                <p style={{ fontSize: 14, color: sourceDetail.length > 170 ? '#ef4444' : sourceDetail.length > 100 ? '#f97316' : '#6b7280', textAlign: 'right', margin: '4px 0 16px 0' }}>{sourceDetail.length} / 200</p>
                 <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
                   <button type="button" onClick={() => setWarningStep(4)} style={{ flex: 1, height: 52, background: 'transparent', border: '1px solid #f97316', color: '#f97316', borderRadius: 8, fontSize: 16, cursor: 'pointer' }}>{t('step4_skip')}</button>
                   <button type="button" onClick={() => setWarningStep(4)} style={{ flex: 2, height: 52, background: '#f97316', border: 'none', color: '#ffffff', borderRadius: 8, fontSize: 16, fontWeight: 600, cursor: 'pointer' }}>{t('btn_continue')}</button>

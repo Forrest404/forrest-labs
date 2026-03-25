@@ -98,6 +98,8 @@ export default function MapPage() {
   const [warningClusters, setWarningClusters] = useState<WarningCluster[]>([])
   const [selectedWarning, setSelectedWarning] = useState<WarningCluster | null>(null)
   const [allClearSent, setAllClearSent] = useState(false)
+  const [warningBannerDismissed, setWarningBannerDismissed] = useState(false)
+  const [warningBannerIndex, setWarningBannerIndex] = useState(0)
 
   // ── Refs ─────────────────────────────────────────────────────────────────
   const mapContainer = useRef<HTMLDivElement>(null)
@@ -110,6 +112,7 @@ export default function MapPage() {
   const layerLabelsRef = useRef(false)
   const layerHeatDensityRef = useRef(false)
   const warningClustersRef = useRef<WarningCluster[]>([])
+  const warningPulseRef = useRef<number>(0)
 
   // ── Sync refs ────────────────────────────────────────────────────────────
   useEffect(() => { locationNamesRef.current = locationNames }, [locationNames])
@@ -348,56 +351,103 @@ export default function MapPage() {
   const updateWarningSource = useCallback((data: WarningCluster[]) => {
     if (!map.current) return
 
-    const geojson = {
+    // Compute a geographic radius per warning: 300m base + 100m per report, max 1000m
+    const warningRadius = (w: WarningCluster) => Math.min(300 + w.warning_count * 100, 1000)
+
+    // Polygon source — geographically accurate radius rings
+    const radiusGeojson = {
+      type: 'FeatureCollection' as const,
+      features: data.map((w) => ({
+        type: 'Feature' as const,
+        geometry: {
+          type: 'Polygon' as const,
+          coordinates: [circlePolygon(w.centroid_lon, w.centroid_lat, warningRadius(w))],
+        },
+        properties: { id: w.id, status: w.status },
+      })),
+    }
+
+    // Outer ring — 1.3× radius, active only
+    const outerGeojson = {
+      type: 'FeatureCollection' as const,
+      features: data.filter((w) => w.status === 'active').map((w) => ({
+        type: 'Feature' as const,
+        geometry: {
+          type: 'Polygon' as const,
+          coordinates: [circlePolygon(w.centroid_lon, w.centroid_lat, warningRadius(w) * 1.3)],
+        },
+        properties: { id: w.id, status: w.status },
+      })),
+    }
+
+    // Point source for dots + labels
+    const dotGeojson = {
       type: 'FeatureCollection' as const,
       features: data.map((w) => ({
         type: 'Feature' as const,
         geometry: { type: 'Point' as const, coordinates: [w.centroid_lon, w.centroid_lat] },
         properties: {
-          id: w.id,
-          warning_count: w.warning_count,
+          id: w.id, warning_count: w.warning_count,
           dominant_warning_type: w.dominant_warning_type,
-          confidence_score: w.confidence_score,
-          status: w.status,
-          location_name: w.location_name ?? '',
-          created_at: w.created_at,
+          confidence_score: w.confidence_score, status: w.status,
+          location_name: w.location_name ?? '', created_at: w.created_at,
           expires_at: w.expires_at ?? '',
         },
       })),
     }
 
-    if (map.current.getSource('warnings')) {
-      map.current.getSource('warnings').setData(geojson)
+    if (map.current.getSource('warnings-radius')) {
+      map.current.getSource('warnings-radius').setData(radiusGeojson)
+      map.current.getSource('warnings-outer').setData(outerGeojson)
+      map.current.getSource('warnings-dots').setData(dotGeojson)
       return
     }
 
-    map.current.addSource('warnings', { type: 'geojson', data: geojson })
+    map.current.addSource('warnings-radius', { type: 'geojson', data: radiusGeojson })
+    map.current.addSource('warnings-outer', { type: 'geojson', data: outerGeojson })
+    map.current.addSource('warnings-dots', { type: 'geojson', data: dotGeojson })
 
-    // Warning radius circle
+    // Outer ring fill (faint)
     map.current.addLayer({
-      id: 'warning-radius',
-      type: 'circle',
-      source: 'warnings',
+      id: 'warning-outer-ring',
+      type: 'line',
+      source: 'warnings-outer',
       paint: {
-        'circle-radius': [
-          'interpolate', ['linear'], ['zoom'],
-          8, ['/', ['get', 'warning_count'], 2],
-          12, ['*', ['get', 'warning_count'], 4],
-          16, ['*', ['get', 'warning_count'], 12],
-        ],
-        'circle-color': ['case', ['==', ['get', 'status'], 'all_clear'], '#22c55e', '#f97316'],
-        'circle-opacity': 0.12,
-        'circle-stroke-color': ['case', ['==', ['get', 'status'], 'all_clear'], '#22c55e', '#f97316'],
-        'circle-stroke-width': 1.5,
-        'circle-stroke-opacity': 0.7,
+        'line-color': '#f97316',
+        'line-width': 1,
+        'line-opacity': 0.3,
       },
     }, map.current.getLayer('cluster-radius') ? 'cluster-radius' : undefined)
 
-    // Warning centre dots
+    // Warning radius fill
+    map.current.addLayer({
+      id: 'warning-radius',
+      type: 'fill',
+      source: 'warnings-radius',
+      paint: {
+        'fill-color': ['case', ['==', ['get', 'status'], 'all_clear'], '#22c55e', '#f97316'],
+        'fill-opacity': 0.12,
+      },
+    }, map.current.getLayer('cluster-radius') ? 'cluster-radius' : undefined)
+
+    // Warning radius outline
+    map.current.addLayer({
+      id: 'warning-radius-outline',
+      type: 'line',
+      source: 'warnings-radius',
+      paint: {
+        'line-color': ['case', ['==', ['get', 'status'], 'all_clear'], '#22c55e', '#f97316'],
+        'line-width': 2,
+        'line-opacity': 0.7,
+        'line-dasharray': [4, 3],
+      },
+    }, map.current.getLayer('cluster-radius') ? 'cluster-radius' : undefined)
+
+    // Warning centre dots (point layer, stays as circle for the small dot marker)
     map.current.addLayer({
       id: 'warning-dots',
       type: 'circle',
-      source: 'warnings',
+      source: 'warnings-dots',
       paint: {
         'circle-radius': 7,
         'circle-color': ['case', ['==', ['get', 'status'], 'all_clear'], '#22c55e', '#f97316'],
@@ -410,7 +460,7 @@ export default function MapPage() {
     map.current.addLayer({
       id: 'warning-labels',
       type: 'symbol',
-      source: 'warnings',
+      source: 'warnings-dots',
       filter: ['==', ['get', 'status'], 'active'],
       layout: {
         'text-field': 'WARNING',
@@ -469,10 +519,23 @@ export default function MapPage() {
     }
     map.current.off('click', 'warning-dots', onWarningClick)
     map.current.on('click', 'warning-dots', onWarningClick)
-    map.current.off('mouseenter', 'warning-dots', onEnter)
-    map.current.on('mouseenter', 'warning-dots', onEnter)
-    map.current.off('mouseleave', 'warning-dots', onLeave)
-    map.current.on('mouseleave', 'warning-dots', onLeave)
+
+    // Warning dot hover tooltip
+    let warningPopup: { remove: () => void } | null = null
+    map.current.on('mouseenter', 'warning-dots', (e: any) => {
+      if (!map.current) return
+      map.current.getCanvas().style.cursor = 'pointer'
+      const coords = e.features[0].geometry.coordinates.slice()
+      const name = e.features[0].properties.location_name || 'Warning zone'
+      warningPopup = new window.mapboxgl.Popup({ closeButton: false, closeOnClick: false, offset: 12 })
+        .setLngLat(coords)
+        .setHTML(`<div style="background:#1a130a;border:1px solid #f97316;border-radius:6px;padding:5px 10px;font-size:12px;color:#fdba74">${name}</div>`)
+        .addTo(map.current)
+    })
+    map.current.on('mouseleave', 'warning-dots', () => {
+      if (map.current) map.current.getCanvas().style.cursor = ''
+      if (warningPopup) { warningPopup.remove(); warningPopup = null }
+    })
   }, [fetchLocationName])
 
   // ── Start pulse animation ──────────────────────────────────────────────
@@ -487,6 +550,22 @@ export default function MapPage() {
       pulseFrameRef.current = requestAnimationFrame(animate)
     }
     pulseFrameRef.current = requestAnimationFrame(animate)
+  }, [])
+
+  const startWarningPulse = useCallback(() => {
+    cancelAnimationFrame(warningPulseRef.current)
+    let opacity = 0.12
+    let dir = 1
+    const animate = () => {
+      opacity += dir * 0.003
+      if (opacity >= 0.22) dir = -1
+      if (opacity <= 0.06) dir = 1
+      if (map.current?.getLayer('warning-radius')) {
+        map.current.setPaintProperty('warning-radius', 'fill-opacity', opacity)
+      }
+      warningPulseRef.current = requestAnimationFrame(animate)
+    }
+    warningPulseRef.current = requestAnimationFrame(animate)
   }, [])
 
   // ── Re-add optional layers after style change ──────────────────────────
@@ -565,7 +644,8 @@ export default function MapPage() {
 
     // Pulse
     startPulseAnimation()
-  }, [startPulseAnimation])
+    startWarningPulse()
+  }, [startPulseAnimation, startWarningPulse])
 
   // ── Data loading (unchanged) ────────────────────────────────────────────
 
@@ -745,6 +825,24 @@ export default function MapPage() {
         setupRealtimeSubscription()
         attachMapHandlers()
         startPulseAnimation()
+        startWarningPulse()
+
+        // Fly to coordinates from URL params
+        const urlParams = new URLSearchParams(window.location.search)
+        const flyLat = urlParams.get('lat')
+        const flyLon = urlParams.get('lon')
+        const flyZoom = urlParams.get('zoom')
+        if (flyLat && flyLon) {
+          setTimeout(() => {
+            if (map.current) {
+              map.current.flyTo({
+                center: [parseFloat(flyLon), parseFloat(flyLat)],
+                zoom: parseFloat(flyZoom ?? '14'),
+                duration: 1500,
+              })
+            }
+          }, 500)
+        }
       })
     }
     document.head.appendChild(script)
@@ -755,9 +853,10 @@ export default function MapPage() {
       window.removeEventListener('resize', checkMobile)
       sb.removeAllChannels()
       cancelAnimationFrame(pulseFrameRef.current)
+      cancelAnimationFrame(warningPulseRef.current)
       if (map.current) map.current.remove()
     }
-  }, [loadClusters, setupRealtimeSubscription, attachMapHandlers, reAddOptionalLayers, startPulseAnimation])
+  }, [loadClusters, setupRealtimeSubscription, attachMapHandlers, reAddOptionalLayers, startPulseAnimation, startWarningPulse])
 
   // ── Effect 2: filter ──────────────────────────────────────────────────
 
@@ -933,7 +1032,10 @@ export default function MapPage() {
   // ── Derived values ────────────────────────────────────────────────────
 
   const recentCluster = clusters[0] ?? null
-  const activeWarningCount = warningClusters.filter((w) => w.status === 'active').length
+  const activeWarnings = warningClusters.filter((w) => w.status === 'active')
+  const activeWarningCount = activeWarnings.length
+  const bannerWarning = activeWarnings[warningBannerIndex % Math.max(activeWarnings.length, 1)] ?? null
+  const showBanner = activeWarningCount > 0 && !warningBannerDismissed
   const isSatelliteStyle =
     mapStyle === 'mapbox://styles/mapbox/satellite-v9' ||
     mapStyle === 'mapbox://styles/mapbox/satellite-streets-v12'
@@ -960,6 +1062,8 @@ export default function MapPage() {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.3; }
         }
+        .mapboxgl-popup-content { background: transparent !important; padding: 0 !important; box-shadow: none !important; }
+        .mapboxgl-popup-tip { display: none !important; }
       `}</style>
 
       {/* Map container */}
@@ -998,11 +1102,44 @@ export default function MapPage() {
         </span>
       </div>
 
+      {/* Warning banner */}
+      {showBanner && bannerWarning && (
+        <div style={{
+          position: 'absolute', top: 0, left: 0, right: 0, zIndex: 6,
+          background: 'rgba(249,115,22,0.15)', borderBottom: '1px solid rgba(249,115,22,0.4)',
+          padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 8,
+        }}>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, animation: 'pulse-dot 1.4s ease-in-out infinite' }}>
+            <path d="M8 2L15 14H1L8 2Z" stroke="#f97316" strokeWidth="1.5" fill="none" strokeLinejoin="round" />
+          </svg>
+          <div
+            onClick={() => {
+              if (map.current && bannerWarning) {
+                map.current.flyTo({ center: [bannerWarning.centroid_lon, bannerWarning.centroid_lat], zoom: 14, duration: 1000 })
+                setSelectedWarning(bannerWarning)
+                setSelectedCluster(null)
+              }
+            }}
+            style={{ flex: 1, cursor: 'pointer', fontSize: 12, color: '#fdba74', fontWeight: 500, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}
+          >
+            EVACUATION WARNING — {bannerWarning.location_name ?? 'Unknown'} · {bannerWarning.warning_count} reports · tap to view
+          </div>
+          {activeWarningCount > 1 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+              <button type="button" onClick={() => setWarningBannerIndex((i) => (i - 1 + activeWarningCount) % activeWarningCount)} style={{ background: 'none', border: 'none', color: '#fdba74', fontSize: 14, cursor: 'pointer', padding: 2 }}>←</button>
+              <span style={{ fontSize: 10, color: '#fdba74' }}>{(warningBannerIndex % activeWarningCount) + 1}/{activeWarningCount}</span>
+              <button type="button" onClick={() => setWarningBannerIndex((i) => (i + 1) % activeWarningCount)} style={{ background: 'none', border: 'none', color: '#fdba74', fontSize: 14, cursor: 'pointer', padding: 2 }}>→</button>
+            </div>
+          )}
+          <button type="button" onClick={() => setWarningBannerDismissed(true)} style={{ background: 'none', border: 'none', color: '#fdba74', fontSize: 16, cursor: 'pointer', padding: '0 4px', flexShrink: 0, lineHeight: 1 }}>×</button>
+        </div>
+      )}
+
       {/* Top bar */}
       <div
         style={{
           position: 'absolute',
-          top: 0,
+          top: showBanner ? 38 : 0,
           left: 0,
           right: 0,
           background: 'rgba(10,10,15,0.85)',
@@ -1014,6 +1151,7 @@ export default function MapPage() {
           gap: 12,
           zIndex: 5,
           borderBottom: '0.5px solid rgba(255,255,255,0.08)',
+          transition: 'top 0.3s',
         }}
       >
         {/* Live indicator */}
@@ -1353,90 +1491,24 @@ export default function MapPage() {
           zIndex: 5,
         }}
       >
-        <div
-          style={{
-            fontSize: 10,
-            color: 'rgba(255,255,255,0.5)',
-            letterSpacing: '0.08em',
-            textTransform: 'uppercase',
-            marginBottom: 6,
-          }}
-        >
-          Strike confidence
+        {/* STRIKES section */}
+        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>Strikes</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'rgba(255,255,255,0.7)', marginBottom: 5 }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', flexShrink: 0, marginLeft: 6, marginRight: 6 }} />
+          Confirmed strike
         </div>
-        {/* Confirmed 85+ */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            fontSize: 11,
-            color: 'rgba(255,255,255,0.7)',
-            marginBottom: 5,
-          }}
-        >
-          <span
-            style={{
-              width: 20,
-              height: 2.5,
-              background: '#22c55e',
-              borderRadius: 2,
-              flexShrink: 0,
-            }}
-          />
-          Confirmed 85+
-        </div>
-        {/* Probable 50–84 */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            fontSize: 11,
-            color: 'rgba(255,255,255,0.7)',
-            marginBottom: 5,
-          }}
-        >
-          <span
-            style={{
-              width: 20,
-              height: 1.5,
-              background: '#22c55e',
-              borderRadius: 2,
-              flexShrink: 0,
-            }}
-          />
-          Probable 50–84
-        </div>
-        {/* Auto-confirmed */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            fontSize: 11,
-            color: 'rgba(255,255,255,0.7)',
-          }}
-        >
-          <span
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: '50%',
-              background: '#f97316',
-              flexShrink: 0,
-              marginLeft: 6,
-              marginRight: 6,
-            }}
-          />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#f97316', flexShrink: 0, marginLeft: 6, marginRight: 6 }} />
           Auto-confirmed
         </div>
-        {/* Evacuation warning */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'rgba(255,255,255,0.7)', marginTop: 8, marginBottom: 5 }}>
-          <span style={{ width: 20, height: 1.5, background: '#f97316', borderRadius: 2, flexShrink: 0, borderTop: '1px dashed #f97316' }} />
-          Evacuation warning
+        {/* Divider */}
+        <div style={{ borderTop: '0.5px solid rgba(255,255,255,0.1)', margin: '8px 0' }} />
+        {/* WARNINGS section */}
+        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>Warnings</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'rgba(255,255,255,0.7)', marginBottom: 5 }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#f97316', flexShrink: 0, marginLeft: 6, marginRight: 6, boxShadow: '0 0 0 2px rgba(249,115,22,0.3)' }} />
+          Active evacuation warning
         </div>
-        {/* All clear */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', flexShrink: 0, marginLeft: 6, marginRight: 6 }} />
           All clear reported
@@ -1756,8 +1828,11 @@ export default function MapPage() {
             width: 28, height: 28, color: '#ffffff', cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1,
           }}>×</button>
 
-          {/* Status badge */}
-          <div style={{ marginBottom: 8 }}>
+          {/* Amber triangle header */}
+          <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+              <path d="M16 4L29 27H3L16 4Z" stroke="#f97316" strokeWidth="2" fill="none" strokeLinejoin="round" />
+            </svg>
             <span style={{
               display: 'inline-block',
               background: selectedWarning.status === 'all_clear' ? '#052e16' : '#431407',
@@ -1772,36 +1847,51 @@ export default function MapPage() {
           <p style={{ fontSize: 18, fontWeight: 500, color: '#ffffff', margin: '8px 0 4px 0', paddingRight: 36 }}>
             {selectedWarning.location_name ?? 'Unknown location'}
           </p>
-          <p style={{ fontSize: 13, color: '#9ca3af', margin: '0 0 4px 0' }}>
-            Warning received {timeAgo(selectedWarning.created_at)}
-          </p>
+
+          {/* Time remaining with urgency */}
+          {(() => {
+            if (selectedWarning.status === 'all_clear') {
+              return <p style={{ fontSize: 13, color: '#22c55e', margin: '0 0 4px 0' }}>All clear reported</p>
+            }
+            if (!selectedWarning.expires_at) {
+              return <p style={{ fontSize: 13, color: '#9ca3af', margin: '0 0 4px 0' }}>Warning received {timeAgo(selectedWarning.created_at)}</p>
+            }
+            const msRemaining = new Date(selectedWarning.expires_at).getTime() - Date.now()
+            const hoursLeft = msRemaining / 3600000
+            const minsLeft = Math.max(0, Math.floor(msRemaining / 60000))
+            if (msRemaining <= 0) return <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 4px 0' }}>Expired</p>
+            if (hoursLeft > 2) return <p style={{ fontSize: 13, color: '#22c55e', margin: '0 0 4px 0' }}>Active for {Math.floor(hoursLeft)} more hours</p>
+            if (hoursLeft >= 1) return <p style={{ fontSize: 13, color: '#f97316', margin: '0 0 4px 0' }}>Expires in {Math.floor(hoursLeft)}h {minsLeft % 60}m</p>
+            return <p style={{ fontSize: 13, color: '#ef4444', margin: '0 0 4px 0', animation: 'pulse-dot 1.4s ease-in-out infinite' }}>Expires in {minsLeft} minutes</p>
+          })()}
 
           <div style={{ borderTop: '0.5px solid rgba(255,255,255,0.08)', margin: '12px 0' }} />
 
-          {/* Warning type */}
+          {/* Warning type — large pill */}
           <div style={{ marginBottom: 14 }}>
             <span style={{
-              display: 'inline-block', background: '#431407', color: '#fdba74',
-              fontSize: 11, padding: '3px 9px', borderRadius: 20,
+              display: 'inline-flex', alignItems: 'center', height: 32, padding: '0 16px',
+              background: 'rgba(249,115,22,0.15)', border: '1px solid #f97316', color: '#fdba74',
+              fontSize: 13, fontWeight: 500, borderRadius: 20,
             }}>
               {formatWarningType(selectedWarning.dominant_warning_type)}
             </span>
           </div>
 
-          {/* Report count */}
+          {/* Report count with progress bar */}
           <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 13, color: '#ffffff' }}>
-              {selectedWarning.warning_count} people reported this warning
+            <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 6 }}>Reports</div>
+            <div style={{ background: '#1f2937', borderRadius: 2, height: 4, width: '100%', marginBottom: 4 }}>
+              <div style={{
+                background: selectedWarning.warning_count >= 3 ? '#22c55e' : '#f97316',
+                borderRadius: 2, height: 4,
+                width: `${Math.min(selectedWarning.warning_count / 3, 1) * 100}%`,
+              }} />
+            </div>
+            <div style={{ fontSize: 13, color: selectedWarning.warning_count >= 3 ? '#22c55e' : '#ffffff' }}>
+              {selectedWarning.warning_count >= 3 ? 'Threshold reached — on map' : `${selectedWarning.warning_count} of 3 reports needed`}
             </div>
           </div>
-
-          {/* Expires */}
-          {selectedWarning.status === 'active' && selectedWarning.expires_at && (
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4 }}>Expires</div>
-              <div style={{ fontSize: 13, color: '#ffffff' }}>{timeAgo(selectedWarning.expires_at)}</div>
-            </div>
-          )}
 
           {/* Source detail */}
           {selectedWarning.source_detail && (
@@ -1816,16 +1906,29 @@ export default function MapPage() {
             </div>
           )}
 
-          {/* All clear button */}
+          {/* All clear button with vote dots */}
           {selectedWarning.status === 'active' && (
-            <button type="button" onClick={handleAllClear} disabled={allClearSent} style={{
-              width: '100%', height: 48, background: 'transparent',
-              border: allClearSent ? '1px solid #6b7280' : '1px solid #22c55e',
-              color: allClearSent ? '#6b7280' : '#22c55e',
-              borderRadius: 8, fontSize: 14, cursor: allClearSent ? 'default' : 'pointer', marginBottom: 8, boxSizing: 'border-box',
-            }}>
-              {allClearSent ? 'All clear reported ✓' : 'Report all clear'}
-            </button>
+            <div style={{ marginBottom: 8 }}>
+              <div style={{ display: 'flex', gap: 4, marginBottom: 6, justifyContent: 'center' }}>
+                {[0, 1, 2, 3, 4].map((i) => (
+                  <span key={i} style={{
+                    width: 8, height: 8, borderRadius: '50%',
+                    background: i < (allClearSent ? selectedWarning.all_clear_votes + 1 : selectedWarning.all_clear_votes) ? '#22c55e' : '#374151',
+                  }} />
+                ))}
+              </div>
+              <div style={{ fontSize: 11, color: '#6b7280', textAlign: 'center', marginBottom: 6 }}>
+                {allClearSent ? 'Your all-clear recorded' : `${selectedWarning.all_clear_votes} / 5 all-clear reports`}
+              </div>
+              <button type="button" onClick={handleAllClear} disabled={allClearSent} style={{
+                width: '100%', height: 48, background: 'transparent',
+                border: allClearSent ? '1px solid #6b7280' : '1px solid #22c55e',
+                color: allClearSent ? '#6b7280' : '#22c55e',
+                borderRadius: 8, fontSize: 14, cursor: allClearSent ? 'default' : 'pointer', boxSizing: 'border-box',
+              }}>
+                {allClearSent ? 'All clear reported ✓' : 'Report all clear'}
+              </button>
+            </div>
           )}
 
           {/* Share */}
