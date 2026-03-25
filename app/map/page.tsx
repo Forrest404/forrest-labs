@@ -93,6 +93,8 @@ export default function MapPage() {
   const [layerStrikeZones, setLayerStrikeZones] = useState(true)
   const [layerLabels, setLayerLabels] = useState(false)
   const [layerHeatDensity, setLayerHeatDensity] = useState(false)
+  const [sentinelVisible, setSentinelVisible] = useState(false)
+  const sentinelVisibleRef = useRef(false)
 
   // ── Warning state ──────────────────────────────────────────────────────
   const [warningClusters, setWarningClusters] = useState<WarningCluster[]>([])
@@ -120,6 +122,7 @@ export default function MapPage() {
   useEffect(() => { layerStrikeZonesRef.current = layerStrikeZones }, [layerStrikeZones])
   useEffect(() => { layerLabelsRef.current = layerLabels }, [layerLabels])
   useEffect(() => { layerHeatDensityRef.current = layerHeatDensity }, [layerHeatDensity])
+  useEffect(() => { sentinelVisibleRef.current = sentinelVisible }, [sentinelVisible])
   useEffect(() => { warningClustersRef.current = warningClusters }, [warningClusters])
 
   // ── Helpers ──────────────────────────────────────────────────────────────
@@ -642,6 +645,30 @@ export default function MapPage() {
       )
     }
 
+    // Sentinel layer
+    if (sentinelVisibleRef.current) {
+      if (!map.current.getSource('sentinel')) {
+        map.current.addSource('sentinel', {
+          type: 'raster',
+          tiles: ['https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2024_3857/default/GoogleMapsCompatible/{z}/{y}/{x}.jpg'],
+          tileSize: 256,
+          attribution: 'Sentinel-2 / ESA / EOX',
+        })
+      }
+      if (!map.current.getLayer('sentinel-layer')) {
+        // Insert below all cluster layers
+        const firstLayer = map.current.getLayer('cluster-pulse') ? 'cluster-pulse' : undefined
+        map.current.addLayer({
+          id: 'sentinel-layer',
+          type: 'raster',
+          source: 'sentinel',
+          layout: { visibility: 'visible' },
+        }, firstLayer)
+      } else {
+        map.current.setLayoutProperty('sentinel-layer', 'visibility', 'visible')
+      }
+    }
+
     // Pulse
     startPulseAnimation()
     startWarningPulse()
@@ -985,9 +1012,47 @@ export default function MapPage() {
 
   const changeStyle = useCallback((styleId: string) => {
     if (!map.current) return
+    // Hide sentinel when switching to a non-sentinel style
+    if (styleId !== 'sentinel' && map.current.getLayer('sentinel-layer')) {
+      map.current.setLayoutProperty('sentinel-layer', 'visibility', 'none')
+    }
+    setSentinelVisible(false)
     map.current.setStyle(styleId)
     setMapStyle(styleId)
   }, [])
+
+  const toggleSentinel = useCallback(() => {
+    if (!map.current) return
+    if (sentinelVisible) {
+      // Turn off — hide sentinel layer
+      if (map.current.getLayer('sentinel-layer')) {
+        map.current.setLayoutProperty('sentinel-layer', 'visibility', 'none')
+      }
+      setSentinelVisible(false)
+    } else {
+      // Turn on — add source/layer if needed, show it
+      setSentinelVisible(true)
+      if (!map.current.getSource('sentinel')) {
+        map.current.addSource('sentinel', {
+          type: 'raster',
+          tiles: ['https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2024_3857/default/GoogleMapsCompatible/{z}/{y}/{x}.jpg'],
+          tileSize: 256,
+          attribution: 'Sentinel-2 / ESA / EOX',
+        })
+      }
+      if (!map.current.getLayer('sentinel-layer')) {
+        const firstLayer = map.current.getLayer('cluster-pulse') ? 'cluster-pulse' : undefined
+        map.current.addLayer({
+          id: 'sentinel-layer',
+          type: 'raster',
+          source: 'sentinel',
+          layout: { visibility: 'visible' },
+        }, firstLayer)
+      } else {
+        map.current.setLayoutProperty('sentinel-layer', 'visibility', 'visible')
+      }
+    }
+  }, [sentinelVisible])
 
   const toggleRoads = useCallback((on: boolean) => {
     if (on && mapStyle === 'mapbox://styles/mapbox/satellite-v9') {
@@ -1284,7 +1349,7 @@ export default function MapPage() {
               <button
                 key={s.id}
                 type="button"
-                onClick={() => changeStyle(s.id)}
+                onClick={() => { changeStyle(s.id) }}
                 style={{
                   background: 'transparent',
                   border: 'none',
@@ -1300,7 +1365,7 @@ export default function MapPage() {
                     borderRadius: 8,
                     background: s.color,
                     border:
-                      mapStyle === s.id
+                      mapStyle === s.id && !sentinelVisible
                         ? '2px solid #ef4444'
                         : '1px solid rgba(255,255,255,0.2)',
                     boxSizing: 'border-box',
@@ -1317,6 +1382,57 @@ export default function MapPage() {
                 </div>
               </button>
             ))}
+            {/* Live Sentinel-2 satellite */}
+            <button
+              type="button"
+              onClick={toggleSentinel}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                padding: 0,
+                cursor: 'pointer',
+                textAlign: 'center',
+                gridColumn: '1 / -1',
+              }}
+            >
+              <div
+                style={{
+                  width: '100%',
+                  height: 36,
+                  borderRadius: 8,
+                  background: '#0a1a0a',
+                  border: sentinelVisible
+                    ? '2px solid #22c55e'
+                    : '1px solid rgba(255,255,255,0.2)',
+                  boxSizing: 'border-box',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                }}
+              >
+                <span
+                  style={{
+                    display: 'inline-block',
+                    width: 6,
+                    height: 6,
+                    borderRadius: '50%',
+                    background: '#22c55e',
+                    flexShrink: 0,
+                  }}
+                />
+                <span style={{ fontSize: 10, color: '#22c55e', fontWeight: 500 }}>LIVE</span>
+              </div>
+              <div
+                style={{
+                  fontSize: 10,
+                  color: '#ffffff',
+                  marginTop: 4,
+                }}
+              >
+                Live Sat (5d)
+              </div>
+            </button>
           </div>
         </div>
       )}
