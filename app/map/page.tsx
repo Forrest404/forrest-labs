@@ -27,6 +27,32 @@ interface Cluster {
 }
 
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Returns a closed ring of [lon, lat] coordinates approximating a circle
+ *  of `radiusMeters` centred at [lon, lat]. Uses equirectangular projection
+ *  which is accurate enough for radii under ~10 km. */
+function circlePolygon(
+  lon: number,
+  lat: number,
+  radiusMeters: number,
+  steps = 64,
+): [number, number][] {
+  const coords: [number, number][] = []
+  const earthRadius = 6378137
+  const latRad = (lat * Math.PI) / 180
+  for (let i = 0; i <= steps; i++) {
+    const angle = (i / steps) * 2 * Math.PI
+    const dx = radiusMeters * Math.cos(angle)
+    const dy = radiusMeters * Math.sin(angle)
+    coords.push([
+      lon + (dx / (earthRadius * Math.cos(latRad))) * (180 / Math.PI),
+      lat + (dy / earthRadius) * (180 / Math.PI),
+    ])
+  }
+  return coords
+}
+
 // ─── Map page ─────────────────────────────────────────────────────────────────
 
 export default function MapPage() {
@@ -95,7 +121,21 @@ export default function MapPage() {
   const updateMapSource = useCallback((clusterData: Cluster[]) => {
     if (!map.current) return
 
-    const geojson = {
+    // Polygon source — geographically accurate radius rings
+    const radiusGeojson = {
+      type: 'FeatureCollection' as const,
+      features: clusterData.map((c) => ({
+        type: 'Feature' as const,
+        geometry: {
+          type: 'Polygon' as const,
+          coordinates: [circlePolygon(c.centroid_lon, c.centroid_lat, c.display_radius_metres)],
+        },
+        properties: { id: c.id, status: c.status },
+      })),
+    }
+
+    // Point source — centre dots
+    const dotGeojson = {
       type: 'FeatureCollection' as const,
       features: clusterData.map((c) => ({
         type: 'Feature' as const,
@@ -116,38 +156,43 @@ export default function MapPage() {
       })),
     }
 
-    if (map.current.getSource('clusters')) {
-      map.current.getSource('clusters').setData(geojson)
+    if (map.current.getSource('clusters-dots')) {
+      map.current.getSource('clusters-radius').setData(radiusGeojson)
+      map.current.getSource('clusters-dots').setData(dotGeojson)
       return
     }
 
-    map.current.addSource('clusters', { type: 'geojson', data: geojson })
+    map.current.addSource('clusters-radius', { type: 'geojson', data: radiusGeojson })
+    map.current.addSource('clusters-dots',   { type: 'geojson', data: dotGeojson })
 
-    // Outer radius layer
+    // Radius fill
     map.current.addLayer({
       id: 'cluster-radius',
-      type: 'circle',
-      source: 'clusters',
+      type: 'fill',
+      source: 'clusters-radius',
       paint: {
-        'circle-radius': [
-          'interpolate', ['linear'], ['zoom'],
-          8, ['/', ['get', 'display_radius_metres'], 80],
-          12, ['/', ['get', 'display_radius_metres'], 12],
-          16, ['/', ['get', 'display_radius_metres'], 3],
-        ],
-        'circle-color': [
+        'fill-color': [
           'case',
           ['==', ['get', 'status'], 'auto_confirmed'], '#f97316',
           '#ef4444',
         ],
-        'circle-opacity': 0.15,
-        'circle-stroke-color': [
+        'fill-opacity': 0.15,
+      },
+    })
+
+    // Radius outline
+    map.current.addLayer({
+      id: 'cluster-radius-outline',
+      type: 'line',
+      source: 'clusters-radius',
+      paint: {
+        'line-color': [
           'case',
           ['==', ['get', 'status'], 'auto_confirmed'], '#f97316',
           '#ef4444',
         ],
-        'circle-stroke-width': 1.5,
-        'circle-stroke-opacity': 0.6,
+        'line-width': 1.5,
+        'line-opacity': 0.6,
       },
     })
 
@@ -155,7 +200,7 @@ export default function MapPage() {
     map.current.addLayer({
       id: 'cluster-dots',
       type: 'circle',
-      source: 'clusters',
+      source: 'clusters-dots',
       paint: {
         'circle-radius': 7,
         'circle-color': [
