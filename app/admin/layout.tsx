@@ -9,6 +9,9 @@ const NAV_ITEMS = [
   { label: 'Warnings', href: '/admin/warnings', exact: false, icon: 'triangle' },
   { label: 'Reports', href: '/admin/reports', exact: false, icon: 'doc' },
   { label: 'Audit Log', href: '/admin/audit', exact: false, icon: 'list' },
+  { label: 'Intelligence', href: '/admin/intelligence', exact: false, icon: 'brain' },
+  { label: 'Map', href: '/admin/map', exact: false, icon: 'map' },
+  { label: 'Triage', href: '/admin/triage', exact: false, icon: 'queue' },
 ] as const
 
 function NavIcon({ name, color }: { name: string; color: string }) {
@@ -54,6 +57,30 @@ function NavIcon({ name, color }: { name: string; color: string }) {
           <circle cx="2" cy="10.5" r="0.8" fill={color} />
         </svg>
       )
+    case 'brain':
+      return (
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path d="M5 2C3.34 2 2 3.34 2 5c0 1 .5 1.9 1.2 2.5C2.5 8.1 2 9 2 10c0 1.1.9 2 2 2h6c1.1 0 2-.9 2-2 0-1-.5-1.9-1.2-2.5C11.5 6.9 12 6 12 5c0-1.66-1.34-3-3-3-.6 0-1.16.18-1.63.49A2.99 2.99 0 005 2z" stroke={color} strokeWidth="1.2" fill="none" />
+          <line x1="7" y1="5" x2="7" y2="10" stroke={color} strokeWidth="1.2" />
+          <line x1="5" y1="7" x2="9" y2="7" stroke={color} strokeWidth="1.2" />
+        </svg>
+      )
+    case 'map':
+      return (
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path d="M1 3l4-1.5L9 3l4-1.5V11l-4 1.5L5 11l-4 1.5V3z" stroke={color} strokeWidth="1.2" strokeLinejoin="round" fill="none" />
+          <line x1="5" y1="1.5" x2="5" y2="11" stroke={color} strokeWidth="1.2" />
+          <line x1="9" y1="3" x2="9" y2="12.5" stroke={color} strokeWidth="1.2" />
+        </svg>
+      )
+    case 'queue':
+      return (
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <rect x="1" y="2" width="12" height="3" rx="1" stroke={color} strokeWidth="1.2" />
+          <rect x="1" y="7" width="8" height="3" rx="1" stroke={color} strokeWidth="1.2" />
+          <path d="M11 8.5l2 2-2 2" stroke={color} strokeWidth="1.2" strokeLinecap="round" />
+        </svg>
+      )
     default:
       return null
   }
@@ -65,6 +92,9 @@ function getPageTitle(pathname: string): string {
   if (pathname.startsWith('/admin/warnings')) return 'Warnings'
   if (pathname.startsWith('/admin/reports')) return 'Reports'
   if (pathname.startsWith('/admin/audit')) return 'Audit log'
+  if (pathname.startsWith('/admin/intelligence')) return 'Intelligence'
+  if (pathname.startsWith('/admin/map')) return 'Map'
+  if (pathname.startsWith('/admin/triage')) return 'Triage'
   return 'Admin'
 }
 

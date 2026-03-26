@@ -5,6 +5,19 @@ import { useRouter } from 'next/navigation'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+interface NewsArticle {
+  id: string
+  title: string
+  source: string
+  url: string
+  event_type: string
+  location_name: string | null
+  casualty_count: number | null
+  ai_relevance_score: number
+  linked_cluster_id: string | null
+  fetched_at: string
+}
+
 interface RecentCluster {
   id: string
   status: string
@@ -79,6 +92,8 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState<AdminStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [hoveredRow, setHoveredRow] = useState<string | null>(null)
+  const [news, setNews] = useState<NewsArticle[]>([])
+  const [newsLoading, setNewsLoading] = useState(true)
   const router = useRouter()
 
   useEffect(() => {
@@ -98,6 +113,15 @@ export default function AdminDashboard() {
     }
     fetchStats()
     const interval = setInterval(fetchStats, 30000)
+
+    fetch('/api/admin/news?limit=10')
+      .then((r) => r.json())
+      .then((d: { articles?: NewsArticle[] }) => {
+        setNews(d.articles ?? [])
+        setNewsLoading(false)
+      })
+      .catch(() => setNewsLoading(false))
+
     return () => clearInterval(interval)
   }, [router])
 
@@ -386,6 +410,196 @@ export default function AdminDashboard() {
             ))}
           </tbody>
         </table>
+      )}
+
+      {/* ── Intelligence feed ──────────────────────────────────────────────── */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          margin: '20px 0 12px',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: '#e6edf3' }}>Intelligence feed</span>
+          <span
+            style={{
+              background: 'rgba(163,113,247,0.1)',
+              border: '1px solid rgba(163,113,247,0.2)',
+              color: '#a371f7',
+              fontSize: 9,
+              padding: '2px 7px',
+              borderRadius: 20,
+              fontWeight: 600,
+              marginLeft: 8,
+            }}
+          >
+            LIVE
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={() => router.push('/admin/intelligence')}
+          style={{
+            fontSize: 12,
+            color: '#58a6ff',
+            cursor: 'pointer',
+            background: 'none',
+            border: 'none',
+            fontFamily: 'system-ui',
+          }}
+        >
+          View all →
+        </button>
+      </div>
+
+      {newsLoading || news.length === 0 ? (
+        <div
+          style={{
+            background: '#161b22',
+            border: '1px solid #21262d',
+            borderRadius: 6,
+            padding: 20,
+            textAlign: 'center',
+            fontSize: 13,
+            color: '#484f58',
+          }}
+        >
+          {newsLoading ? 'Fetching intelligence feed...' : 'No articles yet'}
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {news.map((article) => {
+            const accentColors: Record<string, string> = {
+              airstrike: '#f85149',
+              evacuation: '#d29922',
+              casualties: '#f85149',
+              warning: '#d29922',
+              ground_operation: '#a371f7',
+            }
+            const accent = accentColors[article.event_type] ?? '#484f58'
+
+            const sourceStyles: Record<string, { bg: string; color: string }> = {
+              'Al Jazeera': { bg: 'rgba(248,81,73,0.1)', color: '#f85149' },
+              BBC: { bg: 'rgba(88,166,255,0.1)', color: '#58a6ff' },
+              Reuters: { bg: 'rgba(63,185,80,0.1)', color: '#3fb950' },
+              'UN OCHA': { bg: 'rgba(163,113,247,0.1)', color: '#a371f7' },
+            }
+            const src = sourceStyles[article.source] ?? {
+              bg: 'rgba(139,148,158,0.1)',
+              color: '#8b949e',
+            }
+
+            const score = article.ai_relevance_score
+            const relevanceColor = score >= 0.7 ? '#3fb950' : score >= 0.4 ? '#d29922' : '#484f58'
+
+            return (
+              <div
+                key={article.id}
+                style={{
+                  background: '#161b22',
+                  border: '1px solid #21262d',
+                  borderRadius: 6,
+                  padding: '10px 12px',
+                  display: 'flex',
+                  gap: 10,
+                  alignItems: 'flex-start',
+                }}
+              >
+                {/* Accent bar */}
+                <div
+                  style={{
+                    width: 4,
+                    alignSelf: 'stretch',
+                    background: accent,
+                    borderRadius: 2,
+                    flexShrink: 0,
+                  }}
+                />
+
+                {/* Content */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  {/* Top line */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: 9,
+                        fontWeight: 600,
+                        padding: '2px 6px',
+                        borderRadius: 3,
+                        background: src.bg,
+                        color: src.color,
+                      }}
+                    >
+                      {article.source}
+                    </span>
+                    <span style={{ fontSize: 11, color: '#484f58' }}>
+                      {timeAgo(article.fetched_at)}
+                    </span>
+                  </div>
+
+                  {/* Title */}
+                  <div
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 500,
+                      color: '#e6edf3',
+                      lineHeight: 1.4,
+                      margin: '4px 0',
+                    }}
+                  >
+                    {article.linked_cluster_id && (
+                      <span style={{ color: '#3fb950', fontSize: 8, marginRight: 4 }}>●</span>
+                    )}
+                    {article.title}
+                  </div>
+
+                  {/* Bottom line */}
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {article.location_name && (
+                      <span style={{ fontSize: 11, color: '#8b949e' }}>
+                        · {article.location_name}
+                      </span>
+                    )}
+                    {article.casualty_count != null && article.casualty_count > 0 && (
+                      <span style={{ fontSize: 11, color: '#f85149' }}>
+                        {article.casualty_count} casualties
+                      </span>
+                    )}
+                    <span style={{ fontSize: 11, color: relevanceColor }}>
+                      {Math.round(score * 100)}% relevant
+                    </span>
+                  </div>
+
+                  {/* Matched badge */}
+                  {article.linked_cluster_id && (
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        marginTop: 4,
+                        background: 'rgba(63,185,80,0.08)',
+                        border: '1px solid rgba(63,185,80,0.15)',
+                        color: '#3fb950',
+                        fontSize: 10,
+                        padding: '2px 8px',
+                        borderRadius: 3,
+                      }}
+                    >
+                      Matched to incident
+                    </span>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
       )}
     </div>
   )
