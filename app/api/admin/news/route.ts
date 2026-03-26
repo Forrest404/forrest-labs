@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
     .from('news_articles')
     .select(
       'id, created_at, fetched_at, source, title, url, published_at, summary, location_name, location_lat, location_lon, event_type, casualty_count, ai_relevance, status, linked_cluster_id, match_confidence',
+      { count: 'exact' },
     )
     .order('fetched_at', { ascending: false })
     .limit(limit)
@@ -31,10 +32,10 @@ export async function GET(request: NextRequest) {
     query = query.not('linked_cluster_id', 'is', null)
   }
 
-  const { data } = await query
+  const { data, count } = await query
 
   return NextResponse.json(
-    { articles: data ?? [] },
+    { articles: data ?? [], total: count ?? 0 },
     { headers: { 'Cache-Control': 'no-store' } },
   )
 }

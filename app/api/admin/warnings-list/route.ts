@@ -12,7 +12,8 @@ export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
 
   const filter = searchParams.get('filter') ?? 'all'
-  const limit = Math.min(parseInt(searchParams.get('limit') ?? '50'), 100)
+  const limit = Math.min(Math.max(1, parseInt(searchParams.get('limit') ?? '50') || 50), 100)
+  const offset = Math.max(0, parseInt(searchParams.get('offset') ?? '0') || 0)
 
   let query = supabase
     .from('warning_clusters')
@@ -21,7 +22,7 @@ export async function GET(request: NextRequest) {
       { count: 'exact' },
     )
     .order('created_at', { ascending: false })
-    .limit(limit)
+    .range(offset, offset + limit - 1)
 
   if (filter !== 'all') {
     query = query.eq('status', filter)

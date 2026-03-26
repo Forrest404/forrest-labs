@@ -6,7 +6,10 @@ const PUBLIC_PATHS = ['/admin/login', '/api/admin/auth/login']
 
 function getJwtSecret(): Uint8Array {
   const secret = process.env.ADMIN_JWT_SECRET
-  if (!secret) return new TextEncoder().encode('fallback-insecure')
+  if (!secret) {
+    console.error('[middleware] ADMIN_JWT_SECRET is not set')
+    return new TextEncoder().encode('MISSING-SECRET-WILL-REJECT-ALL')
+  }
   return new TextEncoder().encode(secret)
 }
 

@@ -378,38 +378,44 @@ async function sendPushNotification(
   concerns: string[],
   status: string,
 ): Promise<void> {
-  if (!NTFY_CHANNEL || !REVIEW_SECRET || !APP_URL) return
+  if (!NTFY_CHANNEL || !REVIEW_SECRET || !APP_URL) {
+    console.log('Push notification skipped: missing env vars')
+    return
+  }
 
   const isAuto = status === 'auto_confirmed'
 
   const location = `${centroidLat.toFixed(3)}, ${centroidLon.toFixed(3)}`
   const types = dominantTypes.join(' · ').replace(/_/g, ' ')
+  const reasoningSentence = reasoning ? reasoning.split('.')[0] + '.' : ''
 
   const body = isAuto
-    ? `AUTO-CONFIRMED\n${location}\n${reportCount} reports | Score ${confidenceScore}/100\n${types}`
-    : `REVIEW NEEDED\n${location}\n${reportCount} reports | Score ${confidenceScore}/100\n${types}${reasoning ? '\n\nAI: ' + reasoning : ''}${concerns.length > 0 ? '\n\nConcerns:\n' + concerns.map((c) => '- ' + c).join('\n') : ''}`
+    ? `${location} · ${reportCount} reports · ${confidenceScore}% confidence\n${types}${reasoningSentence ? '\n' + reasoningSentence : ''}`
+    : `${location} · ${reportCount} reports · ${confidenceScore}% confidence\n${types}${reasoningSentence ? '\n' + reasoningSentence : ''}${concerns.length > 0 ? '\nConcerns: ' + concerns.join(', ') : ''}`
 
   const headers: Record<string, string> = {
     'Title': isAuto ? 'Forrest Labs - Auto-confirmed' : 'Forrest Labs - Review needed',
-    'Priority': isAuto ? 'default' : 'high',
+    'Priority': confidenceScore >= 85 ? 'urgent' : 'high',
     'Tags': isAuto ? 'white_check_mark' : 'warning',
     'Content-Type': 'text/plain',
   }
 
   if (!isAuto) {
-    const approveUrl =
-      `${APP_URL}/api/clusters/${clusterId}/approve?key=${REVIEW_SECRET}`
-    const rejectUrl =
-      `${APP_URL}/api/clusters/${clusterId}/reject?key=${REVIEW_SECRET}`
+    const approveUrl = `${APP_URL}/api/clusters/${clusterId}/approve?key=${REVIEW_SECRET}`
+    const rejectUrl = `${APP_URL}/api/clusters/${clusterId}/reject?key=${REVIEW_SECRET}`
+    const triageUrl = `${APP_URL}/admin/triage`
     headers['Actions'] =
-      `view, Approve, ${approveUrl}, clear=true; ` +
-      `view, Reject, ${rejectUrl}, clear=true`
+      `http, Approve, ${approveUrl}, method=GET, clear=true; ` +
+      `http, Reject, ${rejectUrl}, method=GET, clear=true; ` +
+      `view, Open triage, ${triageUrl}`
   }
 
   await fetch(`https://ntfy.sh/${NTFY_CHANNEL}`, {
     method: 'POST',
     headers,
     body,
+  }).catch((err) => {
+    console.error('Push notification failed:', err)
   })
 }
 

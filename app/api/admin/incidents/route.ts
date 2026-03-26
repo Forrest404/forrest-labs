@@ -12,8 +12,8 @@ export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
 
   const filter = searchParams.get('filter') ?? 'all'
-  const limit = Math.min(parseInt(searchParams.get('limit') ?? '50'), 100)
-  const offset = parseInt(searchParams.get('offset') ?? '0')
+  const limit = Math.min(Math.max(1, parseInt(searchParams.get('limit') ?? '50') || 50), 100)
+  const offset = Math.max(0, parseInt(searchParams.get('offset') ?? '0') || 0)
 
   let query = supabase
     .from('clusters')

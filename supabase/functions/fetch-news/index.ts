@@ -161,10 +161,22 @@ async function findNearbyCluster(
 Deno.serve(async () => {
   const supabase = createClient(SUPABASE_URL, SERVICE_KEY)
   const allArticles: string[] = []
+  let claudeCalls = 0
+  const MAX_CLAUDE_CALLS = 3
 
   for (const feed of RSS_FEEDS) {
     try {
-      const res = await fetch(feed.url)
+      // Fetch with 10s timeout
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 10000)
+      const res = await fetch(feed.url, { signal: controller.signal })
+      clearTimeout(timeout)
+
+      if (!res.ok) {
+        console.error(`Feed ${feed.name} returned ${res.status}`)
+        continue
+      }
+
       const xml = await res.text()
       const items = parseRSS(xml)
 
@@ -175,10 +187,16 @@ Deno.serve(async () => {
       )
 
       for (const item of relevant.slice(0, 5)) {
+        // Dedup check BEFORE calling Claude
+        if (!item.link) continue
         const exists = await supabase.from('news_articles').select('id').eq('url', item.link).single()
         if (exists.data) continue
 
+        // Cap Claude calls per invocation
+        if (claudeCalls >= MAX_CLAUDE_CALLS) break
+
         const analysis = await analyseArticle(item.title, item.description ?? '', feed.name)
+        claudeCalls++
         if (analysis.relevance_score < 0.3) continue
 
         const nearbyCluster = await findNearbyCluster(supabase, analysis.lat, analysis.lon)
@@ -202,6 +220,8 @@ Deno.serve(async () => {
 
         allArticles.push(item.title)
       }
+
+      if (claudeCalls >= MAX_CLAUDE_CALLS) break
     } catch (err) {
       console.error('Feed error:', feed.name, err)
     }

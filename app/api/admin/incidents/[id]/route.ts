@@ -24,13 +24,17 @@ export async function GET(
     return NextResponse.json({ error: 'Cluster not found' }, { status: 404 })
   }
 
-  const { data: reports } = await supabase
+  const { data: reports, error: reportsError } = await supabase
     .from('reports')
     .select(
       'id, created_at, lat, lon, distance_band, event_types, media_url, media_status, session_hash, status, cluster_id',
     )
     .eq('cluster_id', clusterId)
     .order('created_at', { ascending: true })
+
+  if (reportsError) {
+    console.error('[admin/incidents/id] Reports query failed:', reportsError.message)
+  }
 
   return NextResponse.json(
     { cluster, reports: reports ?? [] },
