@@ -107,6 +107,10 @@ function IncidentsInner() {
   const [selected, setSelected] = useState<ClusterSummary | null>(null)
   const [selectedReports, setSelectedReports] = useState<ClusterReport[]>([])
   const [detailLoading, setDetailLoading] = useState(false)
+  const [actionLoading, setActionLoading] = useState<'approving' | 'rejecting' | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [toast, setToast] = useState<string | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
 
   // Read filter from URL on mount
   useEffect(() => {
@@ -142,21 +146,58 @@ function IncidentsInner() {
     setDetailLoading(false)
   }
 
-  // Approve/reject
+  // Approve/reject with loading + error + toast
   async function handleApprove() {
-    if (!selected) return
-    const key = process.env.NEXT_PUBLIC_REVIEW_SECRET ?? ''
-    await fetch('/api/clusters/' + selected.id + '/approve?key=' + encodeURIComponent(key))
-    setSelected(null)
-    fetchClusters(filter)
+    if (!selected || actionLoading) return
+    setActionLoading('approving')
+    setActionError(null)
+    try {
+      const key = process.env.NEXT_PUBLIC_REVIEW_SECRET ?? ''
+      const res = await fetch('/api/clusters/' + selected.id + '/approve?key=' + encodeURIComponent(key))
+      if (!res.ok) throw new Error('Failed to confirm cluster')
+      // Update local state
+      if (filter === 'pending_review') {
+        setClusters((prev) => prev.filter((c) => c.id !== selected.id))
+        setTotal((prev) => Math.max(0, prev - 1))
+      }
+      setSelected(null)
+      setToast('Cluster confirmed and published to live map')
+      setTimeout(() => setToast(null), 3000)
+      fetchClusters(filter)
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Failed to confirm')
+    } finally {
+      setActionLoading(null)
+    }
   }
 
   async function handleReject() {
-    if (!selected) return
-    const key = process.env.NEXT_PUBLIC_REVIEW_SECRET ?? ''
-    await fetch('/api/clusters/' + selected.id + '/reject?key=' + encodeURIComponent(key))
-    setSelected(null)
-    fetchClusters(filter)
+    if (!selected || actionLoading) return
+    setActionLoading('rejecting')
+    setActionError(null)
+    try {
+      const key = process.env.NEXT_PUBLIC_REVIEW_SECRET ?? ''
+      const res = await fetch('/api/clusters/' + selected.id + '/reject?key=' + encodeURIComponent(key))
+      if (!res.ok) throw new Error('Failed to reject cluster')
+      if (filter === 'pending_review') {
+        setClusters((prev) => prev.filter((c) => c.id !== selected.id))
+        setTotal((prev) => Math.max(0, prev - 1))
+      }
+      setSelected(null)
+      setToast('Cluster rejected')
+      setTimeout(() => setToast(null), 3000)
+      fetchClusters(filter)
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Failed to reject')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  async function handleRefresh() {
+    setRefreshing(true)
+    await fetchClusters(filter)
+    setRefreshing(false)
   }
 
   return (
@@ -203,7 +244,30 @@ function IncidentsInner() {
           ))}
         </div>
 
-        <div style={{ fontSize: 12, color: '#484f58', marginBottom: 10 }}>{total} incidents</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+          <span style={{ fontSize: 12, color: '#484f58' }}>{total} incidents</span>
+          <button
+            type="button"
+            onClick={handleRefresh}
+            style={{
+              width: 22,
+              height: 22,
+              background: 'transparent',
+              border: '1px solid #21262d',
+              borderRadius: '50%',
+              color: '#484f58',
+              fontSize: 12,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'transform 0.5s',
+              transform: refreshing ? 'rotate(360deg)' : 'none',
+            }}
+          >
+            ↺
+          </button>
+        </div>
 
         {loading
           ? Array.from({ length: 5 }).map((_, i) => (
@@ -396,43 +460,52 @@ function IncidentsInner() {
 
           {/* Approve/Reject */}
           {selected.status === 'pending_review' && (
-            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-              <button
-                type="button"
-                onClick={handleApprove}
-                style={{
-                  flex: 1,
-                  height: 36,
-                  background: 'rgba(63,185,80,0.1)',
-                  border: '1px solid rgba(63,185,80,0.3)',
-                  color: '#3fb950',
-                  borderRadius: 6,
-                  fontSize: 13,
-                  fontWeight: 500,
-                  cursor: 'pointer',
-                  fontFamily: 'system-ui',
-                }}
-              >
-                Confirm incident
-              </button>
-              <button
-                type="button"
-                onClick={handleReject}
-                style={{
-                  flex: 1,
-                  height: 36,
-                  background: 'rgba(248,81,73,0.08)',
-                  border: '1px solid rgba(248,81,73,0.2)',
-                  color: '#f85149',
-                  borderRadius: 6,
-                  fontSize: 13,
-                  fontWeight: 500,
-                  cursor: 'pointer',
-                  fontFamily: 'system-ui',
-                }}
-              >
-                Reject
-              </button>
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={handleApprove}
+                  disabled={actionLoading !== null}
+                  style={{
+                    flex: 1,
+                    height: 36,
+                    background: 'rgba(63,185,80,0.1)',
+                    border: '1px solid rgba(63,185,80,0.3)',
+                    color: '#3fb950',
+                    borderRadius: 6,
+                    fontSize: 13,
+                    fontWeight: 500,
+                    cursor: actionLoading ? 'default' : 'pointer',
+                    fontFamily: 'system-ui',
+                    opacity: actionLoading && actionLoading !== 'approving' ? 0.5 : 1,
+                  }}
+                >
+                  {actionLoading === 'approving' ? 'Confirming...' : 'Confirm incident'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleReject}
+                  disabled={actionLoading !== null}
+                  style={{
+                    flex: 1,
+                    height: 36,
+                    background: 'rgba(248,81,73,0.08)',
+                    border: '1px solid rgba(248,81,73,0.2)',
+                    color: '#f85149',
+                    borderRadius: 6,
+                    fontSize: 13,
+                    fontWeight: 500,
+                    cursor: actionLoading ? 'default' : 'pointer',
+                    fontFamily: 'system-ui',
+                    opacity: actionLoading && actionLoading !== 'rejecting' ? 0.5 : 1,
+                  }}
+                >
+                  {actionLoading === 'rejecting' ? 'Rejecting...' : 'Reject'}
+                </button>
+              </div>
+              {actionError && (
+                <div style={{ fontSize: 12, color: '#f85149', marginTop: 6 }}>{actionError}</div>
+              )}
             </div>
           )}
 
@@ -522,6 +595,17 @@ function IncidentsInner() {
                   </div>
                 </div>
               ))}
+        </div>
+      )}
+
+      {/* Toast */}
+      {toast && (
+        <div style={{
+          position: 'fixed', bottom: 20, right: 20, zIndex: 100,
+          background: '#161b22', border: '1px solid #21262d', borderRadius: 8,
+          padding: '12px 16px', fontSize: 13, color: '#e6edf3',
+        }}>
+          {toast}
         </div>
       )}
     </div>

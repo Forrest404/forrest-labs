@@ -62,11 +62,12 @@ const FILTER_TABS = [
 ] as const
 
 const SUGGESTED_QUESTIONS = [
-  'How many strikes this week?',
-  'Which area has most reports?',
-  'Any clusters near hospitals?',
-  'How many active warnings?',
-  'What was confirmed today?',
+  'How many incidents in the last 7 days?',
+  'Which area had the most strikes this week?',
+  'How many reports came from Beirut?',
+  'How many warnings became confirmed strikes?',
+  'What was the highest confidence cluster?',
+  'How many civilians reported in the last 24 hours?',
 ]
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -79,6 +80,7 @@ export default function IntelligencePage() {
   const [question, setQuestion] = useState('')
   const [querying, setQuerying] = useState(false)
   const [queryHistory, setQueryHistory] = useState<QueryEntry[]>([])
+  const [dataContext, setDataContext] = useState<{ confirmed: number; totalReports: number } | null>(null)
 
   const fetchArticles = useCallback(async () => {
     setLoading(true)
@@ -93,6 +95,19 @@ export default function IntelligencePage() {
   }, [filter, router])
 
   useEffect(() => { fetchArticles() }, [fetchArticles])
+
+  // Fetch data context for query panel
+  useEffect(() => {
+    fetch('/api/admin/stats')
+      .then((r) => r.json())
+      .then((d: { clusters?: { confirmed?: number; auto_confirmed?: number }; reports?: { total?: number } }) => {
+        setDataContext({
+          confirmed: (d.clusters?.confirmed ?? 0) + (d.clusters?.auto_confirmed ?? 0),
+          totalReports: d.reports?.total ?? 0,
+        })
+      })
+      .catch(() => { /* ignore */ })
+  }, [])
 
   async function handleDismiss(id: string) {
     await fetch('/api/admin/news/' + id + '/dismiss', { method: 'POST' })
@@ -276,7 +291,7 @@ export default function IntelligencePage() {
             queryHistory.map((entry, i) => (
               <div key={i} style={{ marginBottom: 10 }}>
                 <div style={{ fontSize: 12, fontWeight: 500, color: '#e6edf3', marginBottom: 4 }}>Q: {entry.q}</div>
-                <div style={{ fontSize: 12, color: '#8b949e', lineHeight: 1.6, background: '#161b22', border: '1px solid #21262d', borderRadius: 6, padding: '10px 12px' }}>{entry.a}</div>
+                <div style={{ fontSize: 12, color: '#8b949e', lineHeight: 1.6, background: '#161b22', border: '1px solid #21262d', borderRadius: 6, padding: '10px 12px', whiteSpace: 'pre-wrap' }}>{entry.a}</div>
               </div>
             ))
           )}
@@ -332,6 +347,11 @@ export default function IntelligencePage() {
           </button>
         </div>
         <div style={{ fontSize: 11, color: '#484f58', marginTop: 6 }}>Ctrl+Enter to submit</div>
+        {dataContext && (
+          <div style={{ fontSize: 11, color: '#484f58', marginTop: 4 }}>
+            Based on {dataContext.confirmed} confirmed incidents and {dataContext.totalReports} total reports
+          </div>
+        )}
       </div>
     </div>
   )

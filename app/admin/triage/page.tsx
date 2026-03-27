@@ -38,6 +38,12 @@ interface TriageReport {
   status: string
 }
 
+interface LastAction {
+  clusterId: string
+  action: 'confirmed' | 'discarded'
+  cluster: TriageCluster
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function timeAgo(dateStr: string): string {
@@ -74,9 +80,14 @@ export default function TriagePage() {
   const [loading, setLoading] = useState(true)
   const [processing, setProcessing] = useState(false)
   const [done, setDone] = useState(false)
+  const [isTransitioning, setIsTransitioning] = useState(false)
+  const [pressedButton, setPressedButton] = useState<string | null>(null)
+  const [lastAction, setLastAction] = useState<LastAction | null>(null)
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const miniMapRef = useRef<HTMLDivElement>(null)
   const miniMap = useRef<any>(null)
+  const mapInitialized = useRef(false)
 
   // ── Load queue ─────────────────────────────────────────────────────────
 
@@ -102,15 +113,18 @@ export default function TriagePage() {
 
   async function loadCluster(cluster: TriageCluster) {
     setCurrent(cluster)
+    setCurrentReports([])
     try {
       const res = await fetch('/api/admin/incidents/' + cluster.id)
       const data = (await res.json()) as { reports?: TriageReport[] }
       setCurrentReports(data.reports ?? [])
     } catch { setCurrentReports([]) }
+    setIsTransitioning(false)
+    setProcessing(false)
 
-    // Update mini map
-    if (miniMap.current) {
-      miniMap.current.flyTo({ center: [cluster.centroid_lon, cluster.centroid_lat], zoom: 14, duration: 500 })
+    // Update mini map — flyTo if already initialized, or init
+    if (miniMap.current && mapInitialized.current) {
+      miniMap.current.flyTo({ center: [cluster.centroid_lon, cluster.centroid_lat], zoom: 14, duration: 600 })
       const src = miniMap.current.getSource('triage-dot')
       if (src) {
         src.setData({ type: 'FeatureCollection', features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: [cluster.centroid_lon, cluster.centroid_lat] }, properties: {} }] })
@@ -118,20 +132,15 @@ export default function TriagePage() {
     }
   }
 
-  // ── Mini map init ──────────────────────────────────────────────────────
+  // ── Mini map init — once ───────────────────────────────────────────────
 
   useEffect(() => {
-    if (!current) return
+    if (!current || mapInitialized.current) return
 
-    const link = document.createElement('link')
-    link.rel = 'stylesheet'
-    link.href = 'https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css'
-    document.head.appendChild(link)
+    function initMap() {
+      if (!miniMapRef.current || !current || mapInitialized.current) return
+      if (!window.mapboxgl) return
 
-    const script = document.createElement('script')
-    script.src = 'https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js'
-    script.onload = () => {
-      if (!miniMapRef.current || miniMap.current) return
       window.mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
       miniMap.current = new window.mapboxgl.Map({
         container: miniMapRef.current,
@@ -141,6 +150,8 @@ export default function TriagePage() {
         interactive: false,
         attributionControl: false,
       })
+      mapInitialized.current = true
+
       miniMap.current.on('load', () => {
         miniMap.current.addSource('triage-dot', {
           type: 'geojson',
@@ -150,53 +161,96 @@ export default function TriagePage() {
         miniMap.current.addLayer({ id: 'triage-dot-inner', type: 'circle', source: 'triage-dot', paint: { 'circle-radius': 5, 'circle-color': '#f85149' } })
       })
     }
-    if (window.mapboxgl) script.onload(new Event('load'))
-    else document.head.appendChild(script)
 
-    return () => { if (miniMap.current) { miniMap.current.remove(); miniMap.current = null } }
+    if (window.mapboxgl) {
+      initMap()
+    } else {
+      const link = document.createElement('link')
+      link.rel = 'stylesheet'
+      link.href = 'https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css'
+      document.head.appendChild(link)
+
+      const script = document.createElement('script')
+      script.src = 'https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js'
+      script.onload = () => initMap()
+      document.head.appendChild(script)
+    }
+
+    return () => {
+      if (miniMap.current) { miniMap.current.remove(); miniMap.current = null; mapInitialized.current = false }
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current?.id])
 
   // ── Actions ────────────────────────────────────────────────────────────
 
-  const nextCluster = useCallback(() => {
+  const nextCluster = useCallback((skipTransition?: boolean) => {
     const next = index + 1
     if (next >= queue.length) {
       setDone(true)
       return
     }
     setIndex(next)
-    setProcessing(false)
+    if (!skipTransition) setIsTransitioning(true)
     loadCluster(queue[next])
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index, queue])
 
+  const flashButton = useCallback((btn: string) => {
+    setPressedButton(btn)
+    setTimeout(() => setPressedButton(null), 150)
+  }, [])
+
+  const showUndoToast = useCallback((clusterId: string, action: 'confirmed' | 'discarded', cluster: TriageCluster) => {
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
+    setLastAction({ clusterId, action, cluster })
+    undoTimerRef.current = setTimeout(() => setLastAction(null), 5000)
+  }, [])
+
   const handleApprove = useCallback(async () => {
     if (!current || processing) return
     setProcessing(true)
+    flashButton('approve')
     const key = process.env.NEXT_PUBLIC_REVIEW_SECRET ?? ''
     await fetch('/api/clusters/' + current.id + '/approve?key=' + encodeURIComponent(key))
-    nextCluster()
-  }, [current, processing, nextCluster])
+    showUndoToast(current.id, 'confirmed', current)
+    setIsTransitioning(true)
+    nextCluster(true)
+  }, [current, processing, nextCluster, flashButton, showUndoToast])
 
   const handleReject = useCallback(async () => {
     if (!current || processing) return
     setProcessing(true)
+    flashButton('reject')
     const key = process.env.NEXT_PUBLIC_REVIEW_SECRET ?? ''
     await fetch('/api/clusters/' + current.id + '/reject?key=' + encodeURIComponent(key))
-    nextCluster()
-  }, [current, processing, nextCluster])
+    showUndoToast(current.id, 'discarded', current)
+    setIsTransitioning(true)
+    nextCluster(true)
+  }, [current, processing, nextCluster, flashButton, showUndoToast])
 
   const handleSkip = useCallback(() => {
     if (processing) return
+    flashButton('skip')
+    setIsTransitioning(true)
     nextCluster()
-  }, [processing, nextCluster])
+  }, [processing, nextCluster, flashButton])
+
+  const handleUndo = useCallback(async () => {
+    if (!lastAction) return
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
+    const key = process.env.NEXT_PUBLIC_REVIEW_SECRET ?? ''
+    // Call opposite endpoint
+    const endpoint = lastAction.action === 'confirmed' ? 'reject' : 'approve'
+    await fetch('/api/clusters/' + lastAction.clusterId + '/' + endpoint + '?key=' + encodeURIComponent(key))
+    setLastAction(null)
+  }, [lastAction])
 
   // ── Keyboard shortcuts ─────────────────────────────────────────────────
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+      if (document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLTextAreaElement) return
       if (processing) return
       switch (e.key) {
         case 'a': case 'A': handleApprove(); break
@@ -207,6 +261,12 @@ export default function TriagePage() {
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
   }, [processing, handleApprove, handleReject, handleSkip])
+
+  // ── Cleanup undo timer ─────────────────────────────────────────────────
+
+  useEffect(() => {
+    return () => { if (undoTimerRef.current) clearTimeout(undoTimerRef.current) }
+  }, [])
 
   // ── Loading state ──────────────────────────────────────────────────────
 
@@ -245,9 +305,16 @@ export default function TriagePage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+      <style>{`
+        @keyframes transition-bar { 0% { width: 0; } 100% { width: 100%; } }
+      `}</style>
+
       {/* Progress bar */}
-      <div style={{ height: 3, background: '#21262d', flexShrink: 0 }}>
+      <div style={{ height: 3, background: '#21262d', flexShrink: 0, position: 'relative' }}>
         <div style={{ height: '100%', background: '#3fb950', width: (index / queue.length) * 100 + '%', transition: 'width 0.3s' }} />
+        {isTransitioning && (
+          <div style={{ position: 'absolute', top: 0, left: 0, height: '100%', background: '#58a6ff', animation: 'transition-bar 0.8s ease forwards' }} />
+        )}
       </div>
 
       {/* Header */}
@@ -303,7 +370,7 @@ export default function TriagePage() {
             </div>
 
             {current.ai_reasoning && (
-              <div style={{ fontSize: 13, color: '#8b949e', lineHeight: 1.6, background: '#161b22', border: '1px solid #21262d', borderRadius: 6, padding: 12, marginBottom: 12 }}>
+              <div style={{ fontSize: 13, color: '#8b949e', lineHeight: 1.6, background: '#161b22', border: '1px solid #21262d', borderRadius: 6, padding: 12, marginBottom: 12, whiteSpace: 'pre-wrap' }}>
                 {current.ai_reasoning}
               </div>
             )}
@@ -344,32 +411,50 @@ export default function TriagePage() {
           <div style={{ position: 'sticky', bottom: 0, background: 'rgba(13,17,23,0.97)', borderTop: '1px solid #21262d', padding: 16, display: 'flex', gap: 10, flexShrink: 0 }}>
             <button type="button" onClick={handleReject} disabled={processing} style={{
               flex: 1, height: 48,
-              background: 'rgba(248,81,73,0.08)', border: '1px solid rgba(248,81,73,0.3)', color: '#f85149',
+              background: pressedButton === 'reject' ? 'rgba(248,81,73,0.25)' : 'rgba(248,81,73,0.08)',
+              border: '1px solid rgba(248,81,73,0.3)', color: '#f85149',
               borderRadius: 7, fontSize: 14, fontWeight: 600, cursor: processing ? 'default' : 'pointer', fontFamily: 'system-ui',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-              opacity: processing ? 0.5 : 1,
+              opacity: processing ? 0.5 : 1, transition: 'background 0.15s',
             }}>
               [R] Reject
             </button>
             <button type="button" onClick={handleSkip} style={{
               width: 80, height: 48,
-              background: 'transparent', border: '1px solid #21262d', color: '#484f58',
+              background: pressedButton === 'skip' ? 'rgba(255,255,255,0.08)' : 'transparent',
+              border: '1px solid #21262d', color: '#484f58',
               borderRadius: 7, fontSize: 14, cursor: 'pointer', fontFamily: 'system-ui',
+              transition: 'background 0.15s',
             }}>
               [S]
             </button>
             <button type="button" onClick={handleApprove} disabled={processing} style={{
               flex: 1, height: 48,
-              background: 'rgba(63,185,80,0.1)', border: '1px solid rgba(63,185,80,0.35)', color: '#3fb950',
+              background: pressedButton === 'approve' ? 'rgba(63,185,80,0.25)' : 'rgba(63,185,80,0.1)',
+              border: '1px solid rgba(63,185,80,0.35)', color: '#3fb950',
               borderRadius: 7, fontSize: 14, fontWeight: 600, cursor: processing ? 'default' : 'pointer', fontFamily: 'system-ui',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-              opacity: processing ? 0.5 : 1,
+              opacity: processing ? 0.5 : 1, transition: 'background 0.15s',
             }}>
               [A] Confirm
             </button>
           </div>
         </div>
       </div>
+
+      {/* Undo toast */}
+      {lastAction && (
+        <div style={{
+          position: 'fixed', bottom: 20, right: 20, zIndex: 100,
+          background: '#161b22', border: '1px solid #21262d', borderRadius: 8,
+          padding: '12px 16px', display: 'flex', gap: 12, alignItems: 'center',
+        }}>
+          <span style={{ fontSize: 13, color: '#e6edf3' }}>
+            {lastAction.action === 'confirmed' ? 'Cluster confirmed' : 'Cluster rejected'}
+          </span>
+          <span onClick={handleUndo} style={{ fontSize: 13, color: '#58a6ff', cursor: 'pointer' }}>Undo</span>
+        </div>
+      )}
     </div>
   )
 }

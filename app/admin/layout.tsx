@@ -101,6 +101,7 @@ function getPageTitle(pathname: string): string {
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const [authed, setAuthed] = useState(false)
   const [time, setTime] = useState('')
+  const [showShortcuts, setShowShortcuts] = useState(false)
   const router = useRouter()
   const pathname = usePathname()
 
@@ -144,6 +145,21 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     const id = setInterval(tick, 1000)
     return () => clearInterval(id)
   }, [isLoginPage])
+
+  // Global keyboard shortcuts
+  useEffect(() => {
+    if (isLoginPage) return
+    const handleGlobalKeys = (e: KeyboardEvent) => {
+      if (document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLTextAreaElement) return
+      switch (e.key) {
+        case 'Escape':
+          setShowShortcuts(false)
+          break
+      }
+    }
+    window.addEventListener('keydown', handleGlobalKeys)
+    return () => window.removeEventListener('keydown', handleGlobalKeys)
+  }, [isLoginPage, router])
 
   // Login page gets no layout chrome
   if (isLoginPage) return <>{children}</>
@@ -350,6 +366,76 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         {/* Scrollable content */}
         <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>{children}</div>
       </div>
+
+      {/* Keyboard shortcut help */}
+      <button
+        type="button"
+        onClick={() => setShowShortcuts((v) => !v)}
+        style={{
+          position: 'fixed',
+          bottom: 16,
+          right: 16,
+          width: 28,
+          height: 28,
+          background: '#161b22',
+          border: '1px solid #21262d',
+          borderRadius: '50%',
+          fontSize: 12,
+          color: '#484f58',
+          cursor: 'pointer',
+          zIndex: 50,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontFamily: 'system-ui',
+        }}
+      >
+        ?
+      </button>
+
+      {showShortcuts && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: 56,
+            right: 16,
+            background: '#161b22',
+            border: '1px solid #21262d',
+            borderRadius: 8,
+            padding: '14px 16px',
+            width: 220,
+            zIndex: 50,
+          }}
+        >
+          <div style={{ fontSize: 12, fontWeight: 600, color: '#e6edf3', marginBottom: 10 }}>
+            Keyboard shortcuts
+          </div>
+          {pathname.startsWith('/admin/triage') && (
+            <>
+              {[
+                { key: 'A', desc: 'Confirm cluster' },
+                { key: 'R', desc: 'Reject cluster' },
+                { key: 'S', desc: 'Skip to next' },
+                { key: '→', desc: 'Skip to next' },
+              ].map((s) => (
+                <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                  <span style={{ background: '#21262d', border: '1px solid #30363d', borderRadius: 4, padding: '1px 6px', fontSize: 11, color: '#8b949e', fontFamily: 'monospace', minWidth: 20, textAlign: 'center' }}>{s.key}</span>
+                  <span style={{ fontSize: 11, color: '#484f58' }}>{s.desc}</span>
+                </div>
+              ))}
+              <div style={{ borderTop: '1px solid #21262d', margin: '6px 0' }} />
+            </>
+          )}
+          {[
+            { key: 'Esc', desc: 'Close modal/panel' },
+          ].map((s) => (
+            <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+              <span style={{ background: '#21262d', border: '1px solid #30363d', borderRadius: 4, padding: '1px 6px', fontSize: 11, color: '#8b949e', fontFamily: 'monospace', minWidth: 20, textAlign: 'center' }}>{s.key}</span>
+              <span style={{ fontSize: 11, color: '#484f58' }}>{s.desc}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

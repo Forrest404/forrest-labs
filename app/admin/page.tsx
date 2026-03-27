@@ -94,6 +94,7 @@ export default function AdminDashboard() {
   const [hoveredRow, setHoveredRow] = useState<string | null>(null)
   const [news, setNews] = useState<NewsArticle[]>([])
   const [newsLoading, setNewsLoading] = useState(true)
+  const [newsRefreshing, setNewsRefreshing] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -249,7 +250,7 @@ export default function AdminDashboard() {
           </div>
           <button
             type="button"
-            onClick={() => router.push('/admin/incidents?filter=pending')}
+            onClick={() => router.push('/admin/triage')}
             style={{
               fontSize: 13,
               color: '#f85149',
@@ -257,9 +258,10 @@ export default function AdminDashboard() {
               background: 'none',
               border: 'none',
               fontFamily: 'system-ui',
+              fontWeight: 500,
             }}
           >
-            Review now →
+            Review {stats.clusters.pending_review} pending cluster{stats.clusters.pending_review !== 1 ? 's' : ''} →
           </button>
         </div>
       )}
@@ -312,6 +314,30 @@ export default function AdminDashboard() {
         ))}
       </div>
 
+      {/* System health row */}
+      <div style={{ display: 'flex', gap: 16, marginBottom: 16, padding: '8px 12px', background: '#161b22', border: '1px solid #21262d', borderRadius: 6 }}>
+        {(() => {
+          const recentCluster = stats.recent_clusters[0]
+          const aiMinAgo = recentCluster ? Math.floor((Date.now() - new Date(recentCluster.created_at).getTime()) / 60000) : null
+          const aiOk = aiMinAgo !== null && aiMinAgo < 120
+          const reportsOk = stats.reports.today > 0
+          const newsRecent = news.length > 0 ? Math.floor((Date.now() - new Date(news[0].fetched_at).getTime()) / 60000) : null
+          const newsOk = newsRecent !== null && newsRecent < 30
+
+          return [
+            { dot: aiOk ? '#3fb950' : '#d29922', label: 'AI Analyst', status: aiMinAgo !== null ? (aiOk ? `Last ran ${aiMinAgo}m ago` : 'Check edge function') : 'No data' },
+            { dot: reportsOk ? '#3fb950' : '#484f58', label: 'Report pipeline', status: reportsOk ? `${stats.reports.today} reports today` : 'No reports today' },
+            { dot: newsOk ? '#3fb950' : '#d29922', label: 'News feed', status: newsRecent !== null ? (newsOk ? `Updated ${newsRecent}m ago` : 'Refresh manually') : 'No articles' },
+          ].map((ind) => (
+            <div key={ind.label} style={{ display: 'flex', alignItems: 'center', gap: 7, flex: 1 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: ind.dot, flexShrink: 0 }} />
+              <span style={{ fontSize: 11, color: '#8b949e', fontWeight: 500 }}>{ind.label}</span>
+              <span style={{ fontSize: 11, color: '#484f58' }}>{ind.status}</span>
+            </div>
+          ))
+        })()}
+      </div>
+
       {/* Incidents table section */}
       <div
         style={{
@@ -346,7 +372,7 @@ export default function AdminDashboard() {
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
           <thead>
             <tr style={{ borderBottom: '1px solid #21262d' }}>
-              {['Location', 'Confidence', 'Reports', 'Status', 'Time'].map((col) => (
+              {['Location', 'Confidence', 'Reports', 'Status', 'Time', ''].map((col) => (
                 <th
                   key={col}
                   style={{
@@ -406,6 +432,9 @@ export default function AdminDashboard() {
                 <td style={{ padding: '10px 0', fontSize: 11, color: '#484f58' }}>
                   {timeAgo(cluster.created_at)}
                 </td>
+                <td style={{ padding: '10px 0', textAlign: 'right' }}>
+                  <span style={{ fontSize: 11, color: '#58a6ff', opacity: hoveredRow === cluster.id ? 1 : 0, transition: 'opacity 0.15s' }}>Review</span>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -438,20 +467,48 @@ export default function AdminDashboard() {
             LIVE
           </span>
         </div>
-        <button
-          type="button"
-          onClick={() => router.push('/admin/intelligence')}
-          style={{
-            fontSize: 12,
-            color: '#58a6ff',
-            cursor: 'pointer',
-            background: 'none',
-            border: 'none',
-            fontFamily: 'system-ui',
-          }}
-        >
-          View all →
-        </button>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button
+            type="button"
+            onClick={async () => {
+              setNewsRefreshing(true)
+              try {
+                await fetch('/api/admin/news/fetch', { method: 'POST' })
+                const r = await fetch('/api/admin/news?limit=10')
+                const d = (await r.json()) as { articles?: NewsArticle[] }
+                setNews(d.articles ?? [])
+              } catch { /* ignore */ }
+              setNewsRefreshing(false)
+            }}
+            style={{
+              height: 26,
+              fontSize: 11,
+              background: 'rgba(163,113,247,0.08)',
+              border: '1px solid rgba(163,113,247,0.2)',
+              color: '#a371f7',
+              borderRadius: 5,
+              cursor: 'pointer',
+              padding: '0 10px',
+              fontFamily: 'system-ui',
+            }}
+          >
+            {newsRefreshing ? 'Refreshing...' : 'Refresh feed'}
+          </button>
+          <button
+            type="button"
+            onClick={() => router.push('/admin/intelligence')}
+            style={{
+              fontSize: 12,
+              color: '#58a6ff',
+              cursor: 'pointer',
+              background: 'none',
+              border: 'none',
+              fontFamily: 'system-ui',
+            }}
+          >
+            View all →
+          </button>
+        </div>
       </div>
 
       {newsLoading || news.length === 0 ? (

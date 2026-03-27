@@ -1253,6 +1253,9 @@ export default function MapPage() {
               </span>
             </div>
           )}
+          <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, marginBottom: 1 }}>
+            {clusters.length} confirmed incident{clusters.length !== 1 ? 's' : ''} · {activeWarningCount} active warning{activeWarningCount !== 1 ? 's' : ''}
+          </div>
           <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
             {recentCluster
               ? `${locationNames[recentCluster.id] ?? 'Loading location...'} · ${recentCluster.report_count} reports · ${timeAgo(recentCluster.created_at)}`

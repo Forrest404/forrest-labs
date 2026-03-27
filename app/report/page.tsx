@@ -406,6 +406,7 @@ export default function ReportPage() {
   // Success screen
   const [shareButtonText, setShareButtonText] = useState('Share')
   const [copyWarningText, setCopyWarningText] = useState('copy')
+  const [nearbyIncidentCount, setNearbyIncidentCount] = useState<number | null>(null)
 
   // Step 0 — active warning count
   const [activeWarningCount, setActiveWarningCount] = useState<number | null>(null)
@@ -542,6 +543,15 @@ export default function ReportPage() {
         uploadMedia(mediaFile, reportId).catch((err: unknown) => { console.error('Media upload failed:', err); setMediaUploading(false) })
       }
       setCurrentStep('success')
+      // Fetch nearby confirmed incidents
+      try {
+        const delta = 0.09 // ~10km
+        const eventsRes = await fetch(`/api/events?min_lat=${lat - delta}&max_lat=${lat + delta}&min_lon=${lon - delta}&max_lon=${lon + delta}`)
+        if (eventsRes.ok) {
+          const eventsData = (await eventsRes.json()) as { clusters?: { id: string }[] }
+          setNearbyIncidentCount(eventsData.clusters?.length ?? 0)
+        }
+      } catch { /* ignore */ }
     } catch (error) {
       clearTimeout(timeoutId)
       if (error instanceof Error && error.name === 'AbortError') setSubmitError(t('err_timeout'))
@@ -735,10 +745,13 @@ export default function ReportPage() {
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 'calc(100vh - 80px)', textAlign: 'center', gap: 16 }}>
             <div style={{ fontSize: 48 }}>⏳</div>
             <h1 style={{ fontSize: 24, fontWeight: 700, color: '#ffffff', margin: 0 }}>{t('rate_limit_heading')}</h1>
-            <p style={{ fontSize: 16, color: '#9ca3af', lineHeight: 1.6, maxWidth: 280, margin: 0 }}>
-              {t('rate_limit_pre')} {rateLimitMinutesAgo} {rateLimitMinutesAgo !== 1 ? t('rate_limit_mins') : t('rate_limit_min')}{t('rate_limit_mid')} {rateLimitMinutesLeft} {rateLimitMinutesLeft !== 1 ? t('rate_limit_mins') : t('rate_limit_min')}.
+            <p style={{ fontSize: 16, color: '#9ca3af', lineHeight: 1.6, maxWidth: 300, margin: 0 }}>
+              {lang === 'en' ? 'You have already submitted a report recently. This helps us keep the system accurate.' : `${t('rate_limit_pre')} ${rateLimitMinutesAgo} ${rateLimitMinutesAgo !== 1 ? t('rate_limit_mins') : t('rate_limit_min')}.`}
             </p>
-            <a href="/map" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ef4444', fontSize: 16, textDecoration: 'none', marginTop: 8, minHeight: 48 }}>{t('btn_view_map')} →</a>
+            <p style={{ fontSize: 16, color: '#6b7280', margin: 0 }}>
+              {lang === 'en' ? `You can submit again in ${rateLimitMinutesLeft} minute${rateLimitMinutesLeft !== 1 ? 's' : ''}.` : `${t('rate_limit_mid')} ${rateLimitMinutesLeft} ${rateLimitMinutesLeft !== 1 ? t('rate_limit_mins') : t('rate_limit_min')}.`}
+            </p>
+            <a href={`/map?lat=${lat}&lon=${lon}&zoom=14`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 52, background: '#ef4444', color: '#ffffff', borderRadius: 8, fontSize: 16, fontWeight: 600, textDecoration: 'none', padding: '0 24px', marginTop: 8 }}>{t('btn_view_map')} →</a>
           </div>
 
         /* ── Step 0: Report type selection ──────────────────────────────── */
@@ -822,8 +835,15 @@ export default function ReportPage() {
             <p style={{ fontSize: 16, color: '#9ca3af', textAlign: 'center', maxWidth: 280, lineHeight: 1.6, marginTop: 8, marginBottom: 0 }}>{t('success_sub')}</p>
             {mediaUploading && <p style={{ fontSize: 16, color: '#6b7280', marginTop: 12, marginBottom: 0 }}>{t('success_media_uploading')}</p>}
             {mediaUploadComplete && <p style={{ fontSize: 16, color: '#6b7280', marginTop: 12, marginBottom: 0 }}>{t('success_media_done')}</p>}
+            {nearbyIncidentCount !== null && nearbyIncidentCount > 0 && (
+              <div style={{ background: 'rgba(210,153,34,0.08)', border: '1px solid rgba(210,153,34,0.3)', borderRadius: 8, padding: 14, marginTop: 16, maxWidth: 320, width: '100%', boxSizing: 'border-box' }}>
+                <p style={{ fontSize: 16, color: '#d29922', margin: 0, lineHeight: 1.6 }}>
+                  {lang === 'en' ? `There ${nearbyIncidentCount === 1 ? 'is' : 'are'} ${nearbyIncidentCount} confirmed incident${nearbyIncidentCount !== 1 ? 's' : ''} near your area. Stay safe.` : lang === 'ar' ? `هناك ${nearbyIncidentCount} حادثة مؤكدة بالقرب من منطقتك. ابق بأمان.` : `Il y a ${nearbyIncidentCount} incident${nearbyIncidentCount !== 1 ? 's' : ''} confirmé${nearbyIncidentCount !== 1 ? 's' : ''} près de votre zone. Restez en sécurité.`}
+                </p>
+              </div>
+            )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 32, width: '100%', maxWidth: 320 }}>
-              <a href="/map" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 52, background: '#ef4444', color: '#ffffff', borderRadius: 8, fontSize: 16, fontWeight: 600, textDecoration: 'none', boxSizing: 'border-box' }}>{t('btn_view_map')}</a>
+              <a href={`/map?lat=${lat}&lon=${lon}&zoom=14`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 52, background: '#ef4444', color: '#ffffff', borderRadius: 8, fontSize: 16, fontWeight: 600, textDecoration: 'none', boxSizing: 'border-box' }}>{t('btn_view_map')}</a>
               <button type="button" onClick={handleShare} style={{ height: 52, background: 'transparent', border: '1px solid #374151', color: '#9ca3af', borderRadius: 8, fontSize: 16, cursor: 'pointer', width: '100%' }}>{shareButtonText === 'Share' ? t('btn_share') : shareButtonText}</button>
               <button type="button" onClick={handleReportAnother} style={{ height: 52, background: 'transparent', border: '1px solid #374151', color: '#9ca3af', borderRadius: 8, fontSize: 16, cursor: 'pointer', width: '100%' }}>{t('btn_report_another')}</button>
             </div>
