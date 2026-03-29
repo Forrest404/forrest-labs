@@ -155,15 +155,15 @@ Deno.serve(async () => {
   for (const article of (unlinkedOfficial ?? []) as NewsRow[]) {
     if (!article.location_lat || !article.location_lon) continue
 
-    // Check if cluster already exists nearby
+    // Check if ANY confirmed/pending cluster already exists nearby (prevents duplicates)
     const { data: existing } = await supabase
       .from('clusters')
       .select('id')
-      .gte('centroid_lat', article.location_lat - 0.09)
-      .lte('centroid_lat', article.location_lat + 0.09)
-      .gte('centroid_lon', article.location_lon - 0.09)
-      .lte('centroid_lon', article.location_lon + 0.09)
-      .gte('created_at', twoHoursAgo)
+      .in('status', ['confirmed', 'auto_confirmed', 'news_verified', 'official_verified', 'pending_review'])
+      .gte('centroid_lat', article.location_lat - 0.045)
+      .lte('centroid_lat', article.location_lat + 0.045)
+      .gte('centroid_lon', article.location_lon - 0.045)
+      .lte('centroid_lon', article.location_lon + 0.045)
       .limit(1)
 
     if (existing?.length) continue

@@ -1,5 +1,5 @@
 import { SignJWT, jwtVerify } from 'jose'
-import { createHash } from 'crypto'
+import { createHash, randomBytes } from 'crypto'
 import { NextRequest } from 'next/server'
 
 const COOKIE_NAME = 'fl_admin_session'
@@ -81,3 +81,49 @@ export function clearCookieOnResponse(response: Response): void {
 }
 
 export const ADMIN_COOKIE_NAME = COOKIE_NAME
+
+// ── Partner auth ──────────────────────────────────────────────────────────────
+
+export function hashPartnerPassword(password: string): string {
+  return createHash('sha256').update(password).digest('hex')
+}
+
+export function generatePartnerPassword(): string {
+  return randomBytes(8)
+    .toString('hex')
+    .toUpperCase()
+    .match(/.{4}/g)!
+    .join('-')
+}
+
+export async function createPartnerSession(
+  accountId: string,
+  organisationId: string,
+  role: string,
+): Promise<string> {
+  const secret = getJwtSecret()
+  return await new SignJWT({ accountId, organisationId, role, type: 'partner' })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt()
+    .setExpirationTime('12h')
+    .sign(secret)
+}
+
+export async function getPartnerSession(
+  request: NextRequest,
+): Promise<{ accountId: string; organisationId: string; role: string } | null> {
+  const token = request.cookies.get('fl_partner_session')?.value
+  if (!token) return null
+  try {
+    const secret = getJwtSecret()
+    const { payload } = await jwtVerify(token, secret)
+    if (payload.type !== 'partner') return null
+    return {
+      accountId: payload.accountId as string,
+      organisationId: payload.organisationId as string,
+      role: payload.role as string,
+    }
+  } catch {
+    return null
+  }
+}

@@ -295,7 +295,7 @@ export default function MapPage() {
           'case',
           ['==', ['get', 'status'], 'official_verified'], '#a371f7',
           ['==', ['get', 'status'], 'news_verified'], '#58a6ff',
-          ['==', ['get', 'status'], 'confirmed'], '#22c55e',
+          ['==', ['get', 'status'], 'confirmed'], '#ef4444',
           ['==', ['get', 'status'], 'auto_confirmed'], '#f97316',
           '#ef4444',
         ],
@@ -320,7 +320,7 @@ export default function MapPage() {
           'case',
           ['==', ['get', 'status'], 'official_verified'], '#a371f7',
           ['==', ['get', 'status'], 'news_verified'], '#58a6ff',
-          ['==', ['get', 'status'], 'confirmed'], '#22c55e',
+          ['==', ['get', 'status'], 'confirmed'], '#ef4444',
           ['==', ['get', 'status'], 'auto_confirmed'], '#f97316',
           '#ef4444',
         ],
@@ -347,7 +347,7 @@ export default function MapPage() {
           'case',
           ['==', ['get', 'status'], 'official_verified'], '#a371f7',
           ['==', ['get', 'status'], 'news_verified'], '#58a6ff',
-          ['==', ['get', 'status'], 'confirmed'], '#22c55e',
+          ['==', ['get', 'status'], 'confirmed'], '#ef4444',
           ['==', ['get', 'status'], 'auto_confirmed'], '#f97316',
           '#ef4444',
         ],
@@ -1613,8 +1613,8 @@ export default function MapPage() {
       <div
         style={{
           position: 'absolute',
-          bottom: 96,
-          right: 8,
+          bottom: 36,
+          left: 8,
           background: 'rgba(10,10,15,0.85)',
           backdropFilter: 'blur(8px)',
           WebkitBackdropFilter: 'blur(8px)',
@@ -1634,7 +1634,7 @@ export default function MapPage() {
           News verified
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'rgba(255,255,255,0.7)', marginBottom: 5 }}>
-          <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', flexShrink: 0, marginLeft: 6, marginRight: 6 }} />
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444', flexShrink: 0, marginLeft: 6, marginRight: 6 }} />
           Civilian confirmed
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>
@@ -1778,12 +1778,12 @@ export default function MapPage() {
                 background:
                   selectedCluster.status === 'official_verified' ? '#1a0e2e'
                     : selectedCluster.status === 'news_verified' ? '#0d1b2e'
-                    : selectedCluster.status === 'confirmed' ? '#052e16'
+                    : selectedCluster.status === 'confirmed' ? '#450a0a'
                     : '#431407',
                 color:
                   selectedCluster.status === 'official_verified' ? '#a371f7'
                     : selectedCluster.status === 'news_verified' ? '#58a6ff'
-                    : selectedCluster.status === 'confirmed' ? '#86efac'
+                    : selectedCluster.status === 'confirmed' ? '#fca5a5'
                     : '#fdba74',
                 fontSize: 11,
                 padding: '3px 9px',

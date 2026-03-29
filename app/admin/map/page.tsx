@@ -382,15 +382,13 @@ export default function AdminMapPage() {
 
   async function handleApprove() {
     if (!selectedFeature) return
-    const key = process.env.NEXT_PUBLIC_REVIEW_SECRET ?? ''
-    await fetch('/api/clusters/' + selectedFeature.id + '/approve?key=' + encodeURIComponent(key))
+    await fetch('/api/admin/clusters/' + selectedFeature.id + '/approve', { method: 'POST', credentials: 'include' })
     setSelectedFeature(null)
   }
 
   async function handleReject() {
     if (!selectedFeature) return
-    const key = process.env.NEXT_PUBLIC_REVIEW_SECRET ?? ''
-    await fetch('/api/clusters/' + selectedFeature.id + '/reject?key=' + encodeURIComponent(key))
+    await fetch('/api/admin/clusters/' + selectedFeature.id + '/reject', { method: 'POST', credentials: 'include' })
     setSelectedFeature(null)
   }
 

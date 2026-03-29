@@ -152,8 +152,7 @@ function IncidentsInner() {
     setActionLoading('approving')
     setActionError(null)
     try {
-      const key = process.env.NEXT_PUBLIC_REVIEW_SECRET ?? ''
-      const res = await fetch('/api/clusters/' + selected.id + '/approve?key=' + encodeURIComponent(key))
+      const res = await fetch('/api/admin/clusters/' + selected.id + '/approve', { method: 'POST', credentials: 'include' })
       if (!res.ok) throw new Error('Failed to confirm cluster')
       // Update local state
       if (filter === 'pending_review') {
@@ -176,8 +175,7 @@ function IncidentsInner() {
     setActionLoading('rejecting')
     setActionError(null)
     try {
-      const key = process.env.NEXT_PUBLIC_REVIEW_SECRET ?? ''
-      const res = await fetch('/api/clusters/' + selected.id + '/reject?key=' + encodeURIComponent(key))
+      const res = await fetch('/api/admin/clusters/' + selected.id + '/reject', { method: 'POST', credentials: 'include' })
       if (!res.ok) throw new Error('Failed to reject cluster')
       if (filter === 'pending_review') {
         setClusters((prev) => prev.filter((c) => c.id !== selected.id))

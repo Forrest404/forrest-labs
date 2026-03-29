@@ -9,6 +9,8 @@ export type AuditAction =
   | 'admin_login'
   | 'admin_logout'
   | 'admin_login_failed'
+  | 'team_dispatched'
+  | 'partner_created'
 
 export async function writeAuditLog({
   action,

@@ -211,8 +211,7 @@ export default function TriagePage() {
     if (!current || processing) return
     setProcessing(true)
     flashButton('approve')
-    const key = process.env.NEXT_PUBLIC_REVIEW_SECRET ?? ''
-    await fetch('/api/clusters/' + current.id + '/approve?key=' + encodeURIComponent(key))
+    await fetch('/api/admin/clusters/' + current.id + '/approve', { method: 'POST', credentials: 'include' })
     showUndoToast(current.id, 'confirmed', current)
     setIsTransitioning(true)
     nextCluster(true)
@@ -222,8 +221,7 @@ export default function TriagePage() {
     if (!current || processing) return
     setProcessing(true)
     flashButton('reject')
-    const key = process.env.NEXT_PUBLIC_REVIEW_SECRET ?? ''
-    await fetch('/api/clusters/' + current.id + '/reject?key=' + encodeURIComponent(key))
+    await fetch('/api/admin/clusters/' + current.id + '/reject', { method: 'POST', credentials: 'include' })
     showUndoToast(current.id, 'discarded', current)
     setIsTransitioning(true)
     nextCluster(true)
@@ -239,10 +237,8 @@ export default function TriagePage() {
   const handleUndo = useCallback(async () => {
     if (!lastAction) return
     if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
-    const key = process.env.NEXT_PUBLIC_REVIEW_SECRET ?? ''
-    // Call opposite endpoint
     const endpoint = lastAction.action === 'confirmed' ? 'reject' : 'approve'
-    await fetch('/api/clusters/' + lastAction.clusterId + '/' + endpoint + '?key=' + encodeURIComponent(key))
+    await fetch('/api/admin/clusters/' + lastAction.clusterId + '/' + endpoint, { method: 'POST', credentials: 'include' })
     setLastAction(null)
   }, [lastAction])
 

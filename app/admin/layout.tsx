@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { label: 'Intelligence', href: '/admin/intelligence', exact: false, icon: 'brain' },
   { label: 'Map', href: '/admin/map', exact: false, icon: 'map' },
   { label: 'Triage', href: '/admin/triage', exact: false, icon: 'queue' },
+  { label: 'Command', href: '/admin/command', exact: false, icon: 'command' },
 ] as const
 
 function NavIcon({ name, color }: { name: string; color: string }) {
@@ -81,6 +82,16 @@ function NavIcon({ name, color }: { name: string; color: string }) {
           <path d="M11 8.5l2 2-2 2" stroke={color} strokeWidth="1.2" strokeLinecap="round" />
         </svg>
       )
+    case 'command':
+      return (
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <circle cx="3.5" cy="3.5" r="1.5" stroke={color} strokeWidth="1.2" />
+          <circle cx="10.5" cy="3.5" r="1.5" stroke={color} strokeWidth="1.2" />
+          <circle cx="3.5" cy="10.5" r="1.5" stroke={color} strokeWidth="1.2" />
+          <circle cx="10.5" cy="10.5" r="1.5" stroke={color} strokeWidth="1.2" />
+          <path d="M5 3.5h4M3.5 5v4M10.5 5v4M5 10.5h4" stroke={color} strokeWidth="1.2" strokeLinecap="round" />
+        </svg>
+      )
     default:
       return null
   }
@@ -95,6 +106,7 @@ function getPageTitle(pathname: string): string {
   if (pathname.startsWith('/admin/intelligence')) return 'Intelligence'
   if (pathname.startsWith('/admin/map')) return 'Map'
   if (pathname.startsWith('/admin/triage')) return 'Triage'
+  if (pathname.startsWith('/admin/command')) return 'Command'
   return 'Admin'
 }
 
