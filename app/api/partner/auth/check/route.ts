@@ -14,7 +14,6 @@ export async function GET(request: NextRequest) {
     { data: org },
     { data: teams },
     { data: resources },
-    { data: alerts },
   ] = await Promise.all([
     supabase
       .from('organisations')
@@ -23,7 +22,7 @@ export async function GET(request: NextRequest) {
       .single(),
     supabase
       .from('teams')
-      .select('id, name, team_type, status, current_location, capacity')
+      .select('id, name, team_type, status, location_name, capacity')
       .eq('organisation_id', session.organisationId)
       .eq('active', true)
       .order('name'),
@@ -32,20 +31,62 @@ export async function GET(request: NextRequest) {
       .select('id, name, resource_type, quantity_total, quantity_available, unit, low_stock_threshold')
       .eq('organisation_id', session.organisationId)
       .order('name'),
-    supabase
-      .from('clusters')
-      .select('id, status, confidence_score, report_count, location_name, centroid_lat, centroid_lon, created_at')
-      .in('status', ['confirmed', 'auto_confirmed', 'news_verified', 'official_verified'])
-      .order('created_at', { ascending: false })
-      .limit(20),
   ])
+
+  // Fetch incidents dispatched to this org's teams
+  const teamIds = (teams ?? []).map((t) => t.id as string)
+
+  interface DispatchRow {
+    cluster_id: string
+    status: string
+    clusters: {
+      id: string
+      status: string
+      confidence_score: number
+      report_count: number
+      location_name: string | null
+      centroid_lat: number
+      centroid_lon: number
+      created_at: string
+    } | null
+  }
+
+  let dispatchedAlerts: DispatchRow[] = []
+  if (teamIds.length > 0) {
+    const { data } = await supabase
+      .from('dispatches')
+      .select('cluster_id, status, clusters (id, status, confidence_score, report_count, location_name, centroid_lat, centroid_lon, created_at)')
+      .in('team_id', teamIds)
+      .in('status', ['assigned', 'acknowledged', 'en_route', 'on_scene'])
+      .order('assigned_at', { ascending: false })
+    dispatchedAlerts = (data as DispatchRow[] | null) ?? []
+  }
+
+  const seen = new Set<string>()
+  const alerts = dispatchedAlerts
+    .filter((d) => d.clusters !== null)
+    .filter((d) => {
+      if (seen.has(d.cluster_id)) return false
+      seen.add(d.cluster_id)
+      return true
+    })
+    .map((d) => d.clusters)
+
+  const flatTeams = (teams ?? []).map((t) => ({
+    id: t.id,
+    name: t.name,
+    team_type: t.team_type,
+    status: t.status,
+    current_location: t.location_name,
+    capacity: t.capacity,
+  }))
 
   return NextResponse.json({
     organisation: org
       ? { id: org.id, name: org.name, org_type: org.type }
       : null,
-    teams: teams ?? [],
+    teams: flatTeams,
     resources: resources ?? [],
-    recent_alerts: alerts ?? [],
+    recent_alerts: alerts,
   })
 }
