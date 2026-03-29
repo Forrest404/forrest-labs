@@ -242,7 +242,7 @@ export default function CommandPage() {
     await fetch('/api/admin/command/teams', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: newTeamName, organisation_id: newTeamOrg, team_type: newTeamType, capacity: newTeamCapacity, current_location: newTeamLocation || null }),
+      body: JSON.stringify({ name: newTeamName, organisation_id: newTeamOrg, team_type: newTeamType, capacity: newTeamCapacity, location_name: newTeamLocation || null }),
     })
     setShowAddTeam(false)
     setNewTeamName('')
