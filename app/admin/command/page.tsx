@@ -179,6 +179,13 @@ export default function CommandPage() {
   const [newResUnit, setNewResUnit] = useState('units')
   const [newResThreshold, setNewResThreshold] = useState(20)
 
+  // Teams edit
+  const [editingTeam, setEditingTeam] = useState<string | null>(null)
+  const [editTeamName, setEditTeamName] = useState('')
+  const [editTeamType, setEditTeamType] = useState('')
+  const [editTeamCapacity, setEditTeamCapacity] = useState(0)
+  const [editTeamLocation, setEditTeamLocation] = useState('')
+
   // Partners tab
   const [orgs, setOrgs] = useState<Organisation[]>([])
   const [partners, setPartners] = useState<Partner[]>([])
@@ -187,6 +194,8 @@ export default function CommandPage() {
   const [partnerRole, setPartnerRole] = useState('coordinator')
   const [partnerResult, setPartnerResult] = useState<PartnerCreateResult | null>(null)
   const [copiedPassword, setCopiedPassword] = useState(false)
+  const [editingPartner, setEditingPartner] = useState<string | null>(null)
+  const [editPartnerRole, setEditPartnerRole] = useState('')
 
   // ── Fetch ──────────────────────────────────────────────────────────────
 
@@ -258,6 +267,27 @@ export default function CommandPage() {
     fetchData()
   }
 
+  async function deleteTeam(teamId: string) {
+    if (!confirm('Remove this team?')) return
+    await fetch('/api/admin/command/teams/' + teamId, { method: 'DELETE' })
+    fetchData()
+  }
+
+  async function deletePartner(partnerId: string) {
+    if (!confirm('Deactivate this partner account?')) return
+    await fetch('/api/admin/command/partners/' + partnerId, { method: 'DELETE' })
+    fetch('/api/admin/command/partners').then((r) => r.json()).then((d: { partners?: Partner[] }) => setPartners(d.partners ?? [])).catch(() => {})
+  }
+
+  async function togglePartnerActive(partnerId: string, active: boolean) {
+    await fetch('/api/admin/command/partners/' + partnerId, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ active }),
+    })
+    fetch('/api/admin/command/partners').then((r) => r.json()).then((d: { partners?: Partner[] }) => setPartners(d.partners ?? [])).catch(() => {})
+  }
+
   async function saveResource() {
     await fetch('/api/admin/command/resources', {
       method: 'POST',
@@ -287,6 +317,35 @@ export default function CommandPage() {
     const d = (await res.json()) as PartnerCreateResult
     setPartnerResult(d)
     setPartnerEmail('')
+  }
+
+  function startEditTeam(t: Team) {
+    setEditingTeam(t.id)
+    setEditTeamName(t.name)
+    setEditTeamType(t.team_type)
+    setEditTeamCapacity(t.capacity)
+    setEditTeamLocation(t.current_location ?? '')
+  }
+
+  async function saveEditTeam() {
+    if (!editingTeam) return
+    await fetch('/api/admin/command/teams/' + editingTeam, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: editTeamName, team_type: editTeamType, capacity: editTeamCapacity, location_name: editTeamLocation || null }),
+    })
+    setEditingTeam(null)
+    fetchData()
+  }
+
+  async function updatePartnerRole(id: string, role: string) {
+    await fetch('/api/admin/command/partners/' + id, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role }),
+    })
+    setEditingPartner(null)
+    fetch('/api/admin/command/partners').then((r) => r.json()).then((d: { partners?: Partner[] }) => setPartners(d.partners ?? []))
   }
 
   // ── Loading ────────────────────────────────────────────────────────────
@@ -455,13 +514,40 @@ export default function CommandPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid #21262d' }}>
-                  {['Team', 'Organisation', 'Type', 'Status', 'Location', 'Capacity'].map((col) => (
+                  {['Team', 'Organisation', 'Type', 'Status', 'Location', 'Capacity', ''].map((col) => (
                     <th key={col} style={{ fontSize: 10, fontWeight: 500, color: '#484f58', textTransform: 'uppercase', letterSpacing: '0.06em', padding: '0 0 10px', textAlign: 'left' }}>{col}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {(data.teams ?? []).map((t) => (
+                {(data.teams ?? []).map((t) => editingTeam === t.id ? (
+                  <tr key={t.id} style={{ borderBottom: '1px solid #161b22', background: 'rgba(88,166,255,0.04)' }}>
+                    <td style={{ padding: '6px 8px 6px 0' }}>
+                      <input value={editTeamName} onChange={(e) => setEditTeamName(e.target.value)} style={{ ...inputStyle, height: 30, fontSize: 12 }} />
+                    </td>
+                    <td style={{ padding: '6px 8px 6px 0', fontSize: 12, color: '#8b949e' }}>{t.organisation_name}</td>
+                    <td style={{ padding: '6px 8px 6px 0' }}>
+                      <select value={editTeamType} onChange={(e) => setEditTeamType(e.target.value)} style={{ ...selectStyle, height: 30, fontSize: 11 }}>
+                        {TEAM_TYPES.map((tp) => <option key={tp} value={tp}>{teamTypeLabel(tp)}</option>)}
+                      </select>
+                    </td>
+                    <td style={{ padding: '6px 8px 6px 0' }}>
+                      <select value={t.status} onChange={(e) => changeTeamStatus(t.id, e.target.value)} style={{ background: 'transparent', border: 'none', color: teamStatusColour(t.status), fontSize: 11, fontWeight: 500, cursor: 'pointer', fontFamily: 'system-ui', outline: 'none' }}>
+                        {TEAM_STATUSES.map((s) => <option key={s} value={s} style={{ background: '#161b22', color: '#e6edf3' }}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
+                      </select>
+                    </td>
+                    <td style={{ padding: '6px 8px 6px 0' }}>
+                      <input value={editTeamLocation} onChange={(e) => setEditTeamLocation(e.target.value)} placeholder="Location" style={{ ...inputStyle, height: 30, fontSize: 12 }} />
+                    </td>
+                    <td style={{ padding: '6px 8px 6px 0' }}>
+                      <input type="number" value={editTeamCapacity} onChange={(e) => setEditTeamCapacity(parseInt(e.target.value) || 0)} style={{ ...inputStyle, height: 30, fontSize: 12, width: 60 }} />
+                    </td>
+                    <td style={{ padding: '6px 0', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      <button type="button" onClick={saveEditTeam} style={{ height: 24, padding: '0 8px', background: 'rgba(63,185,80,0.1)', border: '1px solid rgba(63,185,80,0.25)', color: '#3fb950', borderRadius: 4, fontSize: 10, cursor: 'pointer', fontFamily: 'system-ui', marginRight: 4 }}>Save</button>
+                      <button type="button" onClick={() => setEditingTeam(null)} style={{ height: 24, padding: '0 8px', background: 'transparent', border: '1px solid #21262d', color: '#8b949e', borderRadius: 4, fontSize: 10, cursor: 'pointer', fontFamily: 'system-ui' }}>Cancel</button>
+                    </td>
+                  </tr>
+                ) : (
                   <tr key={t.id} style={{ borderBottom: '1px solid #161b22' }}>
                     <td style={{ padding: '10px 8px 10px 0', fontSize: 13, fontWeight: 500, color: '#e6edf3' }}>{t.name}</td>
                     <td style={{ padding: '10px 8px 10px 0', fontSize: 12, color: '#8b949e' }}>{t.organisation_name}</td>
@@ -473,8 +559,12 @@ export default function CommandPage() {
                         {TEAM_STATUSES.map((s) => <option key={s} value={s} style={{ background: '#161b22', color: '#e6edf3' }}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
                       </select>
                     </td>
-                    <td style={{ padding: '10px 8px 10px 0', fontSize: 12, color: '#8b949e' }}>{t.current_location ?? '—'}</td>
+                    <td style={{ padding: '10px 8px 10px 0', fontSize: 12, color: '#8b949e' }}>{t.current_location ?? '\u2014'}</td>
                     <td style={{ padding: '10px 0', fontSize: 12, color: '#8b949e' }}>{t.capacity} personnel</td>
+                    <td style={{ padding: '10px 0', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      <button type="button" onClick={() => startEditTeam(t)} style={{ height: 24, padding: '0 8px', background: 'transparent', border: '1px solid rgba(88,166,255,0.2)', color: '#58a6ff', borderRadius: 4, fontSize: 10, cursor: 'pointer', fontFamily: 'system-ui', marginRight: 4 }}>Edit</button>
+                      <button type="button" onClick={() => deleteTeam(t.id)} style={{ height: 24, padding: '0 8px', background: 'transparent', border: '1px solid rgba(248,81,73,0.2)', color: '#f85149', borderRadius: 4, fontSize: 10, cursor: 'pointer', fontFamily: 'system-ui' }}>Remove</button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -655,10 +745,26 @@ export default function CommandPage() {
                   {orgPartners.length > 0 && (
                     <div style={{ marginBottom: 8 }}>
                       {orgPartners.map((p) => (
-                        <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', fontSize: 12 }}>
+                        <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', fontSize: 12 }}>
                           <span style={{ color: '#e6edf3' }}>{p.email}</span>
-                          <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 3, background: 'rgba(88,166,255,0.08)', color: '#58a6ff' }}>{p.role}</span>
-                          <span style={{ fontSize: 11, color: '#484f58' }}>{p.last_login ? timeAgo(p.last_login) : 'Never logged in'}</span>
+                          {editingPartner === p.id ? (
+                            <>
+                              <select value={editPartnerRole} onChange={(e) => setEditPartnerRole(e.target.value)} style={{ height: 24, fontSize: 11, background: '#0d1117', border: '1px solid #21262d', color: '#e6edf3', borderRadius: 4, padding: '0 6px', fontFamily: 'system-ui' }}>
+                                <option value="coordinator">Coordinator</option>
+                                <option value="viewer">Viewer</option>
+                              </select>
+                              <button type="button" onClick={() => updatePartnerRole(p.id, editPartnerRole)} style={{ height: 22, padding: '0 7px', background: 'rgba(63,185,80,0.1)', border: '1px solid rgba(63,185,80,0.25)', color: '#3fb950', borderRadius: 4, fontSize: 10, cursor: 'pointer', fontFamily: 'system-ui' }}>Save</button>
+                              <button type="button" onClick={() => setEditingPartner(null)} style={{ height: 22, padding: '0 7px', background: 'transparent', border: '1px solid #21262d', color: '#8b949e', borderRadius: 4, fontSize: 10, cursor: 'pointer', fontFamily: 'system-ui' }}>Cancel</button>
+                            </>
+                          ) : (
+                            <>
+                              <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 3, background: 'rgba(88,166,255,0.08)', color: '#58a6ff' }}>{p.role}</span>
+                              <span style={{ fontSize: 11, color: '#484f58' }}>{p.last_login ? timeAgo(p.last_login) : 'Never logged in'}</span>
+                              <span style={{ flex: 1 }} />
+                              <button type="button" onClick={() => { setEditingPartner(p.id); setEditPartnerRole(p.role) }} style={{ height: 22, padding: '0 7px', background: 'transparent', border: '1px solid rgba(88,166,255,0.2)', color: '#58a6ff', borderRadius: 4, fontSize: 10, cursor: 'pointer', fontFamily: 'system-ui' }}>Edit</button>
+                              <button type="button" onClick={() => deletePartner(p.id)} style={{ height: 22, padding: '0 7px', background: 'transparent', border: '1px solid rgba(248,81,73,0.2)', color: '#f85149', borderRadius: 4, fontSize: 10, cursor: 'pointer', fontFamily: 'system-ui' }}>Remove</button>
+                            </>
+                          )}
                         </div>
                       ))}
                     </div>

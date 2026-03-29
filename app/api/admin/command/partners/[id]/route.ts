@@ -13,27 +13,23 @@ export async function PATCH(
 
   const { id } = await params
 
-  let body: { status?: string; name?: string; team_type?: string; capacity?: number; location_name?: string; current_lat?: number; current_lon?: number; notes?: string }
+  let body: { email?: string; role?: string; active?: boolean }
   try {
     body = await request.json()
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
-  const updatePayload: Record<string, unknown> = { updated_at: new Date().toISOString() }
-  if (body.status) updatePayload.status = body.status
-  if (body.name !== undefined) updatePayload.name = body.name
-  if (body.team_type !== undefined) updatePayload.team_type = body.team_type
-  if (body.capacity !== undefined) updatePayload.capacity = body.capacity
-  if (body.location_name !== undefined) updatePayload.location_name = body.location_name
-  if (body.current_lat !== undefined) updatePayload.current_lat = body.current_lat
-  if (body.current_lon !== undefined) updatePayload.current_lon = body.current_lon
-  if (body.notes !== undefined) updatePayload.notes = body.notes
+  const updates: Record<string, unknown> = {}
+  if (body.email !== undefined) updates.email = body.email.toLowerCase().trim()
+  if (body.role !== undefined) updates.role = body.role
+  if (body.active !== undefined) updates.active = body.active
 
   const supabase = createServiceClient()
-  const { error } = await supabase.from('teams').update(updatePayload).eq('id', id)
+  const { error } = await supabase.from('partner_accounts').update(updates).eq('id', id)
 
   if (error) {
+    console.error('[partners/patch]', error.message)
     return NextResponse.json({ error: 'Update failed' }, { status: 500 })
   }
 
@@ -52,9 +48,13 @@ export async function DELETE(
   const { id } = await params
   const supabase = createServiceClient()
 
-  const { error } = await supabase.from('teams').update({ active: false, updated_at: new Date().toISOString() }).eq('id', id)
+  const { error } = await supabase
+    .from('partner_accounts')
+    .update({ active: false })
+    .eq('id', id)
 
   if (error) {
+    console.error('[partners/delete]', error.message)
     return NextResponse.json({ error: 'Delete failed' }, { status: 500 })
   }
 
