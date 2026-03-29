@@ -31,6 +31,10 @@ const LANG = {
     p1_title: 'Anonymous by design', p1_body: 'No name, phone number, or account required. Ever.',
     p2_title: 'Location is approximate', p2_body: 'We store a general area, not your exact position. Faces in photos are automatically blurred.',
     p3_title: 'No surveillance', p3_body: 'This tool protects civilians. It will never be used for military targeting.',
+    org_label: 'FOR ORGANISATIONS',
+    org_dash_title: 'Partner dashboard', org_dash_body: 'NGO coordinators get real-time access to confirmed incidents and team dispatch — separate from civilian data.', org_dash_link: 'Request access →',
+    org_export_title: 'Data export', org_export_body: 'All confirmed incident data is available as GeoJSON and CSV for import into your existing GIS and reporting tools.', org_export_link: 'Download sample →',
+    org_api_title: 'API access', org_api_body: 'Live incident feed available for programmatic integration with existing humanitarian information systems.', org_api_link: 'View documentation →',
     footer_built: 'Built to protect civilians', footer_year: 'Forrest Labs · 2026',
   },
   fr: {
@@ -59,6 +63,10 @@ const LANG = {
     p1_title: 'Anonymat par conception', p1_body: 'Aucun nom, numéro de téléphone ou compte requis. Jamais.',
     p2_title: 'Position approximative', p2_body: 'Nous stockons une zone générale, pas votre position exacte. Les visages sont automatiquement floutés.',
     p3_title: 'Zéro surveillance', p3_body: 'Cet outil protège les civils. Il ne sera jamais utilisé pour le ciblage militaire.',
+    org_label: 'POUR LES ORGANISATIONS',
+    org_dash_title: 'Tableau de bord partenaire', org_dash_body: "Les coordinateurs ONG accèdent en temps réel aux incidents confirmés et au déploiement des équipes — séparément des données civiles.", org_dash_link: "Demander l'accès →",
+    org_export_title: 'Export de données', org_export_body: 'Toutes les données confirmées sont disponibles en GeoJSON et CSV pour vos outils SIG et de rapport existants.', org_export_link: 'Télécharger un exemple →',
+    org_api_title: 'Accès API', org_api_body: "Flux d'incidents en direct pour l'intégration programmatique avec les systèmes d'information humanitaires existants.", org_api_link: 'Voir la documentation →',
     footer_built: 'Conçu pour protéger les civils', footer_year: 'Forrest Labs · 2026',
   },
   ar: {
@@ -87,6 +95,10 @@ const LANG = {
     p1_title: 'مجهول الهوية بالتصميم', p1_body: 'ما في اسم ولا رقم هاتف ولا حساب مطلوب. أبداً.',
     p2_title: 'الموقع تقريبي', p2_body: 'بنحفظ منطقة عامة مش موقعك بالضبط. الوجوه بالصور بتتطمس تلقائياً.',
     p3_title: 'ما في مراقبة', p3_body: 'هالأداة بتحمي المدنيين. ما رح تُستخدم أبداً للاستهداف العسكري.',
+    org_label: 'للمنظمات',
+    org_dash_title: 'لوحة الشريك', org_dash_body: 'منسّقو المنظمات بيوصلوا بالوقت الحقيقي للحوادث المؤكدة وتوزيع الفرق — منفصل عن بيانات المدنيين.', org_dash_link: 'اطلب الوصول →',
+    org_export_title: 'تصدير البيانات', org_export_body: 'كل بيانات الحوادث المؤكدة متوفرة بصيغة GeoJSON و CSV لاستيرادها بأدوات GIS والتقارير.', org_export_link: 'حمّل عيّنة →',
+    org_api_title: 'وصول API', org_api_body: 'تدفق الحوادث المباشر متاح للتكامل البرمجي مع أنظمة المعلومات الإنسانية الموجودة.', org_api_link: 'شوف التوثيق →',
     footer_built: 'مبني لحماية المدنيين', footer_year: 'فورست لابس · ٢٠٢٦',
   },
 } as const
@@ -351,6 +363,7 @@ export default function HomePage() {
           .hp-steps-divider{display:none !important}
           .hp-two-col{flex-direction:column !important}
           .hp-privacy-row{flex-direction:column !important}
+          .hp-org-row{flex-direction:column !important}
           .hp-nav-links{display:none !important}
           .hp-footer-inner{flex-direction:column !important;text-align:center !important}
         }
@@ -554,6 +567,26 @@ export default function HomePage() {
               <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.4)', lineHeight: 1.7 }}>{item.body}</div>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* ── FOR ORGANISATIONS ────────────────────────────────────────────── */}
+      <section style={{ position: 'relative', zIndex: 2, padding: '80px 24px', background: 'rgba(239,68,68,0.025)', borderTop: '1px solid rgba(239,68,68,0.08)', borderBottom: '1px solid rgba(239,68,68,0.08)' }}>
+        <div style={{ maxWidth: 760, margin: '0 auto' }}>
+        {sectionLabel(t('org_label'))}
+        <div className="hp-org-row" style={{ display: 'flex', gap: 16 }}>
+          {([
+            { title: t('org_dash_title'), body: t('org_dash_body'), link: t('org_dash_link'), href: 'mailto:hello@forrestlabs.org?subject=Forrest Labs partner access' },
+            { title: t('org_export_title'), body: t('org_export_body'), link: t('org_export_link'), href: '/api/events', target: '_blank' },
+            { title: t('org_api_title'), body: t('org_api_body'), link: t('org_api_link'), href: '/api/brief', target: '_blank' },
+          ] as const).map((item) => (
+            <div key={item.title} style={{ flex: 1, background: 'rgba(255,255,255,0.02)', border: '0.5px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: 20 }}>
+              <div style={{ fontSize: 15, color: '#ffffff', fontWeight: 500, marginBottom: 8 }}>{item.title}</div>
+              <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.4)', lineHeight: 1.7, marginBottom: 12 }}>{item.body}</div>
+              <a href={item.href} target={'target' in item ? item.target : undefined} rel={'target' in item ? 'noopener noreferrer' : undefined} style={{ fontSize: 13, color: '#f85149', textDecoration: 'none' }}>{item.link}</a>
+            </div>
+          ))}
+        </div>
         </div>
       </section>
 

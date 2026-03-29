@@ -106,7 +106,14 @@ export default function AdminDashboard() {
   const [newsRefreshing, setNewsRefreshing] = useState(false)
   const [detecting, setDetecting] = useState(false)
   const [detectResult, setDetectResult] = useState<DetectResult | null>(null)
+  const [showDemo, setShowDemo] = useState(false)
   const router = useRouter()
+
+  useEffect(() => {
+    setShowDemo(
+      new URLSearchParams(window.location.search).get('demo') === '1',
+    )
+  }, [])
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -588,6 +595,39 @@ export default function AdminDashboard() {
           >
             View all →
           </button>
+          {showDemo && (
+            <button
+              type="button"
+              onClick={() => {
+                fetch('/api/admin/demo/reset', {
+                  method: 'POST',
+                  credentials: 'include',
+                })
+                  .then((r) => r.json())
+                  .then((d: { success?: boolean }) => {
+                    if (d.success) {
+                      alert(
+                        'Demo data reset. The clustering engine will create a new pending cluster within 75 seconds.',
+                      )
+                    }
+                  })
+              }}
+              style={{
+                height: 26,
+                padding: '0 10px',
+                background: 'rgba(139,148,158,0.08)',
+                border: '1px solid rgba(139,148,158,0.15)',
+                color: '#484f58',
+                borderRadius: 5,
+                fontSize: 11,
+                cursor: 'pointer',
+                marginLeft: 6,
+                fontFamily: 'system-ui',
+              }}
+            >
+              Reset demo
+            </button>
+          )}
         </div>
       </div>
 

@@ -13,6 +13,11 @@ const NAV_ITEMS = [
   { label: 'Map', href: '/admin/map', exact: false, icon: 'map' },
   { label: 'Triage', href: '/admin/triage', exact: false, icon: 'queue' },
   { label: 'Command', href: '/admin/command', exact: false, icon: 'command' },
+  { label: 'Media', href: '/admin/media', exact: false, icon: 'media' },
+  { label: 'Export', href: '/admin/export', exact: false, icon: 'export' },
+  { label: 'Cases', href: '/admin/cases', exact: false, icon: 'cases' },
+  { label: 'Health', href: '/admin/health', exact: false, icon: 'health' },
+  { label: 'Demo script', href: '/admin/demo', exact: false, icon: 'play' },
 ] as const
 
 function NavIcon({ name, color }: { name: string; color: string }) {
@@ -92,6 +97,41 @@ function NavIcon({ name, color }: { name: string; color: string }) {
           <path d="M5 3.5h4M3.5 5v4M10.5 5v4M5 10.5h4" stroke={color} strokeWidth="1.2" strokeLinecap="round" />
         </svg>
       )
+    case 'media':
+      return (
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <rect x="1" y="2" width="12" height="10" rx="1.5" stroke={color} strokeWidth="1.2" />
+          <path d="M5.5 5l4 2-4 2V5z" fill={color} />
+        </svg>
+      )
+    case 'export':
+      return (
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path d="M7 1v8M4 6l3 3 3-3" stroke={color} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M2 10v2h10v-2" stroke={color} strokeWidth="1.2" strokeLinecap="round" />
+        </svg>
+      )
+    case 'cases':
+      return (
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <rect x="1" y="3" width="12" height="10" rx="1.5" stroke={color} strokeWidth="1.2" />
+          <path d="M5 3V2a1 1 0 011-1h2a1 1 0 011 1v1" stroke={color} strokeWidth="1.2" strokeLinecap="round" />
+          <line x1="4" y1="7" x2="10" y2="7" stroke={color} strokeWidth="1.2" strokeLinecap="round" />
+          <line x1="4" y1="10" x2="8" y2="10" stroke={color} strokeWidth="1.2" strokeLinecap="round" />
+        </svg>
+      )
+    case 'health':
+      return (
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path d="M1 7h3l2-5 2 10 2-7 1.5 2H13" stroke={color} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      )
+    case 'play':
+      return (
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <polygon points="3,2 12,7 3,12" stroke={color} fill="none" strokeWidth="1.2" strokeLinejoin="round" />
+        </svg>
+      )
     default:
       return null
   }
@@ -107,6 +147,11 @@ function getPageTitle(pathname: string): string {
   if (pathname.startsWith('/admin/map')) return 'Map'
   if (pathname.startsWith('/admin/triage')) return 'Triage'
   if (pathname.startsWith('/admin/command')) return 'Command'
+  if (pathname.startsWith('/admin/media')) return 'Media'
+  if (pathname.startsWith('/admin/export')) return 'Export'
+  if (pathname.startsWith('/admin/cases')) return 'Cases'
+  if (pathname.startsWith('/admin/health')) return 'Health'
+  if (pathname.startsWith('/admin/demo')) return 'Demo script'
   return 'Admin'
 }
 

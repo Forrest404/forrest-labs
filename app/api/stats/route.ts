@@ -42,7 +42,9 @@ export async function GET() {
       confirmed_incidents: confirmedTotal ?? 0,
       active_warnings: activeWarnings ?? 0,
       total_reports: totalReports ?? 0,
-      generated_at: now.toISOString()
+      generated_at: now.toISOString(),
+      last_updated: new Date().toISOString(),
+      system_version: '1.0.0'
     }, {
       headers: {
         'Cache-Control': 'public, max-age=60',

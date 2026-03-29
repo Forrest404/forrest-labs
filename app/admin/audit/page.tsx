@@ -59,24 +59,36 @@ export default function AuditPage() {
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(0)
+  const [actionFilter, setActionFilter] = useState('')
+  const [daysFilter, setDaysFilter] = useState('30')
+  const [searchText, setSearchText] = useState('')
+  const [actionSummary, setActionSummary] = useState<Record<string, number>>({})
 
   const fetchEntries = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/admin/audit?limit=50&offset=' + page * 50)
+      const params = new URLSearchParams({
+        limit: '50',
+        offset: String(page * 50),
+        days: daysFilter,
+      })
+      if (actionFilter) params.set('action', actionFilter)
+      if (searchText) params.set('search', searchText)
+      const res = await fetch('/api/admin/audit?' + params.toString())
       if (res.status === 401) { router.push('/admin/login'); return }
-      const data = (await res.json()) as { entries: AuditEntry[]; total: number }
+      const data = (await res.json()) as { entries: AuditEntry[]; total: number; action_summary: Record<string, number> }
       setEntries(data.entries ?? [])
       setTotal(data.total ?? 0)
+      setActionSummary(data.action_summary ?? {})
     } catch { /* ignore */ }
     setLoading(false)
-  }, [page, router])
+  }, [page, actionFilter, daysFilter, searchText, router])
 
   useEffect(() => { fetchEntries() }, [fetchEntries])
 
   const totalPages = Math.max(1, Math.ceil(total / 50))
 
-  // Summary counts
+  // Summary counts from current page
   const logins = entries.filter((e) => e.action === 'admin_login').length
   const failedAttempts = entries.filter((e) => e.action === 'admin_login_failed').length
   const confirmed = entries.filter((e) => e.action === 'cluster_confirmed').length
@@ -89,11 +101,132 @@ export default function AuditPage() {
     { label: 'Rejected', value: rejected, color: rejected > 0 ? '#f85149' : '#e6edf3' },
   ]
 
+  const actionOptions = [
+    { value: '', label: 'All actions' },
+    { value: 'admin_login', label: 'Login' },
+    { value: 'admin_logout', label: 'Logout' },
+    { value: 'admin_login_failed', label: 'Login failed' },
+    { value: 'cluster_confirmed', label: 'Confirmed' },
+    { value: 'cluster_rejected', label: 'Rejected' },
+    { value: 'media_approved', label: 'Media' },
+  ]
+
+  const daysOptions = [
+    { value: '1', label: 'Last 24h' },
+    { value: '7', label: 'Last 7 days' },
+    { value: '30', label: 'Last 30 days' },
+    { value: 'all', label: 'All time' },
+  ]
+
+  const selectStyle: React.CSSProperties = {
+    height: 32,
+    fontSize: 12,
+    background: '#161b22',
+    border: '1px solid #21262d',
+    color: '#e6edf3',
+    borderRadius: 5,
+    padding: '0 10px',
+    cursor: 'pointer',
+    fontFamily: 'system-ui',
+  }
+
   return (
     <div>
       <style>{`
         @keyframes skeleton { 0%,100% { opacity: 0.4; } 50% { opacity: 0.8; } }
       `}</style>
+
+      {/* Filter row */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+        <select
+          value={actionFilter}
+          onChange={(e) => { setActionFilter(e.target.value); setPage(0) }}
+          style={selectStyle}
+        >
+          {actionOptions.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+        <select
+          value={daysFilter}
+          onChange={(e) => { setDaysFilter(e.target.value); setPage(0) }}
+          style={selectStyle}
+        >
+          {daysOptions.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+        <input
+          type="text"
+          value={searchText}
+          onChange={(e) => setSearchText(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') { setPage(0); fetchEntries() } }}
+          placeholder="Search notes..."
+          style={{
+            height: 32,
+            fontSize: 12,
+            flex: 1,
+            minWidth: 150,
+            background: '#161b22',
+            border: '1px solid #21262d',
+            color: '#e6edf3',
+            borderRadius: 5,
+            padding: '0 10px',
+            fontFamily: 'system-ui',
+            boxSizing: 'border-box',
+          }}
+        />
+        <button
+          type="button"
+          onClick={() => { setPage(0); fetchEntries() }}
+          style={{
+            height: 32,
+            padding: '0 14px',
+            background: 'rgba(88,166,255,0.08)',
+            border: '1px solid rgba(88,166,255,0.2)',
+            color: '#58a6ff',
+            borderRadius: 5,
+            fontSize: 12,
+            cursor: 'pointer',
+            fontFamily: 'system-ui',
+          }}
+        >
+          Search
+        </button>
+      </div>
+
+      {/* Action summary badges */}
+      {Object.keys(actionSummary).length > 0 && (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
+          {Object.entries(actionSummary)
+            .filter(([, count]) => count > 0)
+            .map(([action, count]) => {
+              const al = actionLabel(action)
+              return (
+                <span
+                  key={action}
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 500,
+                    color: al.color,
+                    background:
+                      al.color === '#3fb950'
+                        ? 'rgba(63,185,80,0.1)'
+                        : al.color === '#f85149'
+                          ? 'rgba(248,81,73,0.1)'
+                          : al.color === '#d29922'
+                            ? 'rgba(210,153,34,0.1)'
+                            : 'rgba(139,148,158,0.1)',
+                    padding: '3px 8px',
+                    borderRadius: 4,
+                  }}
+                >
+                  {al.label}: {count}
+                </span>
+              )
+            })}
+        </div>
+      )}
 
       {/* Summary cards */}
       {!loading && (
