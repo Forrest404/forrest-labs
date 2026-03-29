@@ -31,6 +31,11 @@ interface RecentCluster {
   ai_reasoning: string | null
 }
 
+interface DetectResult {
+  strikes_detected: number
+  boosted: number
+}
+
 interface AdminStats {
   reports: { total: number; today: number }
   clusters: {
@@ -38,6 +43,8 @@ interface AdminStats {
     auto_confirmed: number
     pending_review: number
     discarded: number
+    news_verified?: number
+    official_verified?: number
   }
   warnings: { active: number; all_clear: number }
   recent_clusters: RecentCluster[]
@@ -66,6 +73,8 @@ function statusPill(status: string): ReactElement {
   const map: Record<string, { bg: string; color: string; label: string }> = {
     confirmed: { bg: 'rgba(63,185,80,0.1)', color: '#3fb950', label: 'Confirmed' },
     auto_confirmed: { bg: 'rgba(63,185,80,0.07)', color: 'rgba(63,185,80,0.7)', label: 'Auto' },
+    news_verified: { bg: 'rgba(88,166,255,0.1)', color: '#58a6ff', label: 'News' },
+    official_verified: { bg: 'rgba(163,113,247,0.1)', color: '#a371f7', label: 'Official' },
     pending_review: { bg: 'rgba(248,81,73,0.1)', color: '#f85149', label: 'Pending' },
     discarded: { bg: 'rgba(139,148,158,0.1)', color: '#484f58', label: 'Discarded' },
   }
@@ -95,6 +104,8 @@ export default function AdminDashboard() {
   const [news, setNews] = useState<NewsArticle[]>([])
   const [newsLoading, setNewsLoading] = useState(true)
   const [newsRefreshing, setNewsRefreshing] = useState(false)
+  const [detecting, setDetecting] = useState(false)
+  const [detectResult, setDetectResult] = useState<DetectResult | null>(null)
   const router = useRouter()
 
   useEffect(() => {
@@ -125,6 +136,13 @@ export default function AdminDashboard() {
 
     return () => clearInterval(interval)
   }, [router])
+
+  // Auto-clear detect result after 5s
+  useEffect(() => {
+    if (!detectResult) return
+    const t = setTimeout(() => setDetectResult(null), 5000)
+    return () => clearTimeout(t)
+  }, [detectResult])
 
   // ── Loading skeleton ────────────────────────────────────────────────────
 
@@ -265,6 +283,68 @@ export default function AdminDashboard() {
           </button>
         </div>
       )}
+
+      {/* Detection status row */}
+      <div style={{
+        background: '#161b22', border: '1px solid #21262d', borderRadius: 8,
+        padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        marginBottom: 12, flexWrap: 'wrap', gap: 8,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#a371f7', animation: 'pulse 1.5s ease-in-out infinite', flexShrink: 0 }} />
+            <span style={{ fontSize: 11, color: '#8b949e' }}>Auto-detection</span>
+            <span style={{ fontSize: 11, color: '#a371f7' }}>Active · every 2 min</span>
+          </div>
+          <span style={{ width: 1, height: 16, background: '#21262d', flexShrink: 0 }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#3fb950', flexShrink: 0 }} />
+            <span style={{ fontSize: 11, color: '#8b949e' }}>News feed</span>
+            <span style={{ fontSize: 11, color: '#3fb950' }}>Every 5 min</span>
+          </div>
+          <span style={{ width: 1, height: 16, background: '#21262d', flexShrink: 0 }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 11, color: '#8b949e' }}>Auto-verified today</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#e6edf3' }}>
+              {(stats.clusters.news_verified ?? 0) + (stats.clusters.official_verified ?? 0)}
+            </span>
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {detectResult && (
+            <span style={{ fontSize: 11, color: '#3fb950' }}>
+              {detectResult.strikes_detected} strikes detected · {detectResult.boosted} boosted
+            </span>
+          )}
+          <button
+            type="button"
+            disabled={detecting}
+            onClick={async () => {
+              setDetecting(true)
+              try {
+                const res = await fetch('/api/admin/detect', { method: 'POST' })
+                const data = (await res.json()) as DetectResult
+                setDetectResult(data)
+                // Refresh stats
+                const statsRes = await fetch('/api/admin/stats')
+                if (statsRes.ok) {
+                  const statsData = (await statsRes.json()) as AdminStats
+                  setStats(statsData)
+                }
+              } catch { /* ignore */ }
+              setDetecting(false)
+            }}
+            style={{
+              height: 28, padding: '0 12px',
+              background: 'rgba(163,113,247,0.1)', border: '1px solid rgba(163,113,247,0.2)',
+              color: '#a371f7', borderRadius: 5, fontSize: 11, fontWeight: 500,
+              cursor: detecting ? 'default' : 'pointer', fontFamily: 'system-ui',
+            }}
+          >
+            {detecting ? 'Running...' : 'Run detection now'}
+          </button>
+        </div>
+      </div>
 
       {/* Metrics grid */}
       <div

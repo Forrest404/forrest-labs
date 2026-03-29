@@ -27,6 +27,18 @@ interface QueryEntry {
   a: string
 }
 
+interface AutoDetectedCluster {
+  id: string
+  status: string
+  confidence_score: number
+  location_name: string | null
+  centroid_lat: number
+  centroid_lon: number
+  created_at: string
+  source_name: string | null
+  auto_detected_at: string | null
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function timeAgo(dateStr: string): string {
@@ -37,6 +49,12 @@ function timeAgo(dateStr: string): string {
   if (m < 60) return m + 'm ago'
   if (h < 24) return h + 'h ago'
   return Math.floor(h / 24) + 'd ago'
+}
+
+function confColour(score: number): string {
+  if (score >= 85) return '#3fb950'
+  if (score >= 60) return '#d29922'
+  return '#f85149'
 }
 
 const SOURCE_STYLES: Record<string, { bg: string; color: string }> = {
@@ -81,6 +99,7 @@ export default function IntelligencePage() {
   const [querying, setQuerying] = useState(false)
   const [queryHistory, setQueryHistory] = useState<QueryEntry[]>([])
   const [dataContext, setDataContext] = useState<{ confirmed: number; totalReports: number } | null>(null)
+  const [autoDetected, setAutoDetected] = useState<AutoDetectedCluster[]>([])
 
   const fetchArticles = useCallback(async () => {
     setLoading(true)
@@ -100,13 +119,27 @@ export default function IntelligencePage() {
   useEffect(() => {
     fetch('/api/admin/stats')
       .then((r) => r.json())
-      .then((d: { clusters?: { confirmed?: number; auto_confirmed?: number }; reports?: { total?: number } }) => {
+      .then((d: { clusters?: { confirmed?: number; auto_confirmed?: number; news_verified?: number; official_verified?: number }; reports?: { total?: number } }) => {
         setDataContext({
-          confirmed: (d.clusters?.confirmed ?? 0) + (d.clusters?.auto_confirmed ?? 0),
+          confirmed: (d.clusters?.confirmed ?? 0) + (d.clusters?.auto_confirmed ?? 0) + (d.clusters?.news_verified ?? 0) + (d.clusters?.official_verified ?? 0),
           totalReports: d.reports?.total ?? 0,
         })
       })
       .catch(() => { /* ignore */ })
+  }, [])
+
+  // Fetch auto-detected clusters
+  useEffect(() => {
+    Promise.all([
+      fetch('/api/admin/incidents?filter=news_verified&limit=5').then((r) => r.json()).catch(() => ({ clusters: [] })),
+      fetch('/api/admin/incidents?filter=official_verified&limit=5').then((r) => r.json()).catch(() => ({ clusters: [] })),
+    ]).then(([newsData, officialData]) => {
+      const merged = [
+        ...((newsData as { clusters?: AutoDetectedCluster[] }).clusters ?? []),
+        ...((officialData as { clusters?: AutoDetectedCluster[] }).clusters ?? []),
+      ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      setAutoDetected(merged)
+    })
   }, [])
 
   async function handleDismiss(id: string) {
@@ -147,6 +180,7 @@ export default function IntelligencePage() {
     <div style={{ display: 'flex', gap: 20, height: '100%', minHeight: 0 }}>
       <style>{`
         @keyframes skeleton { 0%,100% { opacity: 0.4; } 50% { opacity: 0.8; } }
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
       `}</style>
 
       {/* ── Left: News feed (60%) ─────────────────────────────────────────── */}
@@ -154,6 +188,46 @@ export default function IntelligencePage() {
         <div style={{ fontSize: 14, fontWeight: 600, color: '#e6edf3', marginBottom: 12 }}>
           Intelligence feed
         </div>
+
+        {/* Auto-detections panel */}
+        {autoDetected.length > 0 && (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#a371f7', animation: 'pulse 1.5s ease-in-out infinite', flexShrink: 0 }} />
+              <span style={{ fontSize: 12, fontWeight: 600, color: '#e6edf3' }}>Automatically detected</span>
+              <span style={{ background: 'rgba(163,113,247,0.1)', border: '1px solid rgba(163,113,247,0.2)', color: '#a371f7', fontSize: 9, padding: '2px 7px', borderRadius: 20, fontWeight: 600 }}>NEW</span>
+            </div>
+            {autoDetected.map((cluster) => (
+              <div
+                key={cluster.id}
+                onClick={() => router.push('/admin/incidents/' + cluster.id)}
+                style={{
+                  background: '#161b22',
+                  border: cluster.status === 'official_verified' ? '1px solid rgba(163,113,247,0.3)' : '1px solid rgba(88,166,255,0.2)',
+                  borderRadius: 6, padding: '10px 12px', marginBottom: 6, cursor: 'pointer',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <span style={{
+                    fontSize: 10, fontWeight: 500, padding: '2px 7px', borderRadius: 4,
+                    background: cluster.status === 'official_verified' ? 'rgba(163,113,247,0.1)' : 'rgba(88,166,255,0.1)',
+                    color: cluster.status === 'official_verified' ? '#a371f7' : '#58a6ff',
+                  }}>
+                    {cluster.status === 'official_verified' ? 'Official source' : 'News verified'}
+                  </span>
+                  <span style={{ fontSize: 11, color: '#484f58' }}>{timeAgo(cluster.auto_detected_at ?? cluster.created_at)}</span>
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 500, color: '#e6edf3', margin: '4px 0' }}>
+                  {cluster.location_name ?? cluster.centroid_lat.toFixed(3) + ', ' + cluster.centroid_lon.toFixed(3)}
+                </div>
+                {cluster.source_name && (
+                  <div style={{ fontSize: 11, color: cluster.status === 'official_verified' ? '#a371f7' : '#58a6ff' }}>{cluster.source_name}</div>
+                )}
+                <div style={{ fontSize: 11, color: confColour(cluster.confidence_score), marginTop: 2 }}>{cluster.confidence_score}% confidence</div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Filter tabs */}
         <div style={{ display: 'flex', gap: 4, marginBottom: 14, flexWrap: 'wrap' }}>

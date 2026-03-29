@@ -3,6 +3,9 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const ANTHROPIC_KEY = Deno.env.get('ANTHROPIC_API_KEY')!
+const NTFY_CHANNEL = Deno.env.get('NTFY_CHANNEL')
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface RSSItem {
   title: string
@@ -19,30 +22,66 @@ interface ArticleAnalysis {
   lon: number | null
   event_type: string
   casualties: number | null
+  url?: string
+  title?: string
 }
 
-const RSS_FEEDS = [
+interface Feed {
+  name: string
+  url: string
+  filter: string[]
+  credibility: 'official' | 'media'
+  auto_create: boolean
+}
+
+// ─── Feeds ────────────────────────────────────────────────────────────────────
+
+const RSS_FEEDS: Feed[] = [
+  {
+    name: 'Lebanese MoPH',
+    url: 'https://www.moph.gov.lb/en/Pages/rss',
+    filter: ['killed', 'injured', 'strike', 'airstrike', 'attack'],
+    credibility: 'official',
+    auto_create: true,
+  },
+  {
+    name: 'OCHA Lebanon',
+    url: 'https://reliefweb.int/country/lbn/rss.xml',
+    filter: ['strike', 'killed', 'airstrike', 'attack', 'Lebanon'],
+    credibility: 'official',
+    auto_create: true,
+  },
+  {
+    name: 'UNIFIL',
+    url: 'https://unifil.unmissions.org/rss.xml',
+    filter: ['incident', 'firing', 'strike', 'violation', 'Lebanon'],
+    credibility: 'official',
+    auto_create: true,
+  },
   {
     name: 'Al Jazeera',
     url: 'https://www.aljazeera.com/xml/rss/all.xml',
-    filter: ['Lebanon', 'Beirut', 'Hezbollah', 'Nabatieh', 'Tyre', 'Sidon', 'Baalbek', 'Litani'],
+    filter: ['Lebanon', 'Beirut', 'Hezbollah', 'airstrike', 'strike', 'killed'],
+    credibility: 'media',
+    auto_create: false,
+  },
+  {
+    name: 'Reuters',
+    url: 'https://feeds.reuters.com/reuters/METopNews',
+    filter: ['Lebanon', 'Beirut', 'airstrike', 'strike', 'killed', 'Hezbollah'],
+    credibility: 'media',
+    auto_create: false,
   },
   {
     name: 'BBC Middle East',
     url: 'http://feeds.bbci.co.uk/news/world/middle_east/rss.xml',
-    filter: ['Lebanon', 'Beirut', 'Hezbollah'],
-  },
-  {
-    name: 'Reuters Middle East',
-    url: 'https://feeds.reuters.com/reuters/METopNews',
-    filter: ['Lebanon', 'Beirut', 'Hezbollah', 'Israeli strike', 'airstrike'],
-  },
-  {
-    name: 'UN OCHA Lebanon',
-    url: 'https://reliefweb.int/country/lbn/rss.xml',
-    filter: ['Lebanon'],
+    filter: ['Lebanon', 'Beirut', 'airstrike', 'strike'],
+    credibility: 'media',
+    auto_create: false,
   },
 ]
+
+// ─── RSS Parser ───────────────────────────────────────────────────────────────
 
 function parseRSS(xml: string): RSSItem[] {
   const items: RSSItem[] = []
@@ -68,6 +107,8 @@ function parseRSS(xml: string): RSSItem[] {
   }
   return items
 }
+
+// ─── Claude Analysis ──────────────────────────────────────────────────────────
 
 async function analyseArticle(
   title: string,
@@ -124,6 +165,8 @@ If location unclear: null for both coords.`,
   }
 }
 
+// ─── Find Nearby Cluster ─────────────────────────────────────────────────────
+
 async function findNearbyCluster(
   supabase: ReturnType<typeof createClient>,
   lat: number | null,
@@ -135,8 +178,8 @@ async function findNearbyCluster(
 
   const { data } = await supabase
     .from('clusters')
-    .select('id, centroid_lat, centroid_lon')
-    .in('status', ['confirmed', 'auto_confirmed'])
+    .select('id, centroid_lat, centroid_lon, status')
+    .in('status', ['confirmed', 'auto_confirmed', 'pending_review', 'news_verified', 'official_verified'])
     .gte('created_at', oneDayAgo)
 
   if (!data?.length) return null
@@ -153,20 +196,185 @@ async function findNearbyCluster(
   }
 
   if (!best) return null
-
   const confidence = Math.max(0, 1 - best.distance / 10)
   return { id: best.id, confidence: Math.round(confidence * 100) }
 }
+
+// ─── Alert + Notification Helpers ─────────────────────────────────────────────
+
+async function createAlertRecord(
+  supabase: ReturnType<typeof createClient>,
+  clusterId: string,
+  sourceName: string,
+  locationName: string,
+): Promise<void> {
+  await supabase
+    .from('alerts')
+    .upsert(
+      {
+        cluster_id: clusterId,
+        confirmed_by: sourceName,
+        radius_metres: 400,
+        location_name: locationName,
+      },
+      { onConflict: 'cluster_id', ignoreDuplicates: true },
+    )
+}
+
+async function sendAutoDetectNotification(
+  article: ArticleAnalysis,
+  feed: Feed,
+  confidence: number,
+): Promise<void> {
+  if (!NTFY_CHANNEL) return
+  await fetch(`https://ntfy.sh/${NTFY_CHANNEL}`, {
+    method: 'POST',
+    headers: {
+      'Title': `⚡ Auto-detected: ${article.location ?? 'Lebanon'}`,
+      'Priority': 'high',
+      'Tags': 'rotating_light',
+      'Content-Type': 'text/plain',
+    },
+    body: [
+      `${feed.name} · ${confidence}% confidence`,
+      article.summary ?? article.title ?? '',
+      article.casualties ? `${article.casualties} casualties reported` : '',
+    ]
+      .filter(Boolean)
+      .join('\n'),
+  }).catch((err) => console.error('Auto-detect ntfy failed:', err))
+}
+
+// ─── Process Article ──────────────────────────────────────────────────────────
+
+async function processArticle(
+  article: ArticleAnalysis & { url: string; title: string; pub_date: string },
+  feed: Feed,
+  supabase: ReturnType<typeof createClient>,
+): Promise<void> {
+  // Store the article regardless
+  await supabase.from('news_articles').insert({
+    source: feed.name,
+    title: article.title,
+    url: article.url,
+    published_at: article.pub_date || null,
+    summary: article.summary,
+    location_name: article.location,
+    location_lat: article.lat,
+    location_lon: article.lon,
+    event_type: article.event_type,
+    casualty_count: article.casualties,
+    ai_relevance: article.relevance_score,
+    status: 'new',
+  })
+
+  if (!article.lat || !article.lon) return
+  if (article.relevance_score < 0.5) return
+
+  const nearby = await findNearbyCluster(supabase, article.lat, article.lon)
+
+  if (nearby) {
+    // Boost existing cluster confidence
+    const { data: cluster } = await supabase
+      .from('clusters')
+      .select('confidence_score, status')
+      .eq('id', nearby.id)
+      .single()
+
+    if (!cluster) return
+
+    const boost = feed.credibility === 'official' ? 40 : 15
+    const newScore = Math.min(((cluster.confidence_score as number) ?? 50) + boost, 100)
+    const shouldAutoConfirm = newScore >= 85 && (cluster.status as string) === 'pending_review'
+
+    const updatePayload: Record<string, unknown> = {
+      confidence_score: newScore,
+      source_url: article.url,
+      source_name: feed.name,
+    }
+
+    if (shouldAutoConfirm) {
+      updatePayload.status = feed.credibility === 'official' ? 'official_verified' : 'news_verified'
+      updatePayload.auto_detected_at = new Date().toISOString()
+      updatePayload.reviewed_by = 'auto_detection'
+      updatePayload.reviewed_at = new Date().toISOString()
+    }
+
+    await supabase.from('clusters').update(updatePayload).eq('id', nearby.id)
+
+    // Link news article
+    await supabase
+      .from('news_articles')
+      .update({ linked_cluster_id: nearby.id, status: 'linked', match_confidence: nearby.confidence })
+      .eq('url', article.url)
+
+    if (shouldAutoConfirm) {
+      await createAlertRecord(supabase, nearby.id, feed.name, article.location)
+      await sendAutoDetectNotification(article, feed, newScore)
+    }
+
+    return
+  }
+
+  // Only create new clusters from official sources
+  if (!feed.auto_create || feed.credibility !== 'official') return
+
+  const { data: newCluster } = await supabase
+    .from('clusters')
+    .insert({
+      centroid_lat: article.lat,
+      centroid_lon: article.lon,
+      report_ids: [],
+      report_count: 0,
+      spread_metres: 500,
+      time_window_seconds: 0,
+      unique_sessions: 0,
+      unique_ips: 0,
+      confidence_score: 92,
+      volume_subscore: 0,
+      diversity_subscore: 0,
+      timing_subscore: 100,
+      context_subscore: 90,
+      media_subscore: 0,
+      fraud_score: 100,
+      status: 'official_verified',
+      dominant_event_types: [article.event_type ?? 'airstrike'],
+      ai_reasoning: `Auto-detected from ${feed.name}: ${article.summary}`,
+      ai_concerns: [],
+      display_radius_metres: 400,
+      location_name: article.location,
+      source_type: feed.credibility,
+      source_url: article.url,
+      source_name: feed.name,
+      auto_detected_at: new Date().toISOString(),
+      reviewed_by: 'auto_detection',
+      reviewed_at: new Date().toISOString(),
+    })
+    .select('id')
+    .single()
+
+  if (!newCluster) return
+
+  await createAlertRecord(supabase, newCluster.id as string, feed.name, article.location)
+
+  await supabase
+    .from('news_articles')
+    .update({ linked_cluster_id: newCluster.id, status: 'linked', match_confidence: 95 })
+    .eq('url', article.url)
+
+  await sendAutoDetectNotification(article, feed, 92)
+}
+
+// ─── Main Handler ─────────────────────────────────────────────────────────────
 
 Deno.serve(async () => {
   const supabase = createClient(SUPABASE_URL, SERVICE_KEY)
   const allArticles: string[] = []
   let claudeCalls = 0
-  const MAX_CLAUDE_CALLS = 3
+  const MAX_CLAUDE_CALLS = 5
 
   for (const feed of RSS_FEEDS) {
     try {
-      // Fetch with 10s timeout
       const controller = new AbortController()
       const timeout = setTimeout(() => controller.abort(), 10000)
       const res = await fetch(feed.url, { signal: controller.signal })
@@ -187,36 +395,24 @@ Deno.serve(async () => {
       )
 
       for (const item of relevant.slice(0, 5)) {
-        // Dedup check BEFORE calling Claude
         if (!item.link) continue
+
+        // Dedup before Claude
         const exists = await supabase.from('news_articles').select('id').eq('url', item.link).single()
         if (exists.data) continue
 
-        // Cap Claude calls per invocation
         if (claudeCalls >= MAX_CLAUDE_CALLS) break
 
         const analysis = await analyseArticle(item.title, item.description ?? '', feed.name)
         claudeCalls++
+
         if (analysis.relevance_score < 0.3) continue
 
-        const nearbyCluster = await findNearbyCluster(supabase, analysis.lat, analysis.lon)
-
-        await supabase.from('news_articles').insert({
-          source: feed.name,
-          title: item.title,
-          url: item.link,
-          published_at: item.pub_date || null,
-          summary: analysis.summary,
-          location_name: analysis.location,
-          location_lat: analysis.lat,
-          location_lon: analysis.lon,
-          event_type: analysis.event_type,
-          casualty_count: analysis.casualties,
-          ai_relevance: analysis.relevance_score,
-          linked_cluster_id: nearbyCluster?.id ?? null,
-          match_confidence: nearbyCluster?.confidence ?? null,
-          status: 'new',
-        })
+        await processArticle(
+          { ...analysis, url: item.link, title: item.title, pub_date: item.pub_date },
+          feed,
+          supabase,
+        )
 
         allArticles.push(item.title)
       }

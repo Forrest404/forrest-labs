@@ -17,13 +17,15 @@ interface Cluster {
   id: string
   centroid_lat: number
   centroid_lon: number
-  status: 'confirmed' | 'auto_confirmed' | 'pending_review'
+  status: 'confirmed' | 'auto_confirmed' | 'news_verified' | 'official_verified' | 'pending_review'
   confidence_score: number
   display_radius_metres: number
   dominant_event_types: string[]
   ai_reasoning: string | null
   report_count: number
   created_at: string
+  source_name: string | null
+  source_url: string | null
 }
 
 interface WarningCluster {
@@ -221,6 +223,8 @@ export default function MapPage() {
           created_at: c.created_at,
           status: c.status,
           location_name: locationNamesRef.current[c.id] ?? '',
+          source_name: c.source_name ?? '',
+          source_url: c.source_url ?? '',
         },
       })),
     }
@@ -289,6 +293,8 @@ export default function MapPage() {
       paint: {
         'fill-color': [
           'case',
+          ['==', ['get', 'status'], 'official_verified'], '#a371f7',
+          ['==', ['get', 'status'], 'news_verified'], '#58a6ff',
           ['==', ['get', 'status'], 'confirmed'], '#22c55e',
           ['==', ['get', 'status'], 'auto_confirmed'], '#f97316',
           '#ef4444',
@@ -312,6 +318,8 @@ export default function MapPage() {
       paint: {
         'line-color': [
           'case',
+          ['==', ['get', 'status'], 'official_verified'], '#a371f7',
+          ['==', ['get', 'status'], 'news_verified'], '#58a6ff',
           ['==', ['get', 'status'], 'confirmed'], '#22c55e',
           ['==', ['get', 'status'], 'auto_confirmed'], '#f97316',
           '#ef4444',
@@ -337,6 +345,8 @@ export default function MapPage() {
         'circle-radius': 7,
         'circle-color': [
           'case',
+          ['==', ['get', 'status'], 'official_verified'], '#a371f7',
+          ['==', ['get', 'status'], 'news_verified'], '#58a6ff',
           ['==', ['get', 'status'], 'confirmed'], '#22c55e',
           ['==', ['get', 'status'], 'auto_confirmed'], '#f97316',
           '#ef4444',
@@ -680,7 +690,7 @@ export default function MapPage() {
     const { data } = await supabase.current
       .from('clusters')
       .select('*')
-      .in('status', ['confirmed', 'auto_confirmed'])
+      .in('status', ['confirmed', 'auto_confirmed', 'news_verified', 'official_verified'])
       .order('created_at', { ascending: false })
       .limit(100)
 
@@ -717,7 +727,8 @@ export default function MapPage() {
             payload.eventType === 'UPDATE'
           ) {
             const newCluster = payload.new as Cluster
-            if (newCluster.status !== 'confirmed' && newCluster.status !== 'auto_confirmed') return
+            const showStatuses = ['confirmed', 'auto_confirmed', 'news_verified', 'official_verified']
+            if (!showStatuses.includes(newCluster.status)) return
             setClusters((prev) => {
               const exists = prev.find((c) => c.id === newCluster.id)
               const updated = exists
@@ -1227,19 +1238,19 @@ export default function MapPage() {
               width: 8,
               height: 8,
               borderRadius: '50%',
-              background: '#ef4444',
+              background: recentCluster?.status === 'official_verified' ? '#a371f7' : '#ef4444',
               animation: 'pulse-dot 1.4s ease-in-out infinite',
             }}
           />
           <span
             style={{
-              color: '#ef4444',
+              color: recentCluster?.status === 'official_verified' ? '#a371f7' : '#ef4444',
               fontSize: 10,
               letterSpacing: '0.15em',
               fontWeight: 600,
             }}
           >
-            LIVE
+            {recentCluster?.status === 'official_verified' ? 'OFFICIAL' : 'LIVE'}
           </span>
         </div>
 
@@ -1615,12 +1626,20 @@ export default function MapPage() {
         {/* STRIKES section */}
         <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>Strikes</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'rgba(255,255,255,0.7)', marginBottom: 5 }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#a371f7', flexShrink: 0, marginLeft: 6, marginRight: 6 }} />
+          Officially verified (OCHA/MoPH)
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'rgba(255,255,255,0.7)', marginBottom: 5 }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#58a6ff', flexShrink: 0, marginLeft: 6, marginRight: 6 }} />
+          News verified
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'rgba(255,255,255,0.7)', marginBottom: 5 }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', flexShrink: 0, marginLeft: 6, marginRight: 6 }} />
-          Confirmed strike
+          Civilian confirmed
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#f97316', flexShrink: 0, marginLeft: 6, marginRight: 6 }} />
-          Auto-confirmed
+          AI auto-confirmed
         </div>
         {/* Divider */}
         <div style={{ borderTop: '0.5px solid rgba(255,255,255,0.1)', margin: '8px 0' }} />
@@ -1757,16 +1776,25 @@ export default function MapPage() {
               style={{
                 display: 'inline-block',
                 background:
-                  selectedCluster.status === 'confirmed' ? '#052e16' : '#431407',
+                  selectedCluster.status === 'official_verified' ? '#1a0e2e'
+                    : selectedCluster.status === 'news_verified' ? '#0d1b2e'
+                    : selectedCluster.status === 'confirmed' ? '#052e16'
+                    : '#431407',
                 color:
-                  selectedCluster.status === 'confirmed' ? '#86efac' : '#fdba74',
+                  selectedCluster.status === 'official_verified' ? '#a371f7'
+                    : selectedCluster.status === 'news_verified' ? '#58a6ff'
+                    : selectedCluster.status === 'confirmed' ? '#86efac'
+                    : '#fdba74',
                 fontSize: 11,
                 padding: '3px 9px',
                 borderRadius: 20,
                 fontWeight: 500,
               }}
             >
-              {selectedCluster.status === 'confirmed' ? 'Confirmed' : 'Auto-confirmed'}
+              {selectedCluster.status === 'official_verified' ? 'Officially verified'
+                : selectedCluster.status === 'news_verified' ? 'News verified'
+                : selectedCluster.status === 'confirmed' ? 'Confirmed'
+                : 'Auto-confirmed'}
             </span>
           </div>
 
@@ -1902,6 +1930,28 @@ export default function MapPage() {
               >
                 {showFullReasoning ? 'Show less' : 'Show more'}
               </button>
+            </div>
+          )}
+
+          {/* Verified by source */}
+          {selectedCluster.source_name && (
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4 }}>Verified by</div>
+              <div style={{
+                fontSize: 13,
+                fontWeight: 500,
+                color: selectedCluster.status === 'official_verified' ? '#a371f7' : '#58a6ff',
+              }}>
+                {selectedCluster.source_name}
+              </div>
+              {selectedCluster.source_url && (
+                <div
+                  onClick={() => window.open(selectedCluster.source_url!, '_blank')}
+                  style={{ fontSize: 11, color: '#58a6ff', cursor: 'pointer', marginTop: 4 }}
+                >
+                  Read article ↗
+                </div>
+              )}
             </div>
           )}
 
