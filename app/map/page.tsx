@@ -43,6 +43,38 @@ interface WarningCluster {
   all_clear_votes: number
 }
 
+interface NewsArticle {
+  id: string
+  source: string
+  title: string
+  url: string
+  published_at: string | null
+  fetched_at: string
+  summary: string | null
+  location_name: string | null
+  location_lat: number | null
+  location_lon: number | null
+  event_type: string | null
+  casualty_count: number | null
+  ai_relevance: number | null
+  linked_cluster_id: string | null
+}
+
+const NEWS_SOURCE_STYLES: Record<string, { bg: string; color: string }> = {
+  'Al Jazeera': { bg: 'rgba(248,81,73,0.12)', color: '#f85149' },
+  BBC: { bg: 'rgba(88,166,255,0.12)', color: '#58a6ff' },
+  Reuters: { bg: 'rgba(63,185,80,0.12)', color: '#3fb950' },
+  'UN OCHA': { bg: 'rgba(163,113,247,0.12)', color: '#a371f7' },
+}
+
+const NEWS_EVENT_COLORS: Record<string, string> = {
+  airstrike: '#ef4444',
+  evacuation: '#f97316',
+  casualties: '#ef4444',
+  warning: '#f97316',
+  ground_operation: '#a371f7',
+}
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const MAP_STYLES = [
@@ -104,6 +136,11 @@ export default function MapPage() {
   const [allClearSent, setAllClearSent] = useState(false)
   const [warningBannerDismissed, setWarningBannerDismissed] = useState(false)
   const [warningBannerIndex, setWarningBannerIndex] = useState(0)
+
+  // ── News feed state ────────────────────────────────────────────────────
+  const [articles, setArticles] = useState<NewsArticle[]>([])
+  const [newsOpen, setNewsOpen] = useState(false)
+  const [newsLoading, setNewsLoading] = useState(true)
 
   // ── Refs ─────────────────────────────────────────────────────────────────
   const mapContainer = useRef<HTMLDivElement>(null)
@@ -928,6 +965,26 @@ export default function MapPage() {
     setAllClearSent(false)
   }, [selectedWarning])
 
+  // ── News feed fetch ───────────────────────────────────────────────────
+
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      try {
+        const res = await fetch('/api/news?limit=40')
+        const data = (await res.json()) as { articles?: NewsArticle[] }
+        if (!cancelled) setArticles(data.articles ?? [])
+      } catch {
+        if (!cancelled) setArticles([])
+      } finally {
+        if (!cancelled) setNewsLoading(false)
+      }
+    }
+    load()
+    const interval = setInterval(load, 5 * 60 * 1000)
+    return () => { cancelled = true; clearInterval(interval) }
+  }, [])
+
   // ── Layer toggle handlers ─────────────────────────────────────────────
 
   const toggleStrikeZones = useCallback((on: boolean) => {
@@ -1273,6 +1330,54 @@ export default function MapPage() {
               : 'Monitoring active — no confirmed incidents'}
           </div>
         </div>
+
+        {/* News feed button */}
+        <button
+          type="button"
+          onClick={() => setNewsOpen((v) => !v)}
+          aria-label={`Toggle intelligence feed${articles.length > 0 ? `, ${articles.length} articles` : ''}`}
+          style={{
+            background: newsOpen ? 'rgba(88,166,255,0.18)' : 'rgba(255,255,255,0.08)',
+            border: newsOpen ? '0.5px solid rgba(88,166,255,0.4)' : '0.5px solid rgba(255,255,255,0.15)',
+            color: newsOpen ? '#58a6ff' : '#ffffff',
+            minWidth: isMobile ? 44 : undefined,
+            minHeight: isMobile ? 44 : 32,
+            padding: isMobile ? '0 10px' : '7px 12px',
+            borderRadius: 8,
+            fontSize: 13,
+            fontWeight: 500,
+            cursor: 'pointer',
+            flexShrink: 0,
+            whiteSpace: 'nowrap',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+            fontFamily: 'system-ui',
+            touchAction: 'manipulation',
+          }}
+        >
+          <svg width={isMobile ? 16 : 12} height={isMobile ? 16 : 12} viewBox="0 0 14 14" fill="none" aria-hidden>
+            <rect x="1" y="2" width="12" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
+            <path d="M3.5 5h7M3.5 7.5h7M3.5 10h4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+          </svg>
+          <span style={{ display: isMobile ? 'none' : 'inline' }}>News</span>
+          {articles.length > 0 && (
+            <span style={{
+              background: '#ef4444',
+              color: '#ffffff',
+              fontSize: 10,
+              fontWeight: 600,
+              padding: '1px 6px',
+              borderRadius: 10,
+              minWidth: 16,
+              textAlign: 'center',
+              lineHeight: '14px',
+            }}>
+              {articles.length}
+            </span>
+          )}
+        </button>
 
         {/* Report button */}
         <a
@@ -2111,6 +2216,205 @@ export default function MapPage() {
           </button>
         </div>
       )}
+
+      {/* ── Intelligence feed drawer ───────────────────────────────────── */}
+      {newsOpen && isMobile && (
+        <div
+          onClick={() => setNewsOpen(false)}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'rgba(0,0,0,0.5)',
+            zIndex: 14,
+            touchAction: 'none',
+          }}
+        />
+      )}
+      <aside
+        aria-hidden={!newsOpen}
+        aria-label="Intelligence feed"
+        style={{
+          position: 'absolute',
+          top: showBanner ? 38 : 0,
+          bottom: 0,
+          left: 0,
+          width: isMobile ? 'min(94vw, 420px)' : 380,
+          maxWidth: '100vw',
+          background: 'rgba(10,10,15,0.97)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          borderRight: '0.5px solid rgba(255,255,255,0.08)',
+          transform: newsOpen ? 'translateX(0)' : 'translateX(-110%)',
+          transition: 'transform 0.28s ease, top 0.3s',
+          zIndex: 15,
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: 0,
+          boxShadow: newsOpen ? '4px 0 24px rgba(0,0,0,0.35)' : 'none',
+        }}
+      >
+        <div style={{
+          padding: isMobile ? '14px 14px 12px' : '14px 16px 12px',
+          borderBottom: '0.5px solid rgba(255,255,255,0.08)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          flexShrink: 0,
+        }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 11, color: '#58a6ff', letterSpacing: '0.12em', fontWeight: 600, marginBottom: 2 }}>
+              INTELLIGENCE FEED
+            </div>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>
+              Articles on the war from trusted sources
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setNewsOpen(false)}
+            aria-label="Close news feed"
+            style={{
+              background: 'rgba(255,255,255,0.06)',
+              border: '0.5px solid rgba(255,255,255,0.12)',
+              color: '#ffffff',
+              fontSize: 22,
+              cursor: 'pointer',
+              lineHeight: 1,
+              width: 44,
+              height: 44,
+              minWidth: 44,
+              borderRadius: 10,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              touchAction: 'manipulation',
+            }}
+          >
+            ×
+          </button>
+        </div>
+
+        <div style={{
+          flex: 1,
+          overflowY: 'auto',
+          WebkitOverflowScrolling: 'touch',
+          overscrollBehavior: 'contain',
+          padding: isMobile
+            ? '12px 14px calc(20px + env(safe-area-inset-bottom))'
+            : '12px 14px 16px',
+        }}>
+          {newsLoading ? (
+            Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} style={{
+                background: '#161b22',
+                borderRadius: 8,
+                height: 110,
+                marginBottom: 10,
+                animation: 'pulse-dot 1.5s ease-in-out infinite',
+              }} />
+            ))
+          ) : articles.length === 0 ? (
+            <div style={{ padding: '32px 12px', textAlign: 'center', fontSize: 14, color: '#6b7280', lineHeight: 1.5 }}>
+              No articles yet.<br />The feed updates every few minutes.
+            </div>
+          ) : (
+            articles.map((article) => {
+              const src = NEWS_SOURCE_STYLES[article.source] ?? {
+                bg: 'rgba(139,148,158,0.12)', color: '#9ca3af',
+              }
+              const accent = article.event_type
+                ? NEWS_EVENT_COLORS[article.event_type] ?? '#6b7280'
+                : '#6b7280'
+              const dateStr = article.published_at ?? article.fetched_at
+              return (
+                <a
+                  key={article.id}
+                  href={article.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: 'block',
+                    background: '#12161d',
+                    border: '1px solid rgba(255,255,255,0.06)',
+                    borderRadius: 10,
+                    padding: isMobile ? 14 : 12,
+                    marginBottom: 10,
+                    textDecoration: 'none',
+                    color: 'inherit',
+                    minHeight: 48,
+                    touchAction: 'manipulation',
+                    WebkitTapHighlightColor: 'transparent',
+                  }}
+                >
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginBottom: 8 }}>
+                    <span style={{
+                      fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 4,
+                      background: src.bg, color: src.color, letterSpacing: '0.04em',
+                    }}>
+                      {article.source}
+                    </span>
+                    {article.event_type && (
+                      <span style={{
+                        fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 4,
+                        background: `${accent}22`, color: accent, textTransform: 'capitalize',
+                      }}>
+                        {article.event_type.replace(/_/g, ' ')}
+                      </span>
+                    )}
+                    <span style={{ flex: 1 }} />
+                    <span style={{ fontSize: 11, color: '#6b7280' }}>
+                      {timeAgo(dateStr)}
+                    </span>
+                  </div>
+                  <div style={{
+                    fontSize: isMobile ? 16 : 14,
+                    fontWeight: 500,
+                    color: '#e6edf3',
+                    lineHeight: 1.4,
+                    marginBottom: 6,
+                  }}>
+                    {article.title}
+                  </div>
+                  {article.summary && (
+                    <div style={{
+                      fontSize: isMobile ? 14 : 12.5,
+                      color: '#9ca3af',
+                      lineHeight: 1.55,
+                      marginBottom: 8,
+                      overflow: 'hidden',
+                      display: '-webkit-box',
+                      WebkitLineClamp: 3,
+                      WebkitBoxOrient: 'vertical' as const,
+                    }}>
+                      {article.summary}
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', rowGap: 4 }}>
+                    {article.location_name && (
+                      <span style={{ fontSize: 12, color: '#6b7280' }}>
+                        📍 {article.location_name}
+                      </span>
+                    )}
+                    {article.casualty_count != null && article.casualty_count > 0 && (
+                      <span style={{ fontSize: 12, color: '#ef4444', fontWeight: 500 }}>
+                        {article.casualty_count} casualties reported
+                      </span>
+                    )}
+                    {article.linked_cluster_id && (
+                      <span style={{ fontSize: 11, color: '#22c55e' }}>
+                        ↔ Linked to confirmed incident
+                      </span>
+                    )}
+                    <span style={{ flex: 1 }} />
+                    <span style={{ fontSize: 12, color: '#58a6ff', fontWeight: 500 }}>Read ↗</span>
+                  </div>
+                </a>
+              )
+            })
+          )}
+        </div>
+      </aside>
     </div>
   )
 }
