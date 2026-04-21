@@ -86,6 +86,31 @@ const KEY_EVENTS: { date: Date; label: string; color: string }[] = [
   { date: new Date('2026-04-16T20:00:00Z'), label: 'Ceasefire',           color: '#3fb950' },
 ]
 
+// ─── Filter options ──────────────────────────────────────────────────────────
+
+const TIME_RANGES = [
+  { id: 'hour', label: 'Last hour', ms: 60 * 60 * 1000 },
+  { id: 'day',  label: 'Last 24h',  ms: 24 * 60 * 60 * 1000 },
+  { id: 'week', label: 'Last 7d',   ms: 7 * 24 * 60 * 60 * 1000 },
+] as const
+type TimeRangeId = (typeof TIME_RANGES)[number]['id'] | 'all'
+
+const OPERATION_PERIODS = [
+  { id: 'ground_ops',          label: 'Ground ops phase',    start: KEY_EVENTS[0].date, end: KEY_EVENTS[1].date as Date | null },
+  { id: 'op_eternal_darkness', label: 'Op Eternal Darkness', start: KEY_EVENTS[1].date, end: KEY_EVENTS[2].date as Date | null },
+  { id: 'after_ceasefire',     label: 'After ceasefire',     start: KEY_EVENTS[2].date, end: null as Date | null },
+] as const
+type OperationId = (typeof OPERATION_PERIODS)[number]['id'] | 'all'
+
+const EVENT_TYPE_OPTIONS = [
+  { id: 'airstrike',        label: 'Airstrike' },
+  { id: 'ground_operation', label: 'Ground op' },
+  { id: 'evacuation',       label: 'Evacuation' },
+  { id: 'casualties',       label: 'Casualties' },
+  { id: 'warning',          label: 'Warning' },
+] as const
+type EventTypeId = (typeof EVENT_TYPE_OPTIONS)[number]['id'] | 'all'
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const MAP_STYLES = [
@@ -155,7 +180,11 @@ export default function MapPage() {
   const [mapLoaded, setMapLoaded] = useState(false)
   const [clusters, setClusters] = useState<Cluster[]>([])
   const [selectedCluster, setSelectedCluster] = useState<Cluster | null>(null)
-  const [activeFilter, setActiveFilter] = useState<'all' | 'hour' | 'confirmed'>('all')
+  const [timeRange, setTimeRange] = useState<TimeRangeId>('all')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'confirmed'>('all')
+  const [operationFilter, setOperationFilter] = useState<OperationId>('all')
+  const [eventTypeFilter, setEventTypeFilter] = useState<EventTypeId>('all')
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const [locationNames, setLocationNames] = useState<Record<string, string>>({})
   const [isMobile, setIsMobile] = useState(false)
   const [showFullReasoning, setShowFullReasoning] = useState(false)
@@ -1016,22 +1045,27 @@ export default function MapPage() {
     if (!map.current || !map.current.getSource('clusters-dots')) return
 
     const now = Date.now()
-    const oneHour = 60 * 60 * 1000
     const scrubMs = scrubDate.getTime()
+    const timeWindow = TIME_RANGES.find((r) => r.id === timeRange)
+    const period = OPERATION_PERIODS.find((p) => p.id === operationFilter)
 
     const filtered = clusters.filter((c) => {
-      if (timeEnabled && new Date(c.created_at).getTime() > scrubMs) return false
-      if (activeFilter === 'hour') {
-        return now - new Date(c.created_at).getTime() < oneHour
+      const t = new Date(c.created_at).getTime()
+
+      if (timeEnabled && t > scrubMs) return false
+      if (timeWindow && now - t > timeWindow.ms) return false
+      if (statusFilter === 'confirmed' && c.status !== 'confirmed') return false
+      if (period) {
+        if (t < period.start.getTime()) return false
+        if (period.end && t >= period.end.getTime()) return false
       }
-      if (activeFilter === 'confirmed') {
-        return c.status === 'confirmed'
-      }
+      if (eventTypeFilter !== 'all' && !c.dominant_event_types?.includes(eventTypeFilter)) return false
+
       return true
     })
 
     updateMapSource(filtered)
-  }, [activeFilter, clusters, scrubDate, timeEnabled, updateMapSource])
+  }, [timeRange, statusFilter, operationFilter, eventTypeFilter, clusters, scrubDate, timeEnabled, updateMapSource])
 
   // ── Effect 3: reset panel state when selection changes ────────────────
 
@@ -1257,6 +1291,31 @@ export default function MapPage() {
   const roadsDisabled = !isSatelliteStyle
   const roadsOn = mapStyle === 'mapbox://styles/mapbox/satellite-streets-v12'
   const satelliteOn = isSatelliteStyle
+
+  // ── Filter helpers ────────────────────────────────────────────────────
+
+  const activeFilterCount = [timeRange, statusFilter, operationFilter, eventTypeFilter].filter((v) => v !== 'all').length
+
+  const resetFilters = () => {
+    setTimeRange('all')
+    setStatusFilter('all')
+    setOperationFilter('all')
+    setEventTypeFilter('all')
+  }
+
+  const filterPillStyle = (active: boolean) => ({
+    background: active ? 'rgba(239,68,68,0.2)' : 'rgba(10,10,15,0.85)',
+    backdropFilter: 'blur(8px)',
+    WebkitBackdropFilter: 'blur(8px)',
+    border: active ? '0.5px solid #ef4444' : '0.5px solid rgba(255,255,255,0.15)',
+    color: active ? '#ef4444' : 'rgba(255,255,255,0.6)',
+    padding: '7px 14px',
+    borderRadius: 20,
+    fontSize: 12,
+    cursor: 'pointer',
+    minHeight: 44,
+    whiteSpace: 'nowrap',
+  })
 
   // ── Render ────────────────────────────────────────────────────────────
 
@@ -1862,7 +1921,7 @@ export default function MapPage() {
         </div>
       </div>
 
-      {/* Filter bar */}
+      {/* Filter bar (collapsed) */}
       <div
         style={{
           position: 'absolute',
@@ -1875,44 +1934,148 @@ export default function MapPage() {
           transition: 'bottom 0.25s ease',
         }}
       >
-        {(
-          [
-            { label: 'All events', value: 'all' },
-            { label: 'Last hour', value: 'hour' },
-            { label: 'Confirmed only', value: 'confirmed' },
-          ] as const
-        ).map((pill) => (
+        <button
+          type="button"
+          onClick={() => setFiltersOpen((v) => !v)}
+          style={filterPillStyle(filtersOpen || activeFilterCount > 0)}
+        >
+          Filters{activeFilterCount > 0 ? ` · ${activeFilterCount}` : ''}
+        </button>
+        {activeFilterCount > 0 && (
           <button
-            key={pill.value}
             type="button"
-            onClick={() => setActiveFilter(pill.value)}
-            style={{
-              background:
-                activeFilter === pill.value
-                  ? 'rgba(239,68,68,0.2)'
-                  : 'rgba(10,10,15,0.85)',
-              backdropFilter: 'blur(8px)',
-              WebkitBackdropFilter: 'blur(8px)',
-              border:
-                activeFilter === pill.value
-                  ? '0.5px solid #ef4444'
-                  : '0.5px solid rgba(255,255,255,0.15)',
-              color:
-                activeFilter === pill.value
-                  ? '#ef4444'
-                  : 'rgba(255,255,255,0.6)',
-              padding: '7px 14px',
-              borderRadius: 20,
-              fontSize: 12,
-              cursor: 'pointer',
-              minHeight: 44,
-              whiteSpace: 'nowrap',
-            }}
+            onClick={resetFilters}
+            style={filterPillStyle(false)}
           >
-            {pill.label}
+            Reset
           </button>
-        ))}
+        )}
       </div>
+
+      {/* Filter sheet (expanded) */}
+      {filtersOpen && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: timeEnabled ? 228 : 136,
+            left: isMobile ? 12 : '50%',
+            right: isMobile ? 12 : 'auto',
+            transform: isMobile ? 'none' : 'translateX(-50%)',
+            width: isMobile ? 'auto' : 'min(560px, calc(100vw - 24px))',
+            background: 'rgba(10,10,15,0.92)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            border: '0.5px solid rgba(255,255,255,0.15)',
+            borderRadius: 16,
+            padding: 16,
+            zIndex: 6,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 14,
+            maxHeight: '60vh',
+            overflowY: 'auto',
+            transition: 'bottom 0.25s ease',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.85)', letterSpacing: 0.3 }}>
+              Filters
+            </span>
+            <button
+              type="button"
+              onClick={() => setFiltersOpen(false)}
+              aria-label="Close filters"
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'rgba(255,255,255,0.55)',
+                cursor: 'pointer',
+                fontSize: 20,
+                lineHeight: 1,
+                width: 44,
+                height: 44,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              ×
+            </button>
+          </div>
+
+          {(
+            [
+              {
+                label: 'Time',
+                value: timeRange,
+                set: (id: TimeRangeId) => setTimeRange(id),
+                options: [{ id: 'all' as const, label: 'All' }, ...TIME_RANGES.map((r) => ({ id: r.id, label: r.label }))],
+              },
+              {
+                label: 'Status',
+                value: statusFilter,
+                set: (id: 'all' | 'confirmed') => setStatusFilter(id),
+                options: [
+                  { id: 'all' as const, label: 'All' },
+                  { id: 'confirmed' as const, label: 'Confirmed only' },
+                ],
+              },
+              {
+                label: 'Operation',
+                value: operationFilter,
+                set: (id: OperationId) => setOperationFilter(id),
+                options: [{ id: 'all' as const, label: 'All' }, ...OPERATION_PERIODS.map((p) => ({ id: p.id, label: p.label }))],
+              },
+              {
+                label: 'Event type',
+                value: eventTypeFilter,
+                set: (id: EventTypeId) => setEventTypeFilter(id),
+                options: [{ id: 'all' as const, label: 'All' }, ...EVENT_TYPE_OPTIONS.map((e) => ({ id: e.id, label: e.label }))],
+              },
+            ] as const
+          ).map((group) => (
+            <div key={group.label} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: 600,
+                  color: 'rgba(255,255,255,0.45)',
+                  textTransform: 'uppercase',
+                  letterSpacing: 0.8,
+                }}
+              >
+                {group.label}
+              </span>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {group.options.map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => (group.set as (id: string) => void)(opt.id)}
+                    style={filterPillStyle(group.value === opt.id)}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+
+          {activeFilterCount > 0 && (
+            <button
+              type="button"
+              onClick={resetFilters}
+              style={{
+                ...filterPillStyle(false),
+                alignSelf: 'flex-start',
+                marginTop: 4,
+              }}
+            >
+              Reset all
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Side panel */}
       {selectedCluster && (
