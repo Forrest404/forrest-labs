@@ -1930,11 +1930,34 @@ export default function MapPage() {
           right: isMobile ? 12 : 'auto',
           transform: isMobile ? 'none' : 'translateX(-50%)',
           display: 'flex',
+          alignItems: 'center',
           gap: 6,
           zIndex: 5,
           transition: 'bottom 0.25s ease',
         }}
       >
+        {!timeEnabled && (
+          <button
+            type="button"
+            onClick={() => {
+              setTimeEnabled(true)
+              setScrubDate(END_DATE)
+            }}
+            style={{
+              ...filterPillStyle(false),
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              touchAction: 'manipulation',
+            }}
+          >
+            <svg width="12" height="12" viewBox="0 0 14 14" fill="none" aria-hidden>
+              <circle cx="7" cy="7" r="5.5" stroke="currentColor" strokeWidth="1.2" />
+              <path d="M7 4v3.5l2.5 1.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+            </svg>
+            Time travel
+          </button>
+        )}
         <button
           type="button"
           onClick={() => setFiltersOpen((v) => !v)}
@@ -2687,60 +2710,20 @@ export default function MapPage() {
         </div>
       </aside>
 
-      {/* ── Time-travel timeline ─────────────────────────────────────── */}
-      <div
-        style={{
-          position: 'absolute',
-          bottom: 32,
-          zIndex: 10,
-          pointerEvents: 'none',
-          ...(timeEnabled
-            ? {
-                left: '50%',
-                transform: 'translateX(-50%)',
-                width: 'calc(100% - 48px)',
-                maxWidth: 900,
-              }
-            : isMobile
-            ? { right: 12, width: 'auto' }
-            : { left: '50%', transform: 'translateX(-50%)', width: 'auto' }),
-        }}
-      >
-        {!timeEnabled ? (
-          <div style={{ display: 'flex', justifyContent: isMobile ? 'flex-end' : 'center' }}>
-            <button
-              type="button"
-              onClick={() => {
-                setTimeEnabled(true)
-                setScrubDate(END_DATE)
-              }}
-              style={{
-                background: 'rgba(13,17,23,0.85)',
-                border: '1px solid #21262d',
-                borderRadius: 20,
-                padding: '7px 14px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 7,
-                fontSize: 12,
-                color: '#8b949e',
-                cursor: 'pointer',
-                pointerEvents: 'auto',
-                backdropFilter: 'blur(8px)',
-                WebkitBackdropFilter: 'blur(8px)',
-                fontFamily: 'system-ui',
-                touchAction: 'manipulation',
-                minHeight: isMobile ? 40 : undefined,
-              }}
-            >
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
-                <circle cx="7" cy="7" r="5.5" stroke="currentColor" strokeWidth="1.2" />
-                <path d="M7 4v3.5l2.5 1.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-              </svg>
-              Time travel
-            </button>
-          </div>
-        ) : (
+      {/* ── Time-travel timeline (expanded scrubber) ─────────────────── */}
+      {timeEnabled && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 32,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            width: 'calc(100% - 48px)',
+            maxWidth: 900,
+            zIndex: 10,
+            pointerEvents: 'none',
+          }}
+        >
           <div
             style={{
               background: 'rgba(13,17,23,0.92)',
@@ -2995,8 +2978,8 @@ export default function MapPage() {
               <span>Today</span>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }
