@@ -1278,10 +1278,10 @@ export default function MapPage() {
           background: 'rgba(10,10,15,0.85)',
           backdropFilter: 'blur(8px)',
           WebkitBackdropFilter: 'blur(8px)',
-          padding: '10px 16px',
+          padding: isMobile ? '8px 10px' : '10px 16px',
           display: 'flex',
           alignItems: 'center',
-          gap: 12,
+          gap: isMobile ? 8 : 12,
           zIndex: 5,
           borderBottom: '0.5px solid rgba(255,255,255,0.08)',
           transition: 'top 0.3s',
@@ -1374,7 +1374,7 @@ export default function MapPage() {
               textAlign: 'center',
               lineHeight: '14px',
             }}>
-              {articles.length}
+              {articles.length > 99 ? '99+' : articles.length}
             </span>
           )}
         </button>
@@ -1385,16 +1385,19 @@ export default function MapPage() {
           style={{
             background: '#ef4444',
             color: '#ffffff',
-            padding: '7px 14px',
-            borderRadius: 6,
-            fontSize: 12,
+            padding: isMobile ? '0 12px' : '7px 14px',
+            minHeight: isMobile ? 44 : undefined,
+            display: 'flex',
+            alignItems: 'center',
+            borderRadius: 8,
+            fontSize: 13,
             fontWeight: 500,
             textDecoration: 'none',
             flexShrink: 0,
             whiteSpace: 'nowrap',
           }}
         >
-          Report incident
+          {isMobile ? 'Report' : 'Report incident'}
         </a>
       </div>
 
@@ -2223,7 +2226,10 @@ export default function MapPage() {
           onClick={() => setNewsOpen(false)}
           style={{
             position: 'absolute',
-            inset: 0,
+            top: showBanner ? 94 : 56,
+            left: 0,
+            right: 0,
+            bottom: 0,
             background: 'rgba(0,0,0,0.5)',
             zIndex: 14,
             touchAction: 'none',
@@ -2235,7 +2241,7 @@ export default function MapPage() {
         aria-label="Intelligence feed"
         style={{
           position: 'absolute',
-          top: showBanner ? 38 : 0,
+          top: isMobile ? (showBanner ? 94 : 56) : (showBanner ? 38 : 0),
           bottom: 0,
           left: 0,
           width: isMobile ? 'min(94vw, 420px)' : 380,
