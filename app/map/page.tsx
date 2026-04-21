@@ -75,6 +75,17 @@ const NEWS_EVENT_COLORS: Record<string, string> = {
   ground_operation: '#a371f7',
 }
 
+// ─── Time-travel timeline constants ──────────────────────────────────────────
+
+const START_DATE = new Date('2026-03-22T00:00:00Z')
+const END_DATE = new Date()
+
+const KEY_EVENTS: { date: Date; label: string; color: string }[] = [
+  { date: new Date('2026-03-22T00:00:00Z'), label: 'Ground ops begin',    color: '#d29922' },
+  { date: new Date('2026-04-08T14:00:00Z'), label: 'Op Eternal Darkness', color: '#f85149' },
+  { date: new Date('2026-04-16T20:00:00Z'), label: 'Ceasefire',           color: '#3fb950' },
+]
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const MAP_STYLES = [
@@ -105,6 +116,36 @@ function circlePolygon(
     ])
   }
   return coords
+}
+
+// ─── Time-travel helpers ─────────────────────────────────────────────────────
+
+function dateToPercent(date: Date): number {
+  const total = END_DATE.getTime() - START_DATE.getTime()
+  const pos = date.getTime() - START_DATE.getTime()
+  return Math.max(0, Math.min(100, (pos / total) * 100))
+}
+
+function percentToDate(pct: number): Date {
+  const total = END_DATE.getTime() - START_DATE.getTime()
+  return new Date(START_DATE.getTime() + (pct / 100) * total)
+}
+
+function formatScrubDate(d: Date): string {
+  return d.toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC',
+  })
+}
+
+function formatScrubTime(d: Date): string {
+  return d.toLocaleTimeString('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'UTC',
+  }) + ' UTC'
 }
 
 // ─── Map page ─────────────────────────────────────────────────────────────────
@@ -141,6 +182,12 @@ export default function MapPage() {
   const [articles, setArticles] = useState<NewsArticle[]>([])
   const [newsOpen, setNewsOpen] = useState(false)
   const [newsLoading, setNewsLoading] = useState(true)
+
+  // ── Time-travel state ─────────────────────────────────────────────────
+  const [timeEnabled, setTimeEnabled] = useState(false)
+  const [scrubDate, setScrubDate] = useState<Date>(END_DATE)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const playRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // ── Refs ─────────────────────────────────────────────────────────────────
   const mapContainer = useRef<HTMLDivElement>(null)
@@ -823,6 +870,36 @@ export default function MapPage() {
     } catch { /* ignore */ }
   }, [selectedWarning])
 
+  // ── Time-travel play / stop ────────────────────────────────────────────
+
+  const stopPlay = useCallback(() => {
+    setIsPlaying(false)
+    if (playRef.current) {
+      clearInterval(playRef.current)
+      playRef.current = null
+    }
+  }, [])
+
+  const startPlay = useCallback(() => {
+    setIsPlaying(true)
+    setScrubDate((prev) => (prev.getTime() >= END_DATE.getTime() ? new Date(START_DATE) : prev))
+    playRef.current = setInterval(() => {
+      setScrubDate((prev) => {
+        const next = new Date(prev.getTime() + 86400000)
+        if (next.getTime() >= END_DATE.getTime()) {
+          if (playRef.current) { clearInterval(playRef.current); playRef.current = null }
+          setIsPlaying(false)
+          return END_DATE
+        }
+        return next
+      })
+    }, 600)
+  }, [])
+
+  useEffect(() => () => {
+    if (playRef.current) clearInterval(playRef.current)
+  }, [])
+
   // ── Effect 1: map init ────────────────────────────────────────────────
 
   useEffect(() => {
@@ -940,8 +1017,10 @@ export default function MapPage() {
 
     const now = Date.now()
     const oneHour = 60 * 60 * 1000
+    const scrubMs = scrubDate.getTime()
 
     const filtered = clusters.filter((c) => {
+      if (timeEnabled && new Date(c.created_at).getTime() > scrubMs) return false
       if (activeFilter === 'hour') {
         return now - new Date(c.created_at).getTime() < oneHour
       }
@@ -952,7 +1031,7 @@ export default function MapPage() {
     })
 
     updateMapSource(filtered)
-  }, [activeFilter, clusters, updateMapSource])
+  }, [activeFilter, clusters, scrubDate, timeEnabled, updateMapSource])
 
   // ── Effect 3: reset panel state when selection changes ────────────────
 
@@ -1169,6 +1248,9 @@ export default function MapPage() {
   const activeWarningCount = activeWarnings.length
   const bannerWarning = activeWarnings[warningBannerIndex % Math.max(activeWarnings.length, 1)] ?? null
   const showBanner = activeWarningCount > 0 && !warningBannerDismissed
+  const visibleCount = timeEnabled
+    ? clusters.filter((c) => new Date(c.created_at).getTime() <= scrubDate.getTime()).length
+    : clusters.length
   const isSatelliteStyle =
     mapStyle === 'mapbox://styles/mapbox/satellite-v9' ||
     mapStyle === 'mapbox://styles/mapbox/satellite-streets-v12'
@@ -1321,8 +1403,24 @@ export default function MapPage() {
               </span>
             </div>
           )}
-          <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, marginBottom: 1 }}>
-            {clusters.length} confirmed incident{clusters.length !== 1 ? 's' : ''} · {activeWarningCount} active warning{activeWarningCount !== 1 ? 's' : ''}
+          <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, marginBottom: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, flexWrap: 'wrap' }}>
+            {timeEnabled && (
+              <span style={{
+                background: 'rgba(210,153,34,0.1)',
+                border: '1px solid rgba(210,153,34,0.2)',
+                color: '#d29922',
+                fontSize: 10,
+                fontWeight: 500,
+                padding: '2px 7px',
+                borderRadius: 20,
+                whiteSpace: 'nowrap',
+              }}>
+                time travel mode
+              </span>
+            )}
+            <span>
+              {visibleCount} confirmed incident{visibleCount !== 1 ? 's' : ''} · {activeWarningCount} active warning{activeWarningCount !== 1 ? 's' : ''}
+            </span>
           </div>
           <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
             {recentCluster
@@ -1729,6 +1827,7 @@ export default function MapPage() {
           borderRadius: 8,
           padding: '8px 12px',
           zIndex: 5,
+          display: isMobile && timeEnabled ? 'none' : undefined,
         }}
       >
         {/* STRIKES section */}
@@ -1767,12 +1866,13 @@ export default function MapPage() {
       <div
         style={{
           position: 'absolute',
-          bottom: 40,
+          bottom: timeEnabled ? 168 : 76,
           left: '50%',
           transform: 'translateX(-50%)',
           display: 'flex',
           gap: 6,
           zIndex: 5,
+          transition: 'bottom 0.25s ease',
         }}
       >
         {(
@@ -2421,6 +2521,311 @@ export default function MapPage() {
           )}
         </div>
       </aside>
+
+      {/* ── Time-travel timeline ─────────────────────────────────────── */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: 32,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: 'calc(100% - 48px)',
+          maxWidth: 900,
+          zIndex: 10,
+          pointerEvents: 'none',
+        }}
+      >
+        {!timeEnabled ? (
+          <div style={{ display: 'flex', justifyContent: 'center' }}>
+            <button
+              type="button"
+              onClick={() => {
+                setTimeEnabled(true)
+                setScrubDate(END_DATE)
+              }}
+              style={{
+                background: 'rgba(13,17,23,0.85)',
+                border: '1px solid #21262d',
+                borderRadius: 20,
+                padding: '7px 14px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 7,
+                fontSize: 12,
+                color: '#8b949e',
+                cursor: 'pointer',
+                pointerEvents: 'auto',
+                backdropFilter: 'blur(8px)',
+                WebkitBackdropFilter: 'blur(8px)',
+                fontFamily: 'system-ui',
+                touchAction: 'manipulation',
+                minHeight: isMobile ? 40 : undefined,
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
+                <circle cx="7" cy="7" r="5.5" stroke="currentColor" strokeWidth="1.2" />
+                <path d="M7 4v3.5l2.5 1.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+              </svg>
+              Time travel
+            </button>
+          </div>
+        ) : (
+          <div
+            style={{
+              background: 'rgba(13,17,23,0.92)',
+              border: '1px solid #21262d',
+              borderRadius: 10,
+              padding: isMobile ? '10px 12px' : '12px 16px',
+              backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
+              pointerEvents: 'auto',
+            }}
+          >
+            {/* Top row: date + count + controls */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: 10,
+                gap: 12,
+                flexWrap: isMobile ? 'wrap' : 'nowrap',
+                rowGap: 8,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', minWidth: 0 }}>
+                <span
+                  style={{
+                    fontSize: isMobile ? 14 : 15,
+                    fontWeight: 600,
+                    color: '#e6edf3',
+                    fontVariantNumeric: 'tabular-nums',
+                  }}
+                >
+                  {formatScrubDate(scrubDate)}
+                </span>
+                <span style={{ fontSize: 11, color: '#484f58', marginLeft: 6 }}>
+                  {formatScrubTime(scrubDate)}
+                </span>
+                <span
+                  style={{
+                    background: 'rgba(239,68,68,0.1)',
+                    border: '1px solid rgba(239,68,68,0.2)',
+                    borderRadius: 20,
+                    padding: '2px 8px',
+                    fontSize: 11,
+                    fontWeight: 500,
+                    color: '#ef4444',
+                    marginLeft: 10,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {visibleCount} strike{visibleCount !== 1 ? 's' : ''}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+                <button
+                  type="button"
+                  aria-label={isPlaying ? 'Pause timeline' : 'Play timeline'}
+                  onClick={() => (isPlaying ? stopPlay() : startPlay())}
+                  style={{
+                    width: isMobile ? 40 : 32,
+                    height: isMobile ? 40 : 32,
+                    borderRadius: '50%',
+                    border: '1px solid #21262d',
+                    background: 'rgba(255,255,255,0.04)',
+                    color: '#e6edf3',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    touchAction: 'manipulation',
+                  }}
+                >
+                  {isPlaying ? (
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                      <rect x="2" y="1" width="3" height="10" rx="1" fill="currentColor" />
+                      <rect x="7" y="1" width="3" height="10" rx="1" fill="currentColor" />
+                    </svg>
+                  ) : (
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                      <polygon points="2,1 11,6 2,11" fill="currentColor" />
+                    </svg>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  aria-label="Reset to today and exit time travel"
+                  onClick={() => {
+                    stopPlay()
+                    setScrubDate(END_DATE)
+                    setTimeEnabled(false)
+                  }}
+                  style={{
+                    width: isMobile ? 40 : 32,
+                    height: isMobile ? 40 : 32,
+                    borderRadius: '50%',
+                    border: '1px solid #21262d',
+                    background: 'rgba(255,255,255,0.04)',
+                    color: '#e6edf3',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    touchAction: 'manipulation',
+                  }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                    <path d="M10 6A4 4 0 1 1 6 2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" fill="none" />
+                    <path d="M6 0l2 2.5L5.5 5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Scrubber row */}
+            <div style={{ position: 'relative', height: 40, display: 'flex', alignItems: 'center' }}>
+              {/* Track */}
+              <div
+                style={{
+                  position: 'absolute',
+                  left: 0,
+                  right: 0,
+                  height: 4,
+                  background: '#21262d',
+                  borderRadius: 2,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                }}
+              />
+              {/* Progress fill */}
+              <div
+                style={{
+                  position: 'absolute',
+                  left: 0,
+                  height: 4,
+                  background: 'linear-gradient(to right, #d29922, #f85149)',
+                  borderRadius: 2,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  width: `${dateToPercent(scrubDate)}%`,
+                  pointerEvents: 'none',
+                }}
+              />
+              {/* Key event markers */}
+              {KEY_EVENTS.map((ev) => {
+                const near = Math.abs(scrubDate.getTime() - ev.date.getTime()) <= 12 * 3600 * 1000
+                return (
+                  <div
+                    key={ev.label}
+                    title={ev.label}
+                    style={{
+                      position: 'absolute',
+                      left: `${dateToPercent(ev.date)}%`,
+                      top: '50%',
+                      transform: 'translate(-50%, -50%)',
+                      zIndex: 2,
+                      pointerEvents: 'none',
+                    }}
+                  >
+                    {near && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          bottom: 14,
+                          left: '50%',
+                          transform: 'translateX(-50%)',
+                          background: 'rgba(13,17,23,0.9)',
+                          border: `1px solid ${ev.color}`,
+                          borderRadius: 4,
+                          padding: '3px 7px',
+                          fontSize: 10,
+                          fontWeight: 500,
+                          color: ev.color,
+                          whiteSpace: 'nowrap',
+                          pointerEvents: 'none',
+                        }}
+                      >
+                        {ev.label}
+                      </div>
+                    )}
+                    <div
+                      style={{
+                        width: 10,
+                        height: 10,
+                        borderRadius: '50%',
+                        background: ev.color,
+                        border: '2px solid rgba(13,17,23,0.8)',
+                      }}
+                    />
+                  </div>
+                )
+              })}
+              {/* Thumb */}
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '50%',
+                  left: `${dateToPercent(scrubDate)}%`,
+                  transform: 'translate(-50%, -50%)',
+                  width: 18,
+                  height: 18,
+                  borderRadius: '50%',
+                  background: 'white',
+                  border: '2px solid #f85149',
+                  cursor: isPlaying ? 'grabbing' : 'grab',
+                  zIndex: 3,
+                  boxShadow: '0 0 0 3px rgba(248,81,73,0.15)',
+                  pointerEvents: 'none',
+                }}
+              />
+              {/* Invisible range input over the full track */}
+              <input
+                type="range"
+                min={0}
+                max={1000}
+                step={1}
+                value={Math.round(dateToPercent(scrubDate) * 10)}
+                onChange={(e) => {
+                  stopPlay()
+                  const pct = parseInt(e.target.value, 10) / 10
+                  setScrubDate(percentToDate(pct))
+                }}
+                aria-label="Scrub timeline date"
+                style={{
+                  position: 'absolute',
+                  left: 0,
+                  right: 0,
+                  top: 0,
+                  bottom: 0,
+                  width: '100%',
+                  opacity: 0,
+                  cursor: 'pointer',
+                  zIndex: 4,
+                  margin: 0,
+                }}
+              />
+            </div>
+
+            {/* Date labels row */}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                marginTop: 6,
+                fontSize: 10,
+                color: '#484f58',
+                pointerEvents: 'none',
+              }}
+            >
+              <span>22 Mar</span>
+              <span style={{ color: 'rgba(248,81,73,0.6)' }}>Apr 8 — Op Eternal Darkness</span>
+              <span>Today</span>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
