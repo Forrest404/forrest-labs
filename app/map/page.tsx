@@ -1309,12 +1309,12 @@ export default function MapPage() {
     WebkitBackdropFilter: 'blur(8px)',
     border: active ? '0.5px solid #ef4444' : '0.5px solid rgba(255,255,255,0.15)',
     color: active ? '#ef4444' : 'rgba(255,255,255,0.6)',
-    padding: '7px 14px',
-    borderRadius: 20,
-    fontSize: 12,
+    padding: '5px 10px',
+    borderRadius: 14,
+    fontSize: 11,
     cursor: 'pointer',
-    minHeight: 44,
-    whiteSpace: 'nowrap',
+    minHeight: isMobile ? 34 : 28,
+    whiteSpace: 'nowrap' as const,
   })
 
   // ── Render ────────────────────────────────────────────────────────────
@@ -1886,7 +1886,7 @@ export default function MapPage() {
           borderRadius: 8,
           padding: '8px 12px',
           zIndex: 5,
-          display: isMobile && timeEnabled ? 'none' : undefined,
+          display: isMobile && (timeEnabled || filtersOpen) ? 'none' : undefined,
         }}
       >
         {/* STRIKES section */}
@@ -1925,9 +1925,10 @@ export default function MapPage() {
       <div
         style={{
           position: 'absolute',
-          bottom: timeEnabled ? 168 : 76,
-          left: '50%',
-          transform: 'translateX(-50%)',
+          bottom: isMobile ? (timeEnabled ? 208 : 84) : (timeEnabled ? 168 : 76),
+          left: isMobile ? 'auto' : '50%',
+          right: isMobile ? 12 : 'auto',
+          transform: isMobile ? 'none' : 'translateX(-50%)',
           display: 'flex',
           gap: 6,
           zIndex: 5,
@@ -1957,28 +1958,28 @@ export default function MapPage() {
         <div
           style={{
             position: 'absolute',
-            bottom: timeEnabled ? 228 : 136,
-            left: isMobile ? 12 : '50%',
+            bottom: isMobile ? (timeEnabled ? 252 : 128) : (timeEnabled ? 212 : 120),
+            left: isMobile ? 'auto' : '50%',
             right: isMobile ? 12 : 'auto',
             transform: isMobile ? 'none' : 'translateX(-50%)',
-            width: isMobile ? 'auto' : 'min(560px, calc(100vw - 24px))',
+            width: isMobile ? 'min(300px, calc(100vw - 24px))' : 'min(440px, calc(100vw - 24px))',
             background: 'rgba(10,10,15,0.92)',
             backdropFilter: 'blur(12px)',
             WebkitBackdropFilter: 'blur(12px)',
             border: '0.5px solid rgba(255,255,255,0.15)',
-            borderRadius: 16,
-            padding: 16,
+            borderRadius: 12,
+            padding: 12,
             zIndex: 6,
             display: 'flex',
             flexDirection: 'column',
-            gap: 14,
-            maxHeight: '60vh',
+            gap: 10,
+            maxHeight: '55vh',
             overflowY: 'auto',
             transition: 'bottom 0.25s ease',
           }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.85)', letterSpacing: 0.3 }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.85)', letterSpacing: 0.3 }}>
               Filters
             </span>
             <button
@@ -1990,13 +1991,14 @@ export default function MapPage() {
                 border: 'none',
                 color: 'rgba(255,255,255,0.55)',
                 cursor: 'pointer',
-                fontSize: 20,
+                fontSize: 18,
                 lineHeight: 1,
-                width: 44,
-                height: 44,
+                width: 28,
+                height: 28,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
+                padding: 0,
               }}
             >
               ×
@@ -2034,19 +2036,19 @@ export default function MapPage() {
               },
             ] as const
           ).map((group) => (
-            <div key={group.label} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div key={group.label} style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
               <span
                 style={{
-                  fontSize: 10,
+                  fontSize: 9,
                   fontWeight: 600,
                   color: 'rgba(255,255,255,0.45)',
                   textTransform: 'uppercase',
-                  letterSpacing: 0.8,
+                  letterSpacing: 0.7,
                 }}
               >
                 {group.label}
               </span>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
                 {group.options.map((opt) => (
                   <button
                     key={opt.id}
@@ -2690,16 +2692,22 @@ export default function MapPage() {
         style={{
           position: 'absolute',
           bottom: 32,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          width: 'calc(100% - 48px)',
-          maxWidth: 900,
           zIndex: 10,
           pointerEvents: 'none',
+          ...(timeEnabled
+            ? {
+                left: '50%',
+                transform: 'translateX(-50%)',
+                width: 'calc(100% - 48px)',
+                maxWidth: 900,
+              }
+            : isMobile
+            ? { right: 12, width: 'auto' }
+            : { left: '50%', transform: 'translateX(-50%)', width: 'auto' }),
         }}
       >
         {!timeEnabled ? (
-          <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <div style={{ display: 'flex', justifyContent: isMobile ? 'flex-end' : 'center' }}>
             <button
               type="button"
               onClick={() => {
