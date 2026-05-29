@@ -11,6 +11,17 @@ declare global {
   interface Window { mapboxgl: any }
 }
 
+// Escape dynamic text before interpolating into Mapbox popup HTML (setHTML).
+// Prevents stored values from being rendered as live markup.
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Cluster {
@@ -655,7 +666,7 @@ export default function MapPage() {
       const name = e.features[0].properties.location_name || 'Warning zone'
       warningPopup = new window.mapboxgl.Popup({ closeButton: false, closeOnClick: false, offset: 12 })
         .setLngLat(coords)
-        .setHTML(`<div style="background:#1a130a;border:1px solid #f97316;border-radius:6px;padding:5px 10px;font-size:12px;color:#fdba74">${name}</div>`)
+        .setHTML(`<div style="background:#1a130a;border:1px solid #f97316;border-radius:6px;padding:5px 10px;font-size:12px;color:#fdba74">${escapeHtml(name)}</div>`)
         .addTo(map.current)
     })
     map.current.on('mouseleave', 'warning-dots', () => {
