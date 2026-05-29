@@ -63,21 +63,21 @@ const RSS_FEEDS: Feed[] = [
     url: 'https://www.aljazeera.com/xml/rss/all.xml',
     filter: ['Lebanon', 'Beirut', 'Hezbollah', 'airstrike', 'strike', 'killed'],
     credibility: 'media',
-    auto_create: false,
+    auto_create: true,
   },
   {
     name: 'Reuters',
     url: 'https://feeds.reuters.com/reuters/METopNews',
     filter: ['Lebanon', 'Beirut', 'airstrike', 'strike', 'killed', 'Hezbollah'],
     credibility: 'media',
-    auto_create: false,
+    auto_create: true,
   },
   {
     name: 'BBC Middle East',
     url: 'http://feeds.bbci.co.uk/news/world/middle_east/rss.xml',
     filter: ['Lebanon', 'Beirut', 'airstrike', 'strike'],
     credibility: 'media',
-    auto_create: false,
+    auto_create: true,
   },
 ]
 
@@ -316,8 +316,20 @@ async function processArticle(
     return
   }
 
-  // Only create new clusters from official sources
-  if (!feed.auto_create || feed.credibility !== 'official') return
+  // Auto-create a new cluster from a credible source with no nearby match.
+  // Official sources publish straight through; trusted media is held to a higher
+  // relevance bar and lands as 'news_verified' (blue) rather than 'official_verified'
+  // (purple), keeping the verification tier visible on the map.
+  // (No extra proximity dedup needed here: findNearbyCluster above already merges
+  // any article within 10km of a cluster created in the last 24h into a boost, so
+  // repeated articles for the same event won't spawn duplicate clusters.)
+  if (!feed.auto_create) return
+
+  const isOfficial = feed.credibility === 'official'
+  if (!isOfficial && article.relevance_score < 0.75) return
+
+  const newStatus = isOfficial ? 'official_verified' : 'news_verified'
+  const newConfidence = isOfficial ? 92 : 80
 
   const { data: newCluster } = await supabase
     .from('clusters')
@@ -330,14 +342,14 @@ async function processArticle(
       time_window_seconds: 0,
       unique_sessions: 0,
       unique_ips: 0,
-      confidence_score: 92,
+      confidence_score: newConfidence,
       volume_subscore: 0,
       diversity_subscore: 0,
       timing_subscore: 100,
       context_subscore: 90,
       media_subscore: 0,
       fraud_score: 100,
-      status: 'official_verified',
+      status: newStatus,
       dominant_event_types: [article.event_type ?? 'airstrike'],
       ai_reasoning: `Auto-detected from ${feed.name}: ${article.summary}`,
       ai_concerns: [],
@@ -362,7 +374,7 @@ async function processArticle(
     .update({ linked_cluster_id: newCluster.id, status: 'linked', match_confidence: 95 })
     .eq('url', article.url)
 
-  await sendAutoDetectNotification(article, feed, 92)
+  await sendAutoDetectNotification(article, feed, newConfidence)
 }
 
 // ─── Main Handler ─────────────────────────────────────────────────────────────

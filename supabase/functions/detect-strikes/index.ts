@@ -36,6 +36,12 @@ Deno.serve(async () => {
   const results = { checked: 0, auto_confirmed: 0, boosted: 0 }
 
   const twoHoursAgo = new Date(Date.now() - 7200000).toISOString()
+  // Wider window for STEP 2 so any stored-but-unlinked backlog gets surfaced, not just
+  // the last two hours. The proximity dedup below stops re-creation across runs.
+  const seventyTwoHoursAgo = new Date(Date.now() - 72 * 3600000).toISOString()
+
+  const OFFICIAL_SOURCES = ['Lebanese MoPH', 'OCHA Lebanon', 'UNIFIL']
+  const MEDIA_SOURCES = ['Al Jazeera', 'Reuters', 'BBC Middle East']
 
   // STEP 1 — Check pending clusters that have news article matches
   const { data: pendingClusters } = await supabase
@@ -142,18 +148,24 @@ Deno.serve(async () => {
     }
   }
 
-  // STEP 2 — Check for breaking news with no matching civilian reports (official only)
-  const { data: unlinkedOfficial } = await supabase
+  // STEP 2 — Check for breaking news with no matching civilian reports.
+  // Official sources publish straight through; trusted media is held to a higher
+  // relevance bar and lands as 'news_verified' (blue) instead of 'official_verified'
+  // (purple). 0.8 is the looser of the two bars; the per-source check is in the loop.
+  const { data: unlinkedNews } = await supabase
     .from('news_articles')
     .select('*')
     .eq('status', 'new')
     .not('location_lat', 'is', null)
     .gte('ai_relevance', 0.8)
-    .in('source', ['Lebanese MoPH', 'OCHA Lebanon', 'UNIFIL'])
-    .gte('published_at', twoHoursAgo)
+    .in('source', [...OFFICIAL_SOURCES, ...MEDIA_SOURCES])
+    .gte('published_at', seventyTwoHoursAgo)
 
-  for (const article of (unlinkedOfficial ?? []) as NewsRow[]) {
+  for (const article of (unlinkedNews ?? []) as NewsRow[]) {
     if (!article.location_lat || !article.location_lon) continue
+
+    const isOfficial = OFFICIAL_SOURCES.includes(article.source)
+    if (!isOfficial && article.ai_relevance < 0.85) continue
 
     // Check if ANY confirmed/pending cluster already exists nearby (prevents duplicates)
     const { data: existing } = await supabase
@@ -168,6 +180,8 @@ Deno.serve(async () => {
 
     if (existing?.length) continue
 
+    const newConfidence = isOfficial ? 90 : 80
+
     const { data: newCluster } = await supabase
       .from('clusters')
       .insert({
@@ -179,20 +193,20 @@ Deno.serve(async () => {
         time_window_seconds: 0,
         unique_sessions: 0,
         unique_ips: 0,
-        confidence_score: 90,
+        confidence_score: newConfidence,
         volume_subscore: 0,
         diversity_subscore: 0,
         timing_subscore: 100,
         context_subscore: 90,
         media_subscore: 0,
         fraud_score: 100,
-        status: 'official_verified',
+        status: isOfficial ? 'official_verified' : 'news_verified',
         dominant_event_types: [article.event_type ?? 'airstrike'],
         ai_reasoning: `Auto-detected from ${article.source}: ${article.summary ?? article.title}`,
         ai_concerns: [],
         display_radius_metres: 400,
         location_name: article.location_name,
-        source_type: 'official',
+        source_type: isOfficial ? 'official' : 'media',
         source_url: article.url,
         source_name: article.source,
         auto_detected_at: new Date().toISOString(),
@@ -228,12 +242,12 @@ Deno.serve(async () => {
         method: 'POST',
         headers: {
           'Title': `📡 Breaking: ${article.location_name ?? 'Lebanon'}`,
-          'Priority': 'urgent',
+          'Priority': isOfficial ? 'urgent' : 'high',
           'Tags': 'satellite',
           'Content-Type': 'text/plain',
         },
         body: [
-          `${article.source} · 90% confidence`,
+          `${article.source} · ${newConfidence}% confidence`,
           article.summary ?? article.title,
           article.casualty_count ? `${article.casualty_count} casualties` : '',
           'Added to live map automatically',
