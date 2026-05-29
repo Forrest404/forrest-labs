@@ -805,7 +805,7 @@ export default function MapPage() {
       .select('*')
       .in('status', ['confirmed', 'auto_confirmed', 'news_verified', 'official_verified'])
       .order('created_at', { ascending: false })
-      .limit(100)
+      .limit(500)
 
     const rows = (data ?? []) as Cluster[]
     setClusters(rows)
@@ -817,7 +817,7 @@ export default function MapPage() {
       .select('*')
       .in('status', ['active', 'all_clear'])
       .order('created_at', { ascending: false })
-      .limit(50)
+      .limit(200)
 
     const warnRows = (warnData ?? []) as WarningCluster[]
     setWarningClusters(warnRows)
