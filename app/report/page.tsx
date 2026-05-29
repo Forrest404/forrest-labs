@@ -608,7 +608,7 @@ export default function ReportPage() {
   const handleShare = useCallback(async () => {
     const url = window.location.origin + '/report'
     if (navigator.share) {
-      try { await navigator.share({ title: 'Forrest Labs', url }) } catch { /* cancelled */ }
+      try { await navigator.share({ title: 'NOUR', url }) } catch { /* cancelled */ }
     } else {
       try { await navigator.clipboard.writeText(url); setShareButtonText('Link copied ✓'); setTimeout(() => setShareButtonText('Share'), 2000) }
       catch { /* unavailable */ }
@@ -759,7 +759,7 @@ export default function ReportPage() {
           <div>
             {langSelector}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 32 }}>
-              <span style={{ color: '#ef4444', fontSize: 16, letterSpacing: '0.2em', fontWeight: 500, textTransform: 'uppercase' }}>Forrest Labs</span>
+              <span style={{ color: '#ef4444', fontSize: 16, letterSpacing: '0.2em', fontWeight: 500, textTransform: 'uppercase' }}>NOUR</span>
               <a href="/map" style={{ color: '#9ca3af', fontSize: 16, textDecoration: 'none' }}>{t('live_map')}</a>
             </div>
 
@@ -855,7 +855,7 @@ export default function ReportPage() {
             {/* Shared header */}
             {langSelector}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-              <span style={{ color: '#ef4444', fontSize: 16, letterSpacing: '0.2em', fontWeight: 500, textTransform: 'uppercase' }}>Forrest Labs</span>
+              <span style={{ color: '#ef4444', fontSize: 16, letterSpacing: '0.2em', fontWeight: 500, textTransform: 'uppercase' }}>NOUR</span>
               <a href="/map" style={{ color: '#9ca3af', fontSize: 16, textDecoration: 'none' }}>{t('live_map')}</a>
             </div>
 

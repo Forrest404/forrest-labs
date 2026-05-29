@@ -15,20 +15,24 @@ const geistMono = Geist_Mono({
 const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://forrest-labsorg.vercel.app'
 
 export const metadata: Metadata = {
-  title: 'Forrest Labs — Civilian Safety Reporting',
-  description: 'Real-time civilian incident reporting for conflict zones. Report what you see or hear. AI verifies. Aid responds. No app required.',
+  applicationName: 'NOUR',
+  title: {
+    default: 'NOUR — Network for Operational Updates & Response',
+    template: '%s · NOUR',
+  },
+  description: 'NOUR — Network for Operational Updates & Response. Civilian safety reporting, verified and mapped in real time. No app required.',
   openGraph: {
-    title: 'Forrest Labs — Civilian Safety Reporting',
-    description: 'Real-time civilian incident reporting for conflict zones.',
+    title: 'NOUR — Network for Operational Updates & Response',
+    description: 'Civilian safety reporting, verified and mapped in real time.',
     url: appUrl,
-    siteName: 'Forrest Labs',
+    siteName: 'NOUR',
     type: 'website',
-    images: [{ url: `${appUrl}/api/og`, width: 1200, height: 630, alt: 'Forrest Labs — Civilian Safety Reporting' }],
+    images: [{ url: `${appUrl}/api/og`, width: 1200, height: 630, alt: 'NOUR — Network for Operational Updates & Response' }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Forrest Labs',
-    description: 'Real-time civilian incident reporting for conflict zones.',
+    title: 'NOUR — Network for Operational Updates & Response',
+    description: 'Civilian safety reporting, verified and mapped in real time.',
     images: [`${appUrl}/api/og`],
   },
 };

@@ -158,12 +158,12 @@ export default function PartnerPortal() {
         <div style={{ background: '#161b22', border: '1px solid #21262d', borderRadius: 8, padding: 32, width: '100%', maxWidth: 360, boxSizing: 'border-box' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 24 }}>
             <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#3fb950' }} />
-            <span style={{ fontSize: 14, fontWeight: 600, color: '#e6edf3' }}>Forrest Labs</span>
+            <span style={{ fontSize: 14, fontWeight: 600, color: '#e6edf3' }}>NOUR</span>
             <span style={{ background: '#21262d', borderRadius: 4, padding: '2px 7px', fontSize: 11, color: '#484f58', marginLeft: 4 }}>Partner</span>
           </div>
 
           <div style={{ fontSize: 18, fontWeight: 600, color: '#e6edf3', marginBottom: 4 }}>Partner portal</div>
-          <div style={{ fontSize: 13, color: '#8b949e', marginBottom: 24 }}>Forrest Labs NGO access</div>
+          <div style={{ fontSize: 13, color: '#8b949e', marginBottom: 24 }}>NOUR partner access</div>
 
           {loginError && (
             <div style={{ fontSize: 12, color: '#f85149', marginBottom: 12 }}>{loginError}</div>
@@ -195,7 +195,7 @@ export default function PartnerPortal() {
             {loginLoading ? 'Signing in...' : 'Sign in'}
           </button>
         </div>
-        <div style={{ textAlign: 'center', marginTop: 24, fontSize: 12, color: '#484f58' }}>Forrest Labs · 2026</div>
+        <div style={{ textAlign: 'center', marginTop: 24, fontSize: 12, color: '#484f58' }}>NOUR · 2026</div>
       </div>
     )
   }
@@ -208,7 +208,7 @@ export default function PartnerPortal() {
       <div style={{ background: '#0d1117', borderBottom: '1px solid #21262d', height: 48, padding: '0 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, zIndex: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 14, fontWeight: 600, color: '#e6edf3' }}>{data?.organisation?.name ?? 'Partner'}</span>
-          <span style={{ fontSize: 12, color: '#484f58' }}>· Forrest Labs</span>
+          <span style={{ fontSize: 12, color: '#484f58' }}>· NOUR</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <span style={{ fontSize: 12, color: '#484f58', fontVariantNumeric: 'tabular-nums', fontFamily: 'monospace' }}>{time}</span>

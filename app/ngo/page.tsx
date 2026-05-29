@@ -14,7 +14,7 @@ export default function NgoHome() {
     >
       <div style={{ textAlign: 'center' }}>
         <h1 style={{ fontSize: 28, fontWeight: 600, color: '#e6edf3', margin: 0, letterSpacing: '-0.03em' }}>
-          Nour for NGOs
+          NOUR for NGOs
         </h1>
         <p style={{ fontSize: 14, color: '#8b949e', marginTop: 10 }}>
           NGO operations dashboard — coming soon.

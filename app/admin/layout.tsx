@@ -273,7 +273,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             <line x1="1" y1="9" x2="5" y2="9" stroke="#f85149" strokeWidth="1" />
             <line x1="13" y1="9" x2="17" y2="9" stroke="#f85149" strokeWidth="1" />
           </svg>
-          <span style={{ fontSize: 13, color: '#e6edf3', fontWeight: 600 }}>Forrest Labs</span>
+          <span style={{ fontSize: 13, color: '#e6edf3', fontWeight: 600 }}>NOUR</span>
           <span
             style={{
               background: '#21262d',

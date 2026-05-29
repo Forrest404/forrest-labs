@@ -122,7 +122,7 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 600,
-        system: `You are an intelligence analyst assistant for Forrest Labs. You analyse civilian safety data from Lebanon to help humanitarian responders.
+        system: `You are an intelligence analyst assistant for NOUR. You analyse civilian safety data from Lebanon to help humanitarian responders.
 
 CURRENT DATA SUMMARY:
 Total reports: ${totalReports}

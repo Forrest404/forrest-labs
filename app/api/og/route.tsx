@@ -38,7 +38,7 @@ export async function GET() {
               letterSpacing: '0.2em',
             }}
           >
-            FORREST LABS
+            NOUR
           </span>
         </div>
         <div
@@ -52,7 +52,7 @@ export async function GET() {
             maxWidth: 900,
           }}
         >
-          When bombs fall, every second counts.
+          Network for Operational Updates &amp; Response
         </div>
         <div
           style={{
@@ -63,7 +63,7 @@ export async function GET() {
             lineHeight: 1.6,
           }}
         >
-          Civilians report. AI verifies. Aid workers respond. In real time.
+          Civilian safety reporting, verified and mapped in real time.
         </div>
       </div>
     ),

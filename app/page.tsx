@@ -10,9 +10,9 @@ const LANG = {
     nav_report: 'Report Incident',
     live_badge: 'LIVE',
     live_sub: 'Lebanon monitoring active',
-    headline_1: 'When bombs fall,',
-    headline_2: 'every second counts.',
-    sub: 'Civilians report. AI verifies. Aid workers respond. In real time. No app required.',
+    headline_1: 'NOUR',
+    headline_2: 'Network for Operational Updates & Response',
+    sub: 'Civilian safety reporting, verified and mapped in real time.',
     stat_reports: 'reports today',
     stat_confirmed: 'confirmed incidents',
     stat_warnings: 'active warnings',
@@ -35,16 +35,16 @@ const LANG = {
     org_dash_title: 'Partner dashboard', org_dash_body: 'NGO coordinators get real-time access to confirmed incidents and team dispatch — separate from civilian data.', org_dash_link: 'Request access →',
     org_export_title: 'Data export', org_export_body: 'All confirmed incident data is available as GeoJSON and CSV for import into your existing GIS and reporting tools.', org_export_link: 'Download sample →',
     org_api_title: 'API access', org_api_body: 'Live incident feed available for programmatic integration with existing humanitarian information systems.', org_api_link: 'View documentation →',
-    footer_built: 'Built to protect civilians', footer_year: 'Forrest Labs · 2026',
+    footer_built: 'Built to protect civilians', footer_year: 'NOUR · 2026',
   },
   fr: {
     nav_map: 'Carte Opérationnelle',
     nav_report: 'Signaler un Incident',
     live_badge: 'EN DIRECT',
     live_sub: 'Surveillance active — Liban',
-    headline_1: 'Quand les bombes tombent,',
-    headline_2: 'chaque seconde compte.',
-    sub: "Les civils signalent. L'IA vérifie. Les équipes humanitaires interviennent. En temps réel. Sans application.",
+    headline_1: 'NOUR',
+    headline_2: 'Network for Operational Updates & Response',
+    sub: 'Signalement de la sécurité des civils, vérifié et cartographié en temps réel.',
     stat_reports: "signalements aujourd'hui",
     stat_confirmed: 'incidents confirmés',
     stat_warnings: 'alertes actives',
@@ -67,16 +67,16 @@ const LANG = {
     org_dash_title: 'Tableau de bord partenaire', org_dash_body: "Les coordinateurs ONG accèdent en temps réel aux incidents confirmés et au déploiement des équipes — séparément des données civiles.", org_dash_link: "Demander l'accès →",
     org_export_title: 'Export de données', org_export_body: 'Toutes les données confirmées sont disponibles en GeoJSON et CSV pour vos outils SIG et de rapport existants.', org_export_link: 'Télécharger un exemple →',
     org_api_title: 'Accès API', org_api_body: "Flux d'incidents en direct pour l'intégration programmatique avec les systèmes d'information humanitaires existants.", org_api_link: 'Voir la documentation →',
-    footer_built: 'Conçu pour protéger les civils', footer_year: 'Forrest Labs · 2026',
+    footer_built: 'Conçu pour protéger les civils', footer_year: 'NOUR · 2026',
   },
   ar: {
     nav_map: 'خريطة العمليات',
     nav_report: 'بلّغ عن حادثة',
     live_badge: 'مباشر',
     live_sub: 'المراقبة شغّالة — لبنان',
-    headline_1: 'لمّا القنابل بتوقع،',
-    headline_2: 'كل ثانية بتحسب.',
-    sub: 'المدنيين بيبلّغوا. الذكاء الاصطناعي بيتحقق. فرق الإغاثة بتتحرك. بالوقت الحقيقي. بدون تطبيق.',
+    headline_1: 'NOUR',
+    headline_2: 'Network for Operational Updates & Response',
+    sub: 'بلاغات سلامة المدنيين، متحقَّق منها ومعروضة على الخريطة بالوقت الحقيقي.',
     stat_reports: 'بلاغات اليوم',
     stat_confirmed: 'حوادث مؤكدة',
     stat_warnings: 'تحذيرات نشطة',
@@ -392,7 +392,7 @@ export default function HomePage() {
             <line x1="1" y1="8" x2="4" y2="8" stroke="#ef4444" strokeWidth="1" />
             <line x1="12" y1="8" x2="15" y2="8" stroke="#ef4444" strokeWidth="1" />
           </svg>
-          <span style={{ fontSize: 12, color: '#ef4444', letterSpacing: '0.25em', fontWeight: 600, fontFamily: 'monospace', animation: 'flicker 8s infinite' }}>FORREST LABS</span>
+          <span style={{ fontSize: 12, color: '#ef4444', letterSpacing: '0.25em', fontWeight: 600, fontFamily: 'monospace', animation: 'flicker 8s infinite' }}>NOUR</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           {/* Language switcher */}
@@ -436,8 +436,8 @@ export default function HomePage() {
 
         {/* Headline */}
         <h1 style={{ fontSize: 'clamp(36px, 6vw, 64px)', fontWeight: 500, lineHeight: 1.1, letterSpacing: '-0.02em', marginBottom: 24, maxWidth: 800, margin: '0 0 24px 0' }}>
-          <span style={{ display: 'block', color: 'rgba(255,255,255,0.7)', animation: 'fade-up 0.8s ease forwards' }}>{t('headline_1')}</span>
-          <span style={{ display: 'block', color: '#ffffff', animation: 'fade-up 0.8s 0.15s ease both, glow-pulse 4s ease-in-out infinite' }}>{t('headline_2')}</span>
+          <span style={{ display: 'block', color: '#ffffff', fontWeight: 600, letterSpacing: '0.06em', animation: 'fade-up 0.8s ease forwards, glow-pulse 4s ease-in-out infinite' }}>{t('headline_1')}</span>
+          <span style={{ display: 'block', color: 'rgba(255,255,255,0.6)', fontSize: 'clamp(15px, 2.4vw, 24px)', fontWeight: 400, letterSpacing: '0.01em', marginTop: 12, animation: 'fade-up 0.8s 0.15s ease both' }}>{t('headline_2')}</span>
         </h1>
 
         {/* Subheadline */}
@@ -576,7 +576,7 @@ export default function HomePage() {
         {sectionLabel(t('org_label'))}
         <div className="hp-org-row" style={{ display: 'flex', gap: 16 }}>
           {([
-            { title: t('org_dash_title'), body: t('org_dash_body'), link: t('org_dash_link'), href: 'mailto:hello@forrestlabs.org?subject=Forrest Labs partner access' },
+            { title: t('org_dash_title'), body: t('org_dash_body'), link: t('org_dash_link'), href: 'mailto:hello@forrestlabs.org?subject=NOUR partner access' },
             { title: t('org_export_title'), body: t('org_export_body'), link: t('org_export_link'), href: '/api/events', target: '_blank' },
             { title: t('org_api_title'), body: t('org_api_body'), link: t('org_api_link'), href: '/api/brief', target: '_blank' },
           ] as const).map((item) => (
@@ -593,7 +593,7 @@ export default function HomePage() {
       {/* ── FOOTER ───────────────────────────────────────────────────────── */}
       <footer style={{ position: 'relative', zIndex: 2, padding: '40px 24px', borderTop: '1px solid rgba(239,68,68,0.08)' }}>
         <div className="hp-footer-inner" style={{ maxWidth: 760, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, fontFamily: 'monospace', fontSize: 12, color: 'rgba(255,255,255,0.2)' }}>
-          <span>&gt; FORREST-LABS-v1.0.0</span>
+          <span>&gt; NOUR-v1.0.0</span>
           <span>{t('footer_built')}</span>
           <div style={{ display: 'flex', gap: 16 }}>
             <a href="/report" style={{ color: '#ef4444', textDecoration: 'none', fontFamily: 'monospace', fontSize: 12 }}>{t('nav_report')} →</a>

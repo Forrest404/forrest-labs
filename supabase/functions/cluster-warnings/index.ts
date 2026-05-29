@@ -184,7 +184,7 @@ async function sendWarningNotification(
   await fetch(`https://ntfy.sh/${NTFY_CHANNEL}`, {
     method: 'POST',
     headers: {
-      'Title': 'Forrest Labs — Evacuation warning',
+      'Title': 'NOUR — Evacuation warning',
       'Priority': 'urgent',
       'Tags': 'warning',
       'Content-Type': 'text/plain',

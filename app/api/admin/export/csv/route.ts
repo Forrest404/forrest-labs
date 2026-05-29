@@ -73,7 +73,7 @@ export async function GET(request: NextRequest) {
   return new NextResponse(csv, {
     headers: {
       'Content-Type': 'text/csv',
-      'Content-Disposition': `attachment; filename="forrest-labs-${dateStr}.csv"`,
+      'Content-Disposition': `attachment; filename="nour-${dateStr}.csv"`,
       'Cache-Control': 'no-store',
     },
   })

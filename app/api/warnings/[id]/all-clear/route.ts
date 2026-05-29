@@ -68,7 +68,7 @@ export async function POST(
       await fetch(`https://ntfy.sh/${ntfyChannel}`, {
         method: 'POST',
         headers: {
-          'Title': 'Forrest Labs — All clear',
+          'Title': 'NOUR — All clear',
           'Tags': 'white_check_mark',
           'Priority': 'default',
           'Content-Type': 'text/plain',

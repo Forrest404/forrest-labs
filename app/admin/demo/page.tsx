@@ -102,7 +102,7 @@ export default function DemoScriptPage() {
       <div style={{ marginBottom: 24 }}>
         <div style={{ fontSize: 18, fontWeight: 600, color: '#e6edf3' }}>Demo script</div>
         <div style={{ fontSize: 13, color: '#8b949e' }}>
-          Follow these steps when showing Forrest Labs to a partner.
+          Follow these steps when showing NOUR to a partner.
         </div>
       </div>
 

@@ -30,7 +30,7 @@ export default function NgoLayout({ children }: { children: ReactNode }) {
       >
         <div style={{ padding: '0 16px 16px', borderBottom: '1px solid #21262d' }}>
           <div style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.02em' }}>
-            Nour <span style={{ color: '#3fb950' }}>for NGOs</span>
+            NOUR <span style={{ color: '#3fb950' }}>for NGOs</span>
           </div>
           <div style={{ fontSize: 11, color: '#8b949e', marginTop: 2 }}>Operations dashboard</div>
         </div>

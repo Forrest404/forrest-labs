@@ -123,7 +123,7 @@ export async function GET(request: NextRequest) {
       metadata: {
         generated_at: new Date().toISOString(),
         total_features: features.length,
-        source: 'Forrest Labs',
+        source: 'NOUR',
         license: 'Open — attribution required',
       },
     }

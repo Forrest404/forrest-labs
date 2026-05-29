@@ -394,7 +394,7 @@ async function sendPushNotification(
     : `${location} · ${reportCount} reports · ${confidenceScore}% confidence\n${types}${reasoningSentence ? '\n' + reasoningSentence : ''}${concerns.length > 0 ? '\nConcerns: ' + concerns.join(', ') : ''}`
 
   const headers: Record<string, string> = {
-    'Title': isAuto ? 'Forrest Labs - Auto-confirmed' : 'Forrest Labs - Review needed',
+    'Title': isAuto ? 'NOUR - Auto-confirmed' : 'NOUR - Review needed',
     'Priority': confidenceScore >= 85 ? 'urgent' : 'high',
     'Tags': isAuto ? 'white_check_mark' : 'warning',
     'Content-Type': 'text/plain',

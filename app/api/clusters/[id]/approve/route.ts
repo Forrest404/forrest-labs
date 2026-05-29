@@ -130,7 +130,7 @@ export async function GET(
     await fetch(`https://ntfy.sh/${ntfyChannel}`, {
       method: 'POST',
       headers: {
-        'Title': 'Forrest Labs - Confirmed',
+        'Title': 'NOUR - Confirmed',
         'Tags': 'white_check_mark',
         'Priority': 'low',
         'Content-Type': 'text/plain',
@@ -173,7 +173,7 @@ function buildHtml(bg: string, textColor: string, heading: string, message: stri
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Forrest Labs</title>
+  <title>NOUR</title>
 </head>
 <body style="
   font-family: system-ui, sans-serif;
@@ -190,7 +190,7 @@ function buildHtml(bg: string, textColor: string, heading: string, message: stri
   flex-direction: column;
   gap: 12px;
 ">
-  <p style="font-size: 16px; letter-spacing: 0.2em; opacity: 0.6; margin: 0;">FORREST LABS</p>
+  <p style="font-size: 16px; letter-spacing: 0.2em; opacity: 0.6; margin: 0;">NOUR</p>
   <h1 style="font-size: 28px; font-weight: 600; margin: 0;">${heading}</h1>
   <p style="font-size: 16px; opacity: 0.8; margin: 0; max-width: 300px; line-height: 1.6;">${message}</p>
   <a href="/map" style="margin-top: 20px; color: ${textColor}; font-size: 16px; text-decoration: none; border: 1px solid ${textColor}; padding: 10px 20px; border-radius: 8px; opacity: 0.7;">View live map →</a>

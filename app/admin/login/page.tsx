@@ -69,7 +69,7 @@ function LoginCard() {
             <line x1="1" y1="9" x2="5" y2="9" stroke="#f85149" strokeWidth="1" />
             <line x1="13" y1="9" x2="17" y2="9" stroke="#f85149" strokeWidth="1" />
           </svg>
-          <span style={{ fontSize: 14, fontWeight: 600, color: '#e6edf3' }}>Forrest Labs</span>
+          <span style={{ fontSize: 14, fontWeight: 600, color: '#e6edf3' }}>NOUR</span>
           <span
             style={{
               background: '#21262d',
@@ -172,7 +172,7 @@ function LoginCard() {
 
       {/* Footer */}
       <div style={{ textAlign: 'center', marginTop: 24, fontSize: 12, color: '#484f58' }}>
-        Forrest Labs · 2026
+        NOUR · 2026
       </div>
     </div>
   )

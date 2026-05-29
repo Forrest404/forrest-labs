@@ -3,7 +3,7 @@ export async function GET() {
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Forrest Labs — Product Brief</title>
+  <title>NOUR — Product Brief</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -102,8 +102,8 @@ export async function GET() {
 <body>
   <div class="header">
     <div>
-      <div class="logo">Forrest Labs</div>
-      <div class="badge">Civilian Safety Reporting</div>
+      <div class="logo">NOUR</div>
+      <div class="badge">Network for Operational Updates &amp; Response</div>
     </div>
     <div style="text-align:right;font-size:12px;color:#666">
       forrestlabs.org<br>
@@ -171,7 +171,7 @@ export async function GET() {
   <p>Confirmed incident data is available as GeoJSON and CSV for import into QGIS, ArcGIS, and other GIS tools. Live API endpoint for programmatic access. Partner organisations receive a dedicated operations dashboard.</p>
 
   <div class="contact">
-    <div>Forrest Labs &middot; 2026</div>
+    <div>NOUR &middot; 2026</div>
     <div>Live system: <strong>forrestlabs.org</strong></div>
   </div>
 </body>

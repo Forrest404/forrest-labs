@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
     type: 'FeatureCollection',
     metadata: {
       generated_at: new Date().toISOString(),
-      source: 'Forrest Labs',
+      source: 'NOUR',
       total_features: data?.length ?? 0,
       period: days + ' days',
       license: 'Attribution required',
@@ -73,7 +73,7 @@ export async function GET(request: NextRequest) {
   return new NextResponse(JSON.stringify(geojson, null, 2), {
     headers: {
       'Content-Type': 'application/geo+json',
-      'Content-Disposition': `attachment; filename="forrest-labs-${dateStr}.geojson"`,
+      'Content-Disposition': `attachment; filename="nour-${dateStr}.geojson"`,
       'Cache-Control': 'no-store',
     },
   })

@@ -1271,7 +1271,7 @@ export default function MapPage() {
     const url = window.location.origin + '/map'
     if (navigator.share) {
       try {
-        await navigator.share({ title: 'Forrest Labs — Live Map', url })
+        await navigator.share({ title: 'NOUR — Live Map', url })
       } catch {
         // user cancelled
       }
@@ -1380,7 +1380,7 @@ export default function MapPage() {
             textTransform: 'uppercase',
           }}
         >
-          Forrest Labs
+          NOUR
         </span>
         <span style={{ color: '#4b5563', fontSize: 14 }}>
           Loading live map...
