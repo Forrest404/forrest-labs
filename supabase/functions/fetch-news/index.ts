@@ -123,8 +123,8 @@ async function analyseArticle(
       'content-type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 400,
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 300,
       messages: [
         {
           role: 'user',
@@ -383,7 +383,7 @@ Deno.serve(async () => {
   const supabase = createClient(SUPABASE_URL, SERVICE_KEY)
   const allArticles: string[] = []
   let claudeCalls = 0
-  const MAX_CLAUDE_CALLS = 5
+  const MAX_CLAUDE_CALLS = 3
 
   for (const feed of RSS_FEEDS) {
     try {

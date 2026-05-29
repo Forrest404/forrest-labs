@@ -315,7 +315,7 @@ Return a JSON object with exactly these fields:
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 300,
       system: `You are a humanitarian analyst reviewing civilian incident reports from a conflict zone. Be concise and factual. Return only valid JSON with no markdown formatting, no code blocks, no preamble.`,
       messages: [{ role: 'user', content: prompt }],
