@@ -46,13 +46,16 @@ export async function GET(request: NextRequest) {
     .single()
   const area = (org?.operational_area as { type?: string; coordinates?: number[][][] } | null) ?? null
 
-  // Incidents — verified clusters, newest first. READ ONLY.
-  const { data: clusters } = await supabase
+  // Incidents — verified clusters, newest first. READ ONLY. Windowed by ?days
+  // (default 10; 'all' = no limit; clamped 1–3650). Only incidents are time-filtered.
+  const daysParam = new URL(request.url).searchParams.get('days')
+  const days = daysParam === 'all' ? null : Math.max(1, Math.min(3650, Number(daysParam) || 10))
+  let clusterQuery = supabase
     .from('clusters')
     .select('id, centroid_lat, centroid_lon, report_count, confidence_score, display_radius_metres, status, created_at')
     .in('status', INCIDENT_STATUSES)
-    .order('created_at', { ascending: false })
-    .limit(500)
+  if (days !== null) clusterQuery = clusterQuery.gte('created_at', new Date(Date.now() - days * 86400000).toISOString())
+  const { data: clusters } = await clusterQuery.order('created_at', { ascending: false }).limit(500)
 
   // Active dispatches for this org → which clusters are currently covered.
   const { data: dispatches } = await supabase

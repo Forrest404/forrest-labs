@@ -99,10 +99,11 @@ const KEY_EVENTS: { date: Date; label: string; color: string }[] = [
 
 // ─── Filter options ──────────────────────────────────────────────────────────
 
+const DAY_MS = 24 * 60 * 60 * 1000
 const TIME_RANGES = [
-  { id: 'hour', label: 'Last hour', ms: 60 * 60 * 1000 },
-  { id: 'day',  label: 'Last 24h',  ms: 24 * 60 * 60 * 1000 },
-  { id: 'week', label: 'Last 7d',   ms: 7 * 24 * 60 * 60 * 1000 },
+  { id: '10d', label: 'Last 10d', ms: 10 * DAY_MS },
+  { id: '30d', label: 'Last 30d', ms: 30 * DAY_MS },
+  { id: '90d', label: 'Last 90d', ms: 90 * DAY_MS },
 ] as const
 type TimeRangeId = (typeof TIME_RANGES)[number]['id'] | 'all'
 
@@ -191,7 +192,7 @@ export default function MapPage() {
   const [mapLoaded, setMapLoaded] = useState(false)
   const [clusters, setClusters] = useState<Cluster[]>([])
   const [selectedCluster, setSelectedCluster] = useState<Cluster | null>(null)
-  const [timeRange, setTimeRange] = useState<TimeRangeId>('all')
+  const [timeRange, setTimeRange] = useState<TimeRangeId>('10d')
   const [statusFilter, setStatusFilter] = useState<'all' | 'confirmed'>('all')
   const [operationFilter, setOperationFilter] = useState<OperationId>('all')
   const [eventTypeFilter, setEventTypeFilter] = useState<EventTypeId>('all')

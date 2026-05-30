@@ -105,6 +105,9 @@ export default function NgoBoardPage() {
   const [recallReason, setRecallReason] = useState('')
   const [loaded, setLoaded] = useState(false)
   const [loadError, setLoadError] = useState(false)
+  const [windowDays, setWindowDays] = useState<string>('10') // '10' | '30' | '90' | 'all'
+  const daysRef = useRef('10')
+  useEffect(() => { daysRef.current = windowDays }, [windowDays])
 
   useEffect(() => { locNamesRef.current = locNames }, [locNames])
 
@@ -180,7 +183,7 @@ export default function NgoBoardPage() {
   // ── Fetch board data ───────────────────────────────────────────────────────
   const fetchBoard = useCallback(async () => {
     try {
-      const res = await fetch('/api/ngo/board')
+      const res = await fetch(`/api/ngo/board?days=${daysRef.current}`)
       if (!res.ok) { setLoadError(true); setLoaded(true); return }
       const data = await res.json()
       setLoadError(false); setLoaded(true)
@@ -355,6 +358,9 @@ export default function NgoBoardPage() {
       if (res.ok) { setAssignFor(null); fetchBoard() }
     } finally { setAssignBusy(false) }
   }
+  function setWindow(v: string) {
+    setWindowDays(v); daysRef.current = v; fetchBoard()
+  }
   async function resolvePanic(panicId: string) {
     const res = await fetch(`/api/ngo/safety/panic/${panicId}/resolve`, { method: 'POST' })
     if (res.ok) fetchBoard()
@@ -444,6 +450,12 @@ export default function NgoBoardPage() {
             <div style={{ fontSize: 15, fontWeight: 600 }}>Incident feed</div>
             <div style={{ fontSize: 12, color: '#8b949e', marginTop: 2 }}>
               {feed.length} in your area · {gapCount > 0 ? <span style={{ color: '#f85149' }}>{gapCount} unassigned</span> : 'all assigned'}
+            </div>
+            {/* Time window — default last 10 days, expand to show older. */}
+            <div style={{ display: 'flex', gap: 4, marginTop: 8 }}>
+              {([['10', '10d'], ['30', '30d'], ['90', '90d'], ['all', 'All']] as const).map(([v, label]) => (
+                <button key={v} type="button" onClick={() => setWindow(v)} style={rangeBtn(windowDays === v)}>{label}</button>
+              ))}
             </div>
           </div>
           <div style={{ overflowY: 'auto', flex: 1 }}>
@@ -537,6 +549,9 @@ const toggleBtn: React.CSSProperties = {
 }
 const statusChip: React.CSSProperties = { position: 'absolute', top: 12, left: 12, zIndex: 7, fontSize: 12, color: '#8b949e', background: 'rgba(13,17,23,0.95)', border: '1px solid #21262d', borderRadius: 999, padding: '4px 12px', fontFamily: 'system-ui' }
 const chipRetry: React.CSSProperties = { marginLeft: 6, background: 'none', border: 'none', color: '#f85149', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }
+function rangeBtn(active: boolean): React.CSSProperties {
+  return { flex: 1, height: 26, borderRadius: 6, fontSize: 11, cursor: 'pointer', fontFamily: 'system-ui', background: active ? 'rgba(88,166,255,0.15)' : 'rgba(255,255,255,0.04)', border: active ? '1px solid #58a6ff' : '1px solid #21262d', color: active ? '#58a6ff' : '#8b949e' }
+}
 const resolveBtn: React.CSSProperties = { flexShrink: 0, height: 26, padding: '0 10px', background: 'rgba(63,185,80,0.12)', border: '1px solid rgba(63,185,80,0.4)', color: '#3fb950', borderRadius: 6, fontSize: 11, cursor: 'pointer', fontFamily: 'system-ui' }
 const rollBtn: React.CSSProperties = {
   height: 28, padding: '0 12px', background: 'rgba(63,185,80,0.12)', border: '1px solid rgba(63,185,80,0.4)',
