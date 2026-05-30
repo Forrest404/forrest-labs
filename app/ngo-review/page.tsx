@@ -50,6 +50,25 @@ export default function NgoReviewPage() {
     }
   }, [])
 
+  const deny = useCallback(async (id: string, name: string) => {
+    if (!window.confirm(`Deny "${name}"? Its admin will not be able to sign in.`)) return
+    setBusy(id)
+    setNote(null)
+    try {
+      const res = await fetch(`/api/ngo-review/${id}/reject`, { method: 'POST' })
+      if (res.ok) {
+        setOrgs((prev) => prev.filter((o) => o.id !== id))
+        setNote(`Denied "${name}".`)
+      } else {
+        setNote('Denial failed.')
+      }
+    } catch {
+      setNote('Denial failed.')
+    } finally {
+      setBusy(null)
+    }
+  }, [])
+
   const label = { fontSize: 11, color: '#8b949e', textTransform: 'uppercase' as const, letterSpacing: '0.06em' }
 
   return (
@@ -58,7 +77,7 @@ export default function NgoReviewPage() {
         <div style={{ fontSize: 13, color: '#8b949e', marginBottom: 4 }}>NOUR — internal</div>
         <h1 style={{ fontSize: 22, fontWeight: 600, margin: '0 0 4px' }}>NGO approvals</h1>
         <p style={{ fontSize: 13, color: '#8b949e', marginBottom: 24 }}>
-          Organisations awaiting approval. Approving lets their admin sign in.
+          Organisations awaiting review. Approve to let their admin sign in, or deny to block them.
         </p>
 
         {note && (
@@ -93,21 +112,36 @@ export default function NgoReviewPage() {
                   </div>
                 )}
               </div>
-              <button
-                type="button"
-                onClick={() => approve(org.id)}
-                disabled={busy === org.id}
-                style={{
-                  flexShrink: 0,
-                  height: 34, padding: '0 16px',
-                  background: busy === org.id ? '#21262d' : 'rgba(63,185,80,0.12)',
-                  border: '1px solid rgba(63,185,80,0.4)',
-                  color: '#3fb950', borderRadius: 6, fontSize: 13, fontWeight: 600,
-                  cursor: busy === org.id ? 'default' : 'pointer', fontFamily: 'system-ui',
-                }}
-              >
-                {busy === org.id ? 'Approving…' : 'Approve'}
-              </button>
+              <div style={{ flexShrink: 0, display: 'flex', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => approve(org.id)}
+                  disabled={busy === org.id}
+                  style={{
+                    height: 34, padding: '0 16px',
+                    background: busy === org.id ? '#21262d' : 'rgba(63,185,80,0.12)',
+                    border: '1px solid rgba(63,185,80,0.4)',
+                    color: '#3fb950', borderRadius: 6, fontSize: 13, fontWeight: 600,
+                    cursor: busy === org.id ? 'default' : 'pointer', fontFamily: 'system-ui',
+                  }}
+                >
+                  {busy === org.id ? '…' : 'Approve'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => deny(org.id, org.name)}
+                  disabled={busy === org.id}
+                  style={{
+                    height: 34, padding: '0 16px',
+                    background: busy === org.id ? '#21262d' : 'rgba(248,81,73,0.1)',
+                    border: '1px solid rgba(248,81,73,0.4)',
+                    color: '#f85149', borderRadius: 6, fontSize: 13, fontWeight: 600,
+                    cursor: busy === org.id ? 'default' : 'pointer', fontFamily: 'system-ui',
+                  }}
+                >
+                  Deny
+                </button>
+              </div>
             </div>
           ))}
         </div>
