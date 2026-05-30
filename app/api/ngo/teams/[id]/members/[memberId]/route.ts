@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { getNgoSession, requireRole } from '@/lib/ngo-auth'
+import { revokeOrphanedMemberLogin } from '@/lib/ngo-safety'
 
-// Remove a roster member. Scoped to the caller's org via the parent team.
-// (Any linked ngo_users row is left intact — its team_members.ngo_user_id
-// FK is set null on member delete; revoking a login is a separate concern.)
+// Remove a roster member. Scoped to the caller's org via the parent team. If the
+// member had a field-coordinator login and is now on no team, their login is
+// deleted too — so removal actually revokes their dashboard access.
 
 export async function DELETE(
   request: NextRequest,
@@ -30,10 +31,12 @@ export async function DELETE(
     .delete()
     .eq('id', memberId)
     .eq('team_id', id)
-    .select('id')
+    .select('id, ngo_user_id')
     .maybeSingle()
 
   if (error) return NextResponse.json({ error: 'Could not remove member' }, { status: 500 })
   if (!data) return NextResponse.json({ error: 'Member not found' }, { status: 404 })
-  return NextResponse.json({ success: true })
+
+  const accessRevoked = await revokeOrphanedMemberLogin(supabase, data.ngo_user_id)
+  return NextResponse.json({ success: true, access_revoked: accessRevoked })
 }
