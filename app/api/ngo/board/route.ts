@@ -96,10 +96,70 @@ export async function GET(request: NextRequest) {
     })
     .filter((t) => t.lat != null && t.lon != null)
 
+  // Active panics (unresolved) — surfaced prominently; the board flags the user.
+  // panic_events has no org_id, so scope by the org's users.
+  const { data: orgUsers } = await supabase.from('ngo_users').select('id, full_name').eq('org_id', orgId)
+  const userName = new Map((orgUsers ?? []).map((u: any) => [u.id, u.full_name]))
+  const orgUserIds = (orgUsers ?? []).map((u: any) => u.id)
+  let panics: any[] = []
+  if (orgUserIds.length) {
+    const { data: panicRows } = await supabase
+      .from('panic_events')
+      .select('id, last_lat, last_lon, created_at, ngo_user_id')
+      .is('resolved_at', null)
+      .in('ngo_user_id', orgUserIds)
+      .order('created_at', { ascending: false })
+    panics = (panicRows ?? []).map((p: any) => ({
+      id: p.id,
+      ngo_user_id: p.ngo_user_id,
+      name: userName.get(p.ngo_user_id) ?? 'Field coordinator',
+      lat: p.last_lat,
+      lon: p.last_lon,
+      created_at: p.created_at,
+    }))
+  }
+
+  // Live roll call — newest org roll call in the last 60 min + responses + roster.
+  const since = new Date(Date.now() - 60 * 60000).toISOString()
+  const { data: rc } = await supabase
+    .from('roll_calls')
+    .select('id, message, created_at')
+    .eq('org_id', orgId)
+    .gte('created_at', since)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  let rollCall: any = null
+  if (rc) {
+    const { data: roster } = await supabase
+      .from('ngo_users')
+      .select('id, full_name')
+      .eq('org_id', orgId)
+      .eq('role', 'field_coordinator')
+      .eq('status', 'active')
+    const { data: responses } = await supabase
+      .from('roll_call_responses')
+      .select('ngo_user_id')
+      .eq('roll_call_id', rc.id)
+    const respondedIds = new Set((responses ?? []).map((r) => r.ngo_user_id))
+    const members = (roster ?? []).map((u) => ({ id: u.id, name: u.full_name, safe: respondedIds.has(u.id) }))
+    rollCall = {
+      id: rc.id,
+      created_at: rc.created_at,
+      message: rc.message,
+      safe_count: members.filter((m) => m.safe).length,
+      total: members.length,
+      members,
+    }
+  }
+
   return NextResponse.json({
     operational_area: area,
     incidents,
     teams: teamPins,
+    panics,
+    roll_call: rollCall,
     generated_at: new Date().toISOString(),
   })
 }

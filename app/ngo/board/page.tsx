@@ -37,6 +37,13 @@ interface Incident {
 interface TeamPin {
   id: string; name: string; type: string; status: string; lat: number; lon: number; last_seen_at: string | null
 }
+interface Panic {
+  id: string; ngo_user_id: string; name: string; lat: number | null; lon: number | null; created_at: string
+}
+interface RollCall {
+  id: string; created_at: string; message: string | null; safe_count: number; total: number
+  members: { id: string; name: string; safe: boolean }[]
+}
 
 // Geographic radius (metres) → polygon ring of [lon,lat] (from app/map/page.tsx).
 function circlePolygon(lon: number, lat: number, radiusMeters: number, steps = 48): [number, number][] {
@@ -69,10 +76,13 @@ export default function NgoBoardPage() {
   const mapContainer = useRef<HTMLDivElement | null>(null)
   const map = useRef<any>(null)
   const [mapLoaded, setMapLoaded] = useState(false)
-  const dataRef = useRef<{ incidents: Incident[]; teams: TeamPin[]; area: any } | null>(null)
+  const dataRef = useRef<{ incidents: Incident[]; teams: TeamPin[]; area: any; panics: Panic[] } | null>(null)
 
   const [incidents, setIncidents] = useState<Incident[]>([])
   const [teams, setTeams] = useState<TeamPin[]>([])
+  const [panics, setPanics] = useState<Panic[]>([])
+  const [rollCall, setRollCall] = useState<RollCall | null>(null)
+  const [rcBusy, setRcBusy] = useState(false)
   const [panelOpen, setPanelOpen] = useState(true)
   const [locNames, setLocNames] = useState<Record<string, string>>({})
   const locNamesRef = useRef<Record<string, string>>({})
@@ -137,9 +147,18 @@ export default function NgoBoardPage() {
       })),
     }
     const areaFC = d.area ? { type: 'Feature', geometry: d.area, properties: {} } : { type: 'FeatureCollection', features: [] }
+    // Panic markers — only those with a known location.
+    const panicFC = {
+      type: 'FeatureCollection',
+      features: (d.panics ?? []).filter((p) => p.lat != null && p.lon != null).map((p) => ({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [p.lon, p.lat] },
+        properties: { id: p.id, label: `🆘 ${p.name}` },
+      })),
+    }
 
     const set = (id: string, data: any) => { const s = m.getSource(id); if (s) s.setData(data) }
-    set('area', areaFC); set('inc-radius', radiusFC); set('inc-dots', dotFC); set('gaps', gapFC); set('teams', teamFC)
+    set('area', areaFC); set('inc-radius', radiusFC); set('inc-dots', dotFC); set('gaps', gapFC); set('teams', teamFC); set('panics', panicFC)
   }, [])
 
   // ── Fetch board data ───────────────────────────────────────────────────────
@@ -150,9 +169,12 @@ export default function NgoBoardPage() {
       const data = await res.json()
       const inc: Incident[] = data.incidents ?? []
       const tms: TeamPin[] = data.teams ?? []
-      dataRef.current = { incidents: inc, teams: tms, area: data.operational_area }
+      const pnc: Panic[] = data.panics ?? []
+      dataRef.current = { incidents: inc, teams: tms, area: data.operational_area, panics: pnc }
       setIncidents(inc)
       setTeams(tms)
+      setPanics(pnc)
+      setRollCall(data.roll_call ?? null)
       renderSources()
 
       // In-area feed → geocode for labels.
@@ -194,6 +216,7 @@ export default function NgoBoardPage() {
         m.addSource('inc-dots', { type: 'geojson', data: empty })
         m.addSource('gaps', { type: 'geojson', data: empty })
         m.addSource('teams', { type: 'geojson', data: empty })
+        m.addSource('panics', { type: 'geojson', data: empty })
 
         // Operational area — subtle.
         m.addLayer({ id: 'area-fill', type: 'fill', source: 'area', paint: { 'fill-color': '#58a6ff', 'fill-opacity': 0.05 } })
@@ -241,6 +264,15 @@ export default function NgoBoardPage() {
           paint: { 'text-color': '#e6edf3', 'text-halo-color': 'rgba(0,0,0,0.85)', 'text-halo-width': 1.5 },
         })
 
+        // Panic markers — pulsing red halo + dot + name, drawn on top of everything.
+        m.addLayer({ id: 'panic-glow', type: 'circle', source: 'panics', paint: { 'circle-radius': 26, 'circle-color': '#f85149', 'circle-opacity': 0.4, 'circle-blur': 0.5 } })
+        m.addLayer({ id: 'panic-dot', type: 'circle', source: 'panics', paint: { 'circle-radius': 9, 'circle-color': '#f85149', 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2 } })
+        m.addLayer({
+          id: 'panic-label', type: 'symbol', source: 'panics',
+          layout: { 'text-field': ['get', 'label'], 'text-size': 12, 'text-offset': [0, 1.5], 'text-anchor': 'top', 'text-max-width': 14 },
+          paint: { 'text-color': '#f85149', 'text-halo-color': 'rgba(0,0,0,0.9)', 'text-halo-width': 1.5 },
+        })
+
         setMapLoaded(true)
       })
     }
@@ -249,26 +281,36 @@ export default function NgoBoardPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // First render + 30s polling once the map is ready.
+  // First render + 15s polling once the map is ready (safety state must be fresh).
   useEffect(() => {
     if (!mapLoaded) return
     renderSources()
     fetchBoard()
-    const id = setInterval(fetchBoard, 30000)
+    const id = setInterval(fetchBoard, 15000)
     return () => clearInterval(id)
   }, [mapLoaded, fetchBoard, renderSources])
 
-  // Pulse the coverage-gap glow.
+  // Pulse the coverage-gap and panic glows.
   useEffect(() => {
     if (!mapLoaded) return
     let t = 0
     const id = setInterval(() => {
       if (!map.current?.getLayer('gap-glow')) return
       t += 0.1
-      map.current.setPaintProperty('gap-glow', 'circle-opacity', 0.25 + 0.2 * Math.abs(Math.sin(t)))
+      const o = 0.25 + 0.2 * Math.abs(Math.sin(t))
+      map.current.setPaintProperty('gap-glow', 'circle-opacity', o)
+      if (map.current.getLayer('panic-glow')) map.current.setPaintProperty('panic-glow', 'circle-opacity', 0.3 + 0.3 * Math.abs(Math.sin(t)))
     }, 100)
     return () => clearInterval(id)
   }, [mapLoaded])
+
+  async function startRollCall() {
+    setRcBusy(true)
+    try {
+      const res = await fetch('/api/ngo/safety/roll-call', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
+      if (res.ok) fetchBoard()
+    } finally { setRcBusy(false) }
+  }
 
   const feed = incidents.filter((c) => c.inside)
   const gapCount = feed.filter((c) => !c.covered).length
@@ -295,6 +337,44 @@ export default function NgoBoardPage() {
       {/* Side panel */}
       {panelOpen && (
         <div style={panel}>
+          {/* Active panics — top priority */}
+          {panics.length > 0 && (
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid #21262d', background: 'rgba(248,81,73,0.08)' }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#f85149' }}>🆘 {panics.length} active panic{panics.length === 1 ? '' : 's'}</div>
+              {panics.map((p) => (
+                <div key={p.id} style={{ fontSize: 12, color: '#e6edf3', marginTop: 6 }}>
+                  <strong>{p.name}</strong> · {timeAgo(p.created_at)}
+                  <div style={{ color: '#8b949e' }}>{p.lat != null && p.lon != null ? `${p.lat.toFixed(4)}, ${p.lon.toFixed(4)}` : 'no location'}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Roll call */}
+          <div style={{ padding: '12px 16px', borderBottom: '1px solid #21262d' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontSize: 14, fontWeight: 600 }}>Roll call</div>
+              <button type="button" onClick={startRollCall} disabled={rcBusy} style={rollBtn}>{rcBusy ? '…' : rollCall ? 'New roll call' : 'Roll call'}</button>
+            </div>
+            {rollCall ? (
+              <>
+                <div style={{ fontSize: 12, color: '#8b949e', margin: '8px 0' }}>
+                  <span style={{ color: '#3fb950' }}>{rollCall.safe_count} safe</span> / {rollCall.total} · {timeAgo(rollCall.created_at)}
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {rollCall.members.map((m) => (
+                    <span key={m.id} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 999, background: m.safe ? 'rgba(63,185,80,0.15)' : 'rgba(248,81,73,0.15)', color: m.safe ? '#3fb950' : '#f85149' }}>
+                      {m.safe ? '✓' : '○'} {m.name}
+                    </span>
+                  ))}
+                  {rollCall.members.length === 0 && <span style={{ fontSize: 11, color: '#8b949e' }}>No field coordinators.</span>}
+                </div>
+              </>
+            ) : (
+              <div style={{ fontSize: 12, color: '#8b949e', marginTop: 6 }}>No active roll call.</div>
+            )}
+          </div>
+
           <div style={{ padding: '14px 16px', borderBottom: '1px solid #21262d' }}>
             <div style={{ fontSize: 15, fontWeight: 600 }}>Incident feed</div>
             <div style={{ fontSize: 12, color: '#8b949e', marginTop: 2 }}>
@@ -347,6 +427,10 @@ const panel: React.CSSProperties = {
 const toggleBtn: React.CSSProperties = {
   position: 'absolute', top: 12, zIndex: 7, width: 28, height: 28, borderRadius: 6,
   background: 'rgba(13,17,23,0.95)', border: '1px solid #21262d', color: '#8b949e', cursor: 'pointer', fontFamily: 'system-ui',
+}
+const rollBtn: React.CSSProperties = {
+  height: 28, padding: '0 12px', background: 'rgba(63,185,80,0.12)', border: '1px solid rgba(63,185,80,0.4)',
+  color: '#3fb950', borderRadius: 6, fontSize: 12, cursor: 'pointer', fontFamily: 'system-ui',
 }
 const feedCard: React.CSSProperties = { padding: '12px 16px', borderBottom: '1px solid #21262d' }
 const assignBtn: React.CSSProperties = {

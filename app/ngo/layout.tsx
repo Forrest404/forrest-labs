@@ -10,15 +10,16 @@ import { usePathname } from 'next/navigation'
 // get no chrome (they live on /ngo/field).
 export default function NgoLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname()
-  const isAuthPage = pathname === '/ngo/login' || pathname === '/ngo/signup'
+  // Auth pages and the mobile field view render bare — no desktop sidebar chrome.
+  const isBare = pathname === '/ngo/login' || pathname === '/ngo/signup' || pathname.startsWith('/ngo/field')
 
   const [role, setRole] = useState<string | null>(null)
   useEffect(() => {
-    if (isAuthPage) return
+    if (isBare) return
     fetch('/api/ngo/auth/check').then((r) => (r.ok ? r.json() : null)).then((d) => setRole(d?.role ?? null)).catch(() => {})
-  }, [isAuthPage])
+  }, [isBare])
 
-  if (isAuthPage) return <>{children}</>
+  if (isBare) return <>{children}</>
 
   return (
     <div

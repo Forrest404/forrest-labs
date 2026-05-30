@@ -4,7 +4,15 @@ import { jwtVerify } from 'jose'
 const COOKIE_NAME = 'fl_admin_session'
 const NGO_COOKIE_NAME = 'fl_ngo_session'
 const PUBLIC_PATHS = ['/admin/login', '/api/admin/auth/login']
-const NGO_PUBLIC_PATHS = ['/ngo/login', '/ngo/signup', '/api/ngo/auth/login', '/api/ngo/auth/signup']
+const NGO_PUBLIC_PATHS = [
+  '/ngo/login',
+  '/ngo/signup',
+  '/api/ngo/auth/login',
+  '/api/ngo/auth/signup',
+  // Scheduler-invoked; gated by its own ?key=REVIEW_SECRET_KEY check, so it must
+  // bypass the cookie gate (the cron caller has no NGO session).
+  '/api/ngo/safety/escalate',
+]
 
 function getJwtSecret(): Uint8Array {
   const secret = process.env.ADMIN_JWT_SECRET
