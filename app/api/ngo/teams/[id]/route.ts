@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { getNgoSession, requireRole } from '@/lib/ngo-auth'
+import { revokeOrphanedMemberLogin } from '@/lib/ngo-safety'
 import { TEAM_TYPES } from '../route'
 
 // Edit / delete a single team. Every operation re-confirms the team belongs to
@@ -58,6 +59,11 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   const { id } = await params
 
   const supabase = createServiceClient()
+
+  // Capture the team's members before deletion so we can revoke any field-coordinator
+  // logins that end up on no team (deleting the team cascades the membership rows).
+  const { data: members } = await supabase.from('team_members').select('ngo_user_id').eq('team_id', id)
+
   const { data, error } = await supabase
     .from('ngo_teams')
     .delete()
@@ -68,5 +74,10 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
   if (error) return NextResponse.json({ error: 'Could not delete team' }, { status: 500 })
   if (!data) return NextResponse.json({ error: 'Team not found' }, { status: 404 })
-  return NextResponse.json({ success: true })
+
+  let revoked = 0
+  for (const m of members ?? []) {
+    if (await revokeOrphanedMemberLogin(supabase, m.ngo_user_id)) revoked++
+  }
+  return NextResponse.json({ success: true, logins_revoked: revoked })
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { getSessionFromRequest } from '@/lib/admin/auth'
+import { revokeOrphanedMemberLogin } from '@/lib/ngo-safety'
 import { TEAM_TYPES } from '../route'
 
 // NOUR-internal edit/delete of any team (cross-org, admin-gated).
@@ -40,8 +41,15 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   const { id } = await params
 
   const supabase = createServiceClient()
+  const { data: members } = await supabase.from('team_members').select('ngo_user_id').eq('team_id', id)
+
   const { data, error } = await supabase.from('ngo_teams').delete().eq('id', id).select('id').maybeSingle()
   if (error) return NextResponse.json({ error: 'Could not delete team' }, { status: 500 })
   if (!data) return NextResponse.json({ error: 'Team not found' }, { status: 404 })
-  return NextResponse.json({ success: true })
+
+  let revoked = 0
+  for (const m of members ?? []) {
+    if (await revokeOrphanedMemberLogin(supabase, m.ngo_user_id)) revoked++
+  }
+  return NextResponse.json({ success: true, logins_revoked: revoked })
 }
