@@ -60,6 +60,7 @@ export default function NgoFieldPage() {
   const [reportSent, setReportSent] = useState(false)
   const [editingReport, setEditingReport] = useState(false)
   const [refreshError, setRefreshError] = useState(false)
+  const [who, setWho] = useState<{ name: string; org: string | null } | null>(null)
 
   // Send now, or queue if offline / on failure. Method defaults to POST.
   const send = useCallback(async (url: string, body: any, label: string, method = 'POST'): Promise<boolean> => {
@@ -98,6 +99,25 @@ export default function NgoFieldPage() {
     } catch { setRefreshError(true) /* offline — last state kept */ }
   }, [])
 
+  const loadWho = useCallback(async () => {
+    try {
+      const r = await fetch('/api/ngo/auth/check')
+      if (r.status === 401) { window.location.replace('/ngo/login'); return }
+      if (r.ok) { const d = await r.json(); setWho({ name: d?.name ?? 'Signed in', org: d?.org_name ?? null }) }
+    } catch { /* offline */ }
+  }, [])
+
+  // Offline-graceful logout: clear server-side if online; otherwise queue the
+  // logout and sign out locally, flushing when back online.
+  async function logout() {
+    if (typeof navigator !== 'undefined' && navigator.onLine) {
+      try { await fetch('/api/ngo/auth/logout', { method: 'POST' }); window.location.replace('/ngo/login'); return } catch { /* fall through */ }
+    }
+    await qAdd({ id: `logout|${typeof performance !== 'undefined' ? performance.now() : ''}|${Math.round(Math.random() * 1e9)}`, url: '/api/ngo/auth/logout', body: {}, label: 'logout', method: 'POST' })
+    setMsg('Signed out — will fully sign out when back online')
+    setTimeout(() => window.location.replace('/ngo/login'), 700)
+  }
+
   const loadDispatch = useCallback(async () => {
     try {
       const r = await fetch('/api/ngo/dispatch/mine')
@@ -116,7 +136,7 @@ export default function NgoFieldPage() {
     window.addEventListener('offline', setOff)
     window.addEventListener('focus', onVisible)
     document.addEventListener('visibilitychange', onVisible)
-    refreshQueueCount(); flushQueue(); loadState(); loadDispatch()
+    refreshQueueCount(); flushQueue(); loadState(); loadDispatch(); loadWho()
     // 5s — the roll-call "tap if safe" prompt must surface fast.
     const id = setInterval(() => { loadState(); flushQueue(); loadDispatch() }, 5000)
     return () => {
@@ -124,7 +144,7 @@ export default function NgoFieldPage() {
       window.removeEventListener('focus', onVisible); document.removeEventListener('visibilitychange', onVisible)
       clearInterval(id)
     }
-  }, [flushQueue, loadState, loadDispatch, refreshQueueCount])
+  }, [flushQueue, loadState, loadDispatch, loadWho, refreshQueueCount])
 
   async function resolveCoords(): Promise<{ lat: number | null; lon: number | null }> {
     if (manual) {
@@ -200,10 +220,16 @@ export default function NgoFieldPage() {
   return (
     <div style={wrap}>
       <div style={topbar}>
-        <div style={{ fontWeight: 600 }}>NOUR <span style={{ color: '#3fb950' }}>Field</span></div>
-        <span style={{ ...chip, background: online ? 'rgba(63,185,80,0.15)' : 'rgba(210,153,34,0.15)', color: online ? '#3fb950' : '#d29922' }}>
-          {online ? 'Online' : 'Offline'}{queued > 0 ? ` · ${queued} queued` : ''}
-        </span>
+        <div>
+          <div style={{ fontWeight: 600 }}>NOUR <span style={{ color: '#3fb950' }}>Field</span></div>
+          {who && <div style={{ fontSize: 11, color: '#8b949e' }}>{who.name}{who.org ? ` · ${who.org}` : ''}</div>}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ ...chip, background: online ? 'rgba(63,185,80,0.15)' : 'rgba(210,153,34,0.15)', color: online ? '#3fb950' : '#d29922' }}>
+            {online ? 'Online' : 'Offline'}{queued > 0 ? ` · ${queued} queued` : ''}
+          </span>
+          <button type="button" onClick={logout} style={{ ...chip, background: 'rgba(255,255,255,0.05)', color: '#8b949e', border: '1px solid #21262d', cursor: 'pointer', fontFamily: 'system-ui' }}>Log out</button>
+        </div>
       </div>
       {online && refreshError && (
         <div style={{ fontSize: 12, color: '#d29922', textAlign: 'center' }}>Couldn’t reach the server — retrying…</div>

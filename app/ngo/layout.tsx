@@ -16,6 +16,7 @@ export default function NgoLayout({ children }: { children: ReactNode }) {
   const isAuthPage = pathname === '/ngo/login' || pathname === '/ngo/signup'
 
   const [role, setRole] = useState<string | null>(null)
+  const [who, setWho] = useState<{ name: string; org: string | null } | null>(null)
   // Poll the session for every signed-in NGO page (including the bare field view):
   // if access is revoked mid-session, /api/ngo/auth/check starts returning 401 and
   // we bounce to the login screen (which then refuses the suspended account).
@@ -27,13 +28,18 @@ export default function NgoLayout({ children }: { children: ReactNode }) {
         const r = await fetch('/api/ngo/auth/check', { cache: 'no-store' })
         if (stop) return
         if (r.status === 401) { window.location.replace('/ngo/login'); return }
-        if (r.ok) { const d = await r.json(); setRole(d?.role ?? null) }
+        if (r.ok) { const d = await r.json(); setRole(d?.role ?? null); setWho({ name: d?.name ?? 'Signed in', org: d?.org_name ?? null }) }
       } catch { /* offline — leave the user where they are */ }
     }
     check()
     const id = setInterval(check, 20000)
     return () => { stop = true; clearInterval(id) }
   }, [isAuthPage])
+
+  async function logout() {
+    try { await fetch('/api/ngo/auth/logout', { method: 'POST' }) } catch { /* clear locally anyway */ }
+    window.location.replace('/ngo/login')
+  }
 
   if (isBare) return <>{children}</>
 
@@ -79,9 +85,27 @@ export default function NgoLayout({ children }: { children: ReactNode }) {
           {role === 'org_admin' && (
             <NavLink href="/ngo/setup" label="Operational area" active={pathname.startsWith('/ngo/setup')} />
           )}
+          {role === 'org_admin' && (
+            <NavLink href="/ngo/users" label="Users" active={pathname.startsWith('/ngo/users')} />
+          )}
+          {role === 'org_admin' && (
+            <NavLink href="/ngo/settings" label="Settings" active={pathname.startsWith('/ngo/settings')} />
+          )}
         </nav>
 
-        <div style={{ padding: '0 16px', fontSize: 10, color: '#484f58' }}>Pre-release</div>
+        {/* Who's signed in + logout — present on every authenticated desktop page. */}
+        <div style={{ padding: '12px 16px 0', borderTop: '1px solid #21262d' }}>
+          {who && (
+            <div style={{ marginBottom: 8 }}>
+              <div style={{ fontSize: 12, color: '#e6edf3', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{who.name}</div>
+              {who.org && <div style={{ fontSize: 11, color: '#8b949e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{who.org}</div>}
+            </div>
+          )}
+          <button type="button" onClick={logout} style={{ width: '100%', height: 32, background: 'rgba(255,255,255,0.04)', border: '1px solid #21262d', color: '#8b949e', borderRadius: 6, fontSize: 13, cursor: 'pointer', fontFamily: 'system-ui' }}>
+            Log out
+          </button>
+          <div style={{ padding: '10px 0 0', fontSize: 10, color: '#484f58' }}>Pre-release</div>
+        </div>
       </aside>
 
       <main style={{ flex: 1, overflowY: 'auto' }}>{children}</main>
