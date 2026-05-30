@@ -13,14 +13,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { id } = await params
   const supabase = createServiceClient()
 
-  // The panic's user must belong to the caller's org.
+  // The panic's user must belong to the caller's org. (panic_events has two FKs to
+  // ngo_users — ngo_user_id and resolved_by — so an embed is ambiguous; query plainly.)
   const { data: panic } = await supabase
     .from('panic_events')
-    .select('id, resolved_at, ngo_users!inner ( org_id )')
+    .select('id, resolved_at, ngo_user_id')
     .eq('id', id)
     .maybeSingle()
-  const ownerOrg = (panic as any)?.ngo_users && (Array.isArray((panic as any).ngo_users) ? (panic as any).ngo_users[0]?.org_id : (panic as any).ngo_users.org_id)
-  if (!panic || ownerOrg !== session!.orgId) return NextResponse.json({ error: 'Panic not found' }, { status: 404 })
+  if (!panic) return NextResponse.json({ error: 'Panic not found' }, { status: 404 })
+  const { data: owner } = await supabase.from('ngo_users').select('org_id').eq('id', panic.ngo_user_id).maybeSingle()
+  if (!owner || owner.org_id !== session!.orgId) return NextResponse.json({ error: 'Panic not found' }, { status: 404 })
   if (panic.resolved_at) return NextResponse.json({ success: true, already: true })
 
   const { error } = await supabase
