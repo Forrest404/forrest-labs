@@ -13,11 +13,27 @@ export default function NgoLayout({ children }: { children: ReactNode }) {
   // Auth pages and the mobile field view render bare — no desktop sidebar chrome.
   const isBare = pathname === '/ngo/login' || pathname === '/ngo/signup' || pathname.startsWith('/ngo/field')
 
+  const isAuthPage = pathname === '/ngo/login' || pathname === '/ngo/signup'
+
   const [role, setRole] = useState<string | null>(null)
+  // Poll the session for every signed-in NGO page (including the bare field view):
+  // if access is revoked mid-session, /api/ngo/auth/check starts returning 401 and
+  // we bounce to the login screen (which then refuses the suspended account).
   useEffect(() => {
-    if (isBare) return
-    fetch('/api/ngo/auth/check').then((r) => (r.ok ? r.json() : null)).then((d) => setRole(d?.role ?? null)).catch(() => {})
-  }, [isBare])
+    if (isAuthPage) return
+    let stop = false
+    const check = async () => {
+      try {
+        const r = await fetch('/api/ngo/auth/check', { cache: 'no-store' })
+        if (stop) return
+        if (r.status === 401) { window.location.replace('/ngo/login'); return }
+        if (r.ok) { const d = await r.json(); setRole(d?.role ?? null) }
+      } catch { /* offline — leave the user where they are */ }
+    }
+    check()
+    const id = setInterval(check, 20000)
+    return () => { stop = true; clearInterval(id) }
+  }, [isAuthPage])
 
   if (isBare) return <>{children}</>
 

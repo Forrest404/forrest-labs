@@ -76,7 +76,7 @@ export default function AdminAllTeamsPage() {
     <div style={{ minHeight: '100vh', background: '#0d1117', color: '#e6edf3', fontFamily: 'system-ui, sans-serif', padding: '32px 24px' }}>
       <div style={{ maxWidth: 880, margin: '0 auto' }}>
         <div style={{ fontSize: 13, color: '#8b949e', marginBottom: 4 }}>
-          NOUR — internal · <a href="/ngo-review" style={{ color: '#58a6ff', textDecoration: 'none' }}>← Approvals</a>
+          NOUR — internal · <a href="/ngo-review" style={{ color: '#58a6ff', textDecoration: 'none' }}>Approvals</a> · <a href="/ngo-review/orgs" style={{ color: '#58a6ff', textDecoration: 'none' }}>Organisations</a>
         </div>
         <h1 style={{ fontSize: 22, fontWeight: 600, margin: '0 0 4px' }}>All NGO teams</h1>
         <p style={{ fontSize: 13, color: '#8b949e', marginBottom: 24 }}>

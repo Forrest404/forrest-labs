@@ -77,7 +77,27 @@ export async function verifyNgoToken(token: string): Promise<NgoSession | null> 
 export async function getNgoSession(request: NextRequest): Promise<NgoSession | null> {
   const token = request.cookies.get(NGO_COOKIE_NAME)?.value
   if (!token) return null
-  return await verifyNgoToken(token)
+  const session = await verifyNgoToken(token)
+  if (!session) return null
+
+  // Revocation check: a valid JWT is not enough — the user must still be active
+  // and their org still approved. This is what makes "revoke access" log a signed-in
+  // NGO out mid-session (the token itself stays valid until expiry, but every
+  // /api/ngo/* call re-checks here). Node-only; never imported by the Edge middleware.
+  const { createServiceClient } = await import('@/lib/supabase/service')
+  const supabase = createServiceClient()
+  const { data } = await supabase
+    .from('ngo_users')
+    .select('status, ngo_organisations!inner ( status )')
+    .eq('id', session.userId)
+    .maybeSingle()
+  if (!data || data.status !== 'active') return null
+  const org = Array.isArray((data as any).ngo_organisations)
+    ? (data as any).ngo_organisations[0]
+    : (data as any).ngo_organisations
+  if (org?.status !== 'approved') return null
+
+  return session
 }
 
 // ── Cookie helpers ────────────────────────────────────────────────────────────
