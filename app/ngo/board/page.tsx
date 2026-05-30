@@ -294,14 +294,24 @@ export default function NgoBoardPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // First render + 15s polling once the map is ready (safety state must be fresh).
+  // Live data: poll every 7s, and refetch instantly when the tab regains focus.
+  // Independent of the map so the feed / roll-call / panics stay live even before
+  // (or without) the map finishing load.
   useEffect(() => {
-    if (!mapLoaded) return
-    renderSources()
     fetchBoard()
-    const id = setInterval(fetchBoard, 15000)
-    return () => clearInterval(id)
-  }, [mapLoaded, fetchBoard, renderSources])
+    const id = setInterval(fetchBoard, 7000)
+    const onVisible = () => { if (document.visibilityState === 'visible') fetchBoard() }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', fetchBoard)
+    return () => {
+      clearInterval(id)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', fetchBoard)
+    }
+  }, [fetchBoard])
+
+  // When the map becomes ready, paint the latest data onto it.
+  useEffect(() => { if (mapLoaded) renderSources() }, [mapLoaded, renderSources])
 
   // Pulse the coverage-gap and panic glows.
   useEffect(() => {

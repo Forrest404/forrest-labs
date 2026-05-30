@@ -35,7 +35,18 @@ export default function NgoDispatchPage() {
     if (bRes.ok) setIncidents(((await bRes.json()).incidents ?? []).filter((i: Incident) => i.inside))
   }, [])
 
-  useEffect(() => { load(); const id = setInterval(load, 15000); return () => clearInterval(id) }, [load])
+  useEffect(() => {
+    load()
+    const id = setInterval(load, 8000)
+    const onVisible = () => { if (document.visibilityState === 'visible') load() }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', load)
+    return () => {
+      clearInterval(id)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', load)
+    }
+  }, [load])
 
   async function recall(id: string) {
     const r = prompt('Recall reason (optional):') ?? ''

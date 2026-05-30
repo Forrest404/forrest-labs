@@ -103,12 +103,20 @@ export default function NgoFieldPage() {
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('/ngo-sw.js', { scope: '/ngo/field' }).catch(() => {})
     const setOn = () => { setOnline(true); flushQueue(); loadState(); loadDispatch() }
     const setOff = () => setOnline(false)
+    const onVisible = () => { if (document.visibilityState === 'visible') { loadState(); loadDispatch(); flushQueue() } }
     setOnline(navigator.onLine)
     window.addEventListener('online', setOn)
     window.addEventListener('offline', setOff)
+    window.addEventListener('focus', onVisible)
+    document.addEventListener('visibilitychange', onVisible)
     refreshQueueCount(); flushQueue(); loadState(); loadDispatch()
-    const id = setInterval(() => { loadState(); flushQueue(); loadDispatch() }, 15000)
-    return () => { window.removeEventListener('online', setOn); window.removeEventListener('offline', setOff); clearInterval(id) }
+    // 5s — the roll-call "tap if safe" prompt must surface fast.
+    const id = setInterval(() => { loadState(); flushQueue(); loadDispatch() }, 5000)
+    return () => {
+      window.removeEventListener('online', setOn); window.removeEventListener('offline', setOff)
+      window.removeEventListener('focus', onVisible); document.removeEventListener('visibilitychange', onVisible)
+      clearInterval(id)
+    }
   }, [flushQueue, loadState, loadDispatch, refreshQueueCount])
 
   async function resolveCoords(): Promise<{ lat: number | null; lon: number | null }> {
