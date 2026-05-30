@@ -74,7 +74,9 @@ export default function NgoReviewPage() {
   return (
     <div style={{ minHeight: '100vh', background: '#0d1117', color: '#e6edf3', fontFamily: 'system-ui, sans-serif', padding: '32px 24px' }}>
       <div style={{ maxWidth: 820, margin: '0 auto' }}>
-        <div style={{ fontSize: 13, color: '#8b949e', marginBottom: 4 }}>NOUR — internal</div>
+        <div style={{ fontSize: 13, color: '#8b949e', marginBottom: 4 }}>
+          NOUR — internal · <a href="/ngo-review/teams" style={{ color: '#58a6ff', textDecoration: 'none' }}>All teams →</a>
+        </div>
         <h1 style={{ fontSize: 22, fontWeight: 600, margin: '0 0 4px' }}>NGO approvals</h1>
         <p style={{ fontSize: 13, color: '#8b949e', marginBottom: 24 }}>
           Organisations awaiting review. Approve to let their admin sign in, or deny to block them.
