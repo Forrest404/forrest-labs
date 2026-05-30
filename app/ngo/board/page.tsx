@@ -350,6 +350,10 @@ export default function NgoBoardPage() {
       if (res.ok) { setAssignFor(null); fetchBoard() }
     } finally { setAssignBusy(false) }
   }
+  async function resolvePanic(panicId: string) {
+    const res = await fetch(`/api/ngo/safety/panic/${panicId}/resolve`, { method: 'POST' })
+    if (res.ok) fetchBoard()
+  }
   async function recall(dispatchId: string) {
     const reason = prompt('Recall reason (optional):') ?? ''
     const res = await fetch(`/api/ngo/dispatch/${dispatchId}/recall`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason }) })
@@ -387,9 +391,12 @@ export default function NgoBoardPage() {
             <div style={{ padding: '12px 16px', borderBottom: '1px solid #21262d', background: 'rgba(248,81,73,0.08)' }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: '#f85149' }}>🆘 {panics.length} active panic{panics.length === 1 ? '' : 's'}</div>
               {panics.map((p) => (
-                <div key={p.id} style={{ fontSize: 12, color: '#e6edf3', marginTop: 6 }}>
-                  <strong>{p.name}</strong> · {timeAgo(p.created_at)}
-                  <div style={{ color: '#8b949e' }}>{p.lat != null && p.lon != null ? `${p.lat.toFixed(4)}, ${p.lon.toFixed(4)}` : 'no location'}</div>
+                <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginTop: 6 }}>
+                  <div style={{ fontSize: 12, color: '#e6edf3' }}>
+                    <strong>{p.name}</strong> · {timeAgo(p.created_at)}
+                    <div style={{ color: '#8b949e' }}>{p.lat != null && p.lon != null ? `${p.lat.toFixed(4)}, ${p.lon.toFixed(4)}` : 'no location'}</div>
+                  </div>
+                  <button type="button" onClick={() => resolvePanic(p.id)} style={resolveBtn}>Resolve</button>
                 </div>
               ))}
             </div>
@@ -500,6 +507,7 @@ const toggleBtn: React.CSSProperties = {
   position: 'absolute', top: 12, zIndex: 7, width: 28, height: 28, borderRadius: 6,
   background: 'rgba(13,17,23,0.95)', border: '1px solid #21262d', color: '#8b949e', cursor: 'pointer', fontFamily: 'system-ui',
 }
+const resolveBtn: React.CSSProperties = { flexShrink: 0, height: 26, padding: '0 10px', background: 'rgba(63,185,80,0.12)', border: '1px solid rgba(63,185,80,0.4)', color: '#3fb950', borderRadius: 6, fontSize: 11, cursor: 'pointer', fontFamily: 'system-ui' }
 const rollBtn: React.CSSProperties = {
   height: 28, padding: '0 12px', background: 'rgba(63,185,80,0.12)', border: '1px solid rgba(63,185,80,0.4)',
   color: '#3fb950', borderRadius: 6, fontSize: 12, cursor: 'pointer', fontFamily: 'system-ui',

@@ -172,6 +172,18 @@ export default function NgoSetupPage() {
     }
   }
 
+  async function clearArea() {
+    if (!window.confirm('Clear the operational area? Incidents will no longer be flagged inside/outside it until you draw a new one.')) return
+    setBusy(true); setStatus(null)
+    try {
+      const res = await fetch('/api/ngo/org/area', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ area: null }) })
+      const data = await res.json()
+      if (res.ok) { setSaved(null); setPoints([]); setDrawMode(false); setStatus('Operational area cleared.') }
+      else setStatus(data.error ?? 'Could not clear.')
+    } catch { setStatus('Could not clear. Please try again.') }
+    finally { setBusy(false) }
+  }
+
   return (
     <div style={{ position: 'relative', height: '100vh', width: '100%' }}>
       <div ref={mapContainer} style={{ position: 'absolute', inset: 0 }} />
@@ -208,7 +220,12 @@ export default function NgoSetupPage() {
         )}
 
         {saved && !drawMode && (
-          <div style={{ fontSize: 12, color: '#3fb950', marginTop: 10 }}>✓ Area defined</div>
+          <div style={{ marginTop: 10 }}>
+            <div style={{ fontSize: 12, color: '#3fb950' }}>✓ Area defined</div>
+            {canEdit && (
+              <button type="button" onClick={clearArea} disabled={busy} style={{ ...btn(false), marginTop: 8, color: '#f85149', borderColor: 'rgba(248,81,73,0.4)' }}>Clear area</button>
+            )}
+          </div>
         )}
         {status && <div style={{ fontSize: 12, color: '#e6edf3', marginTop: 10 }}>{status}</div>}
       </div>

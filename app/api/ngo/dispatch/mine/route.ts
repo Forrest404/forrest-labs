@@ -35,10 +35,16 @@ export async function GET(request: NextRequest) {
     hazard = hazardOf(cluster)?.replace(/_/g, ' ') ?? null
     link = mapLink(cluster.centroid_lat, cluster.centroid_lon)
   }
-  const { data: rep } = await supabase.from('on_scene_reports').select('id').eq('dispatch_id', d.id).maybeSingle()
+  const { data: rep } = await supabase
+    .from('on_scene_reports')
+    .select('people_assisted, services, new_hazards')
+    .eq('dispatch_id', d.id)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
   hasReport = !!rep
 
   return NextResponse.json({
-    dispatch: { id: d.id, status: d.status, note: d.note, location_name: place, hazard, map_link: link, has_report: hasReport },
+    dispatch: { id: d.id, status: d.status, note: d.note, location_name: place, hazard, map_link: link, has_report: hasReport, report: rep ?? null },
   })
 }

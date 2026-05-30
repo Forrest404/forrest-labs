@@ -50,18 +50,20 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
   }
 
-  if (!isPolygon(body.area)) {
+  // null clears the area; otherwise it must be a closed polygon.
+  const clearing = body.area === null
+  if (!clearing && !isPolygon(body.area)) {
     return NextResponse.json({ error: 'A closed GeoJSON Polygon is required' }, { status: 400 })
   }
 
   const supabase = createServiceClient()
   const { error } = await supabase
     .from('ngo_organisations')
-    .update({ operational_area: body.area })
+    .update({ operational_area: clearing ? null : body.area })
     .eq('id', session!.orgId)
 
   if (error) {
     return NextResponse.json({ error: 'Could not save operational area' }, { status: 500 })
   }
-  return NextResponse.json({ success: true, area: body.area })
+  return NextResponse.json({ success: true, area: clearing ? null : body.area })
 }

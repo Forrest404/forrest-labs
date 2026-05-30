@@ -24,6 +24,7 @@ export default function NgoTeamsPage() {
   // modal state
   const [teamModal, setTeamModal] = useState<null | { id?: string; name: string; type: string; capacity: string }>(null)
   const [memberForm, setMemberForm] = useState({ name: '', role: '', phone: '', emergency_contact: '' })
+  const [memberEdit, setMemberEdit] = useState<null | { id: string; name: string; role: string; phone: string; emergency_contact: string }>(null)
   const [inviteModal, setInviteModal] = useState<null | { memberId: string; name: string; email: string; pin: string }>(null)
   const [busy, setBusy] = useState(false)
 
@@ -80,6 +81,19 @@ export default function NgoTeamsPage() {
       })
       if (res.ok) { setMemberForm({ name: '', role: '', phone: '', emergency_contact: '' }); await loadMembers(selected) }
       else setErr((await res.json()).error ?? 'Could not add member.')
+    } finally { setBusy(false) }
+  }
+
+  async function saveMemberEdit() {
+    if (!memberEdit || !selected || !memberEdit.name.trim()) { setErr('Member name is required.'); return }
+    setErr(null); setBusy(true)
+    try {
+      const res = await fetch(`/api/ngo/teams/${selected}/members/${memberEdit.id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: memberEdit.name, role: memberEdit.role, phone: memberEdit.phone, emergency_contact: memberEdit.emergency_contact }),
+      })
+      if (res.ok) { setMemberEdit(null); await loadMembers(selected) }
+      else setErr((await res.json()).error ?? 'Could not update member.')
     } finally { setBusy(false) }
   }
 
@@ -161,6 +175,7 @@ export default function NgoTeamsPage() {
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
+                    <button type="button" onClick={() => setMemberEdit({ id: m.id, name: m.name, role: m.role ?? '', phone: m.phone ?? '', emergency_contact: m.emergency_contact ?? '' })} style={miniBtn}>Edit</button>
                     {isAdmin && !m.ngo_user_id && (
                       <button type="button" onClick={() => setInviteModal({ memberId: m.id, name: m.name, email: '', pin: '' })} style={miniBtn}>Invite</button>
                     )}
@@ -198,6 +213,23 @@ export default function NgoTeamsPage() {
           <input style={field} type="number" min={0} value={teamModal.capacity} onChange={(e) => setTeamModal({ ...teamModal, capacity: e.target.value })} />
           <button type="button" onClick={saveTeam} disabled={busy || !teamModal.name.trim()} style={{ ...primaryBtn, marginTop: 16, opacity: busy || !teamModal.name.trim() ? 0.6 : 1 }}>
             {busy ? 'Saving…' : 'Save team'}
+          </button>
+        </Modal>
+      )}
+
+      {/* Member edit modal */}
+      {memberEdit && (
+        <Modal title="Edit member" onClose={() => setMemberEdit(null)}>
+          <label style={labelStyle}>Name</label>
+          <input style={field} value={memberEdit.name} onChange={(e) => setMemberEdit({ ...memberEdit, name: e.target.value })} />
+          <label style={{ ...labelStyle, marginTop: 12 }}>Role</label>
+          <input style={field} value={memberEdit.role} onChange={(e) => setMemberEdit({ ...memberEdit, role: e.target.value })} />
+          <label style={{ ...labelStyle, marginTop: 12 }}>Phone</label>
+          <input style={field} value={memberEdit.phone} onChange={(e) => setMemberEdit({ ...memberEdit, phone: e.target.value })} />
+          <label style={{ ...labelStyle, marginTop: 12 }}>Emergency contact</label>
+          <input style={field} value={memberEdit.emergency_contact} onChange={(e) => setMemberEdit({ ...memberEdit, emergency_contact: e.target.value })} />
+          <button type="button" onClick={saveMemberEdit} disabled={busy || !memberEdit.name.trim()} style={{ ...primaryBtn, marginTop: 16, opacity: busy || !memberEdit.name.trim() ? 0.6 : 1 }}>
+            {busy ? 'Saving…' : 'Save member'}
           </button>
         </Modal>
       )}

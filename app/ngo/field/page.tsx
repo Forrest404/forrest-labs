@@ -58,20 +58,22 @@ export default function NgoFieldPage() {
   const [dispatch, setDispatch] = useState<any>(null)
   const [report, setReport] = useState({ people: '', services: '', hazards: '' })
   const [reportSent, setReportSent] = useState(false)
+  const [editingReport, setEditingReport] = useState(false)
 
-  // POST helper: send now, or queue if offline / on failure.
-  const send = useCallback(async (url: string, body: any, label: string): Promise<boolean> => {
+  // Send now, or queue if offline / on failure. Method defaults to POST.
+  const send = useCallback(async (url: string, body: any, label: string, method = 'POST'): Promise<boolean> => {
     if (typeof navigator !== 'undefined' && navigator.onLine) {
       try {
-        const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+        const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
         if (res.ok) return true
       } catch { /* fall through to queue */ }
     }
     const id = `${url}|${label}|${typeof performance !== 'undefined' ? performance.now() : ''}|${Math.round(Math.random() * 1e9)}`
-    await qAdd({ id, url, body, label })
+    await qAdd({ id, url, body, label, method })
     refreshQueueCount()
     return false
   }, [])
+  const sendPut = useCallback((url: string, body: any, label: string) => send(url, body, label, 'PUT'), [send])
 
   const refreshQueueCount = useCallback(() => { qAll().then((q) => setQueued(q.length)).catch(() => {}) }, [])
 
@@ -80,7 +82,7 @@ export default function NgoFieldPage() {
     const items = await qAll()
     for (const it of items) {
       try {
-        const res = await fetch(it.url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(it.body) })
+        const res = await fetch(it.url, { method: it.method ?? 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(it.body) })
         if (res.ok) await qDel(it.id)
       } catch { /* stays queued */ }
     }
@@ -168,13 +170,19 @@ export default function NgoFieldPage() {
   }
   async function submitReport() {
     if (!dispatch) return
-    const sent = await send(`/api/ngo/dispatch/${dispatch.id}/report`, {
+    // PUT updates the single report (creates it if none) so edits don't duplicate.
+    const sent = await sendPut(`/api/ngo/dispatch/${dispatch.id}/report`, {
       people_assisted: report.people === '' ? null : Number(report.people),
       services: report.services || null,
       new_hazards: report.hazards || null,
     }, 'report')
-    setReportSent(true)
-    setMsg(sent ? 'On-scene report sent' : 'Queued — report will send when online')
+    setReportSent(true); setEditingReport(false)
+    setMsg(sent ? 'On-scene report saved' : 'Queued — report will send when online')
+  }
+  function startEditReport() {
+    const r = dispatch?.report
+    setReport({ people: r?.people_assisted != null ? String(r.people_assisted) : '', services: r?.services ?? '', hazards: r?.new_hazards ?? '' })
+    setEditingReport(true)
   }
 
   // Panic press-and-hold (2s) to avoid misfire.
@@ -211,17 +219,22 @@ export default function NgoFieldPage() {
               ADVANCE TO {(STATUS_TEXT[NEXT_STATUS[dispatch.status]] ?? '').toUpperCase()}
             </button>
           )}
-          {/* On-scene report (3 fields) — available once on scene */}
-          {dispatch.status === 'on_scene' && !reportSent && (
+          {/* On-scene report (3 fields) — fileable/editable once on scene or done */}
+          {['on_scene', 'done'].includes(dispatch.status) && (!reportSent || editingReport) && (
             <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div style={{ fontSize: 12, color: '#8b949e' }}>On-scene report</div>
               <input style={field} inputMode="numeric" placeholder="People assisted" value={report.people} onChange={(e) => setReport({ ...report, people: e.target.value })} />
               <input style={field} placeholder="Services delivered" value={report.services} onChange={(e) => setReport({ ...report, services: e.target.value })} />
               <input style={field} placeholder="New hazards" value={report.hazards} onChange={(e) => setReport({ ...report, hazards: e.target.value })} />
-              <button type="button" onClick={submitReport} style={{ ...statusBtn(false), height: 44 }}>Submit report</button>
+              <button type="button" onClick={submitReport} style={{ ...statusBtn(false), height: 44 }}>{editingReport ? 'Save changes' : 'Submit report'}</button>
             </div>
           )}
-          {reportSent && <div style={{ fontSize: 12, color: '#3fb950', marginTop: 8 }}>On-scene report filed ✓</div>}
+          {reportSent && !editingReport && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+              <span style={{ fontSize: 12, color: '#3fb950' }}>On-scene report filed ✓</span>
+              <button type="button" onClick={startEditReport} style={{ ...statusBtn(false), height: 30, flex: '0 0 auto', padding: '0 12px' }}>Edit</button>
+            </div>
+          )}
         </div>
       )}
 
