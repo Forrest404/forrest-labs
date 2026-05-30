@@ -29,11 +29,17 @@ export default function NgoDispatchPage() {
   const [reassignFor, setReassignFor] = useState<Dispatch | null>(null)
   const [recallFor, setRecallFor] = useState<Dispatch | null>(null)
   const [reason, setReason] = useState('')
+  const [loaded, setLoaded] = useState(false)
+  const [loadError, setLoadError] = useState(false)
 
   const load = useCallback(async () => {
-    const [dRes, bRes] = await Promise.all([fetch('/api/ngo/dispatch'), fetch('/api/ngo/board')])
-    if (dRes.ok) setDispatches((await dRes.json()).dispatches ?? [])
-    if (bRes.ok) setIncidents(((await bRes.json()).incidents ?? []).filter((i: Incident) => i.inside))
+    try {
+      const [dRes, bRes] = await Promise.all([fetch('/api/ngo/dispatch'), fetch('/api/ngo/board')])
+      if (!dRes.ok) { setLoadError(true); setLoaded(true); return }
+      setDispatches((await dRes.json()).dispatches ?? [])
+      if (bRes.ok) setIncidents(((await bRes.json()).incidents ?? []).filter((i: Incident) => i.inside))
+      setLoadError(false); setLoaded(true)
+    } catch { setLoadError(true); setLoaded(true) }
   }, [])
 
   useEffect(() => {
@@ -67,6 +73,13 @@ export default function NgoDispatchPage() {
     <div style={{ padding: 24, maxWidth: 900, margin: '0 auto', color: '#e6edf3', fontFamily: 'system-ui, sans-serif' }}>
       <h1 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>Dispatch</h1>
       <div style={{ fontSize: 13, color: '#8b949e', marginTop: 2, marginBottom: 20 }}>Teams in the field and their response.</div>
+
+      {!loaded && <div style={{ color: '#8b949e', fontSize: 13, marginBottom: 16 }}>Loading…</div>}
+      {loaded && loadError && (
+        <div style={{ background: 'rgba(248,81,73,0.1)', border: '1px solid rgba(248,81,73,0.3)', color: '#f85149', borderRadius: 6, padding: '9px 12px', fontSize: 13, marginBottom: 16 }}>
+          Couldn’t refresh dispatches. <button type="button" onClick={load} style={{ marginLeft: 8, background: 'none', border: '1px solid rgba(248,81,73,0.4)', color: '#f85149', borderRadius: 4, fontSize: 12, padding: '2px 8px', cursor: 'pointer' }}>Retry</button>
+        </div>
+      )}
 
       <Section title={`Active (${active.length})`} rows={active} onRecall={(d) => { setRecallFor(d); setReason('') }} onReassign={setReassignFor} />
       <Section title={`History (${closed.length})`} rows={closed} onRecall={(d) => { setRecallFor(d); setReason('') }} onReassign={setReassignFor} />

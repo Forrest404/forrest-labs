@@ -20,6 +20,7 @@ export default function NgoTeamsPage() {
   const [selected, setSelected] = useState<string | null>(null)
   const [members, setMembers] = useState<Member[]>([])
   const [err, setErr] = useState<string | null>(null)
+  const [loaded, setLoaded] = useState(false)
 
   // modal state
   const [teamModal, setTeamModal] = useState<null | { id?: string; name: string; type: string; capacity: string }>(null)
@@ -35,8 +36,12 @@ export default function NgoTeamsPage() {
   }, [])
 
   const loadTeams = useCallback(async () => {
-    const res = await fetch('/api/ngo/teams')
-    if (res.ok) setTeams((await res.json()).teams ?? [])
+    try {
+      const res = await fetch('/api/ngo/teams')
+      if (res.ok) { setTeams((await res.json()).teams ?? []); setErr(null) }
+      else setErr('Could not load teams.')
+    } catch { setErr('Could not load teams.') }
+    finally { setLoaded(true) }
   }, [])
   useEffect(() => { loadTeams() }, [loadTeams])
 
@@ -135,7 +140,8 @@ export default function NgoTeamsPage() {
       <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
         {/* Teams list */}
         <div style={{ flex: '0 0 340px' }}>
-          {teams.length === 0 && <div style={{ ...card, color: '#8b949e', fontSize: 13 }}>No teams yet.</div>}
+          {!loaded && <div style={{ ...card, color: '#8b949e', fontSize: 13 }}>Loading…</div>}
+          {loaded && teams.length === 0 && <div style={{ ...card, color: '#8b949e', fontSize: 13 }}>No teams yet — add one with “New team”.</div>}
           {teams.map((t) => (
             <div key={t.id} onClick={() => setSelected(t.id)} style={{ ...card, cursor: 'pointer', borderColor: selected === t.id ? '#58a6ff' : '#21262d', marginBottom: 8 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

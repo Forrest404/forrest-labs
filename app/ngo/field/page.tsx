@@ -59,6 +59,7 @@ export default function NgoFieldPage() {
   const [report, setReport] = useState({ people: '', services: '', hazards: '' })
   const [reportSent, setReportSent] = useState(false)
   const [editingReport, setEditingReport] = useState(false)
+  const [refreshError, setRefreshError] = useState(false)
 
   // Send now, or queue if offline / on failure. Method defaults to POST.
   const send = useCallback(async (url: string, body: any, label: string, method = 'POST'): Promise<boolean> => {
@@ -90,7 +91,11 @@ export default function NgoFieldPage() {
   }, [refreshQueueCount])
 
   const loadState = useCallback(async () => {
-    try { const r = await fetch('/api/ngo/safety/field'); if (r.ok) setState(await r.json()) } catch { /* offline */ }
+    try {
+      const r = await fetch('/api/ngo/safety/field')
+      if (r.ok) { setState(await r.json()); setRefreshError(false) }
+      else setRefreshError(true)
+    } catch { setRefreshError(true) /* offline — last state kept */ }
   }, [])
 
   const loadDispatch = useCallback(async () => {
@@ -200,6 +205,9 @@ export default function NgoFieldPage() {
           {online ? 'Online' : 'Offline'}{queued > 0 ? ` · ${queued} queued` : ''}
         </span>
       </div>
+      {online && refreshError && (
+        <div style={{ fontSize: 12, color: '#d29922', textAlign: 'center' }}>Couldn’t reach the server — retrying…</div>
+      )}
 
       {state?.team && (
         <div style={{ fontSize: 13, color: '#8b949e', textAlign: 'center' }}>

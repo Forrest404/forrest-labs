@@ -103,6 +103,8 @@ export default function NgoBoardPage() {
   const [assignBusy, setAssignBusy] = useState(false)
   const [recallFor, setRecallFor] = useState<{ id: string; team: string | null } | null>(null)
   const [recallReason, setRecallReason] = useState('')
+  const [loaded, setLoaded] = useState(false)
+  const [loadError, setLoadError] = useState(false)
 
   useEffect(() => { locNamesRef.current = locNames }, [locNames])
 
@@ -179,8 +181,9 @@ export default function NgoBoardPage() {
   const fetchBoard = useCallback(async () => {
     try {
       const res = await fetch('/api/ngo/board')
-      if (!res.ok) return
+      if (!res.ok) { setLoadError(true); setLoaded(true); return }
       const data = await res.json()
+      setLoadError(false); setLoaded(true)
       const inc: Incident[] = data.incidents ?? []
       const tms: TeamPin[] = data.teams ?? []
       const pnc: Panic[] = data.panics ?? []
@@ -198,7 +201,7 @@ export default function NgoBoardPage() {
       // Urgent banner: official_verified OR confidence >= 85, in-area, newest first.
       const urgentInc = inc.find((c) => c.inside && (c.status === 'official_verified' || c.confidence_score >= 85))
       setUrgent(urgentInc && !dismissedRef.current.has(urgentInc.id) ? urgentInc : null)
-    } catch { /* keep last good data */ }
+    } catch { setLoadError(true); setLoaded(true) /* keep last good data */ }
   }, [renderSources, fetchLocationName])
 
   const dismissedRef = useRef<Set<string>>(new Set())
@@ -370,6 +373,14 @@ export default function NgoBoardPage() {
     <div style={{ position: 'relative', height: '100vh', width: '100%', overflow: 'hidden' }}>
       <div ref={mapContainer} style={{ position: 'absolute', inset: 0 }} />
 
+      {/* Loading / refresh-error chip (top-left) */}
+      {!loaded && <div style={statusChip}>Loading…</div>}
+      {loaded && loadError && (
+        <div style={{ ...statusChip, color: '#f85149', borderColor: 'rgba(248,81,73,0.4)' }}>
+          Couldn’t refresh <button type="button" onClick={fetchBoard} style={chipRetry}>Retry</button>
+        </div>
+      )}
+
       {/* Urgent banner */}
       {urgent && (
         <div style={banner}>
@@ -524,6 +535,8 @@ const toggleBtn: React.CSSProperties = {
   position: 'absolute', top: 12, zIndex: 7, width: 28, height: 28, borderRadius: 6,
   background: 'rgba(13,17,23,0.95)', border: '1px solid #21262d', color: '#8b949e', cursor: 'pointer', fontFamily: 'system-ui',
 }
+const statusChip: React.CSSProperties = { position: 'absolute', top: 12, left: 12, zIndex: 7, fontSize: 12, color: '#8b949e', background: 'rgba(13,17,23,0.95)', border: '1px solid #21262d', borderRadius: 999, padding: '4px 12px', fontFamily: 'system-ui' }
+const chipRetry: React.CSSProperties = { marginLeft: 6, background: 'none', border: 'none', color: '#f85149', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }
 const resolveBtn: React.CSSProperties = { flexShrink: 0, height: 26, padding: '0 10px', background: 'rgba(63,185,80,0.12)', border: '1px solid rgba(63,185,80,0.4)', color: '#3fb950', borderRadius: 6, fontSize: 11, cursor: 'pointer', fontFamily: 'system-ui' }
 const rollBtn: React.CSSProperties = {
   height: 28, padding: '0 12px', background: 'rgba(63,185,80,0.12)', border: '1px solid rgba(63,185,80,0.4)',
