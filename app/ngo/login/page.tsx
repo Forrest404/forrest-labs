@@ -42,7 +42,7 @@ export default function NgoLoginPage() {
       })
       const data = await res.json()
       if (res.ok) {
-        router.push(data.role === 'field_coordinator' ? '/ngo/field' : '/ngo')
+        router.push(data.role === 'field_coordinator' ? '/ngo/field' : '/ngo/board')
       } else {
         setError(data.error ?? 'Sign-in failed.')
       }

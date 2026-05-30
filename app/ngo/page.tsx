@@ -1,25 +1,8 @@
-// Placeholder home for the NGO platform. No features yet — just confirms
-// the route group renders inside its shell.
+import { redirect } from 'next/navigation'
+
+// The NGO landing route. org_admin / team_leader land on the situation board;
+// field coordinators are routed to /ngo/field by the middleware before they
+// reach here.
 export default function NgoHome() {
-  return (
-    <div
-      style={{
-        minHeight: '100%',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 24,
-        fontFamily: 'system-ui, sans-serif',
-      }}
-    >
-      <div style={{ textAlign: 'center' }}>
-        <h1 style={{ fontSize: 28, fontWeight: 600, color: '#e6edf3', margin: 0, letterSpacing: '-0.03em' }}>
-          NOUR for NGOs
-        </h1>
-        <p style={{ fontSize: 14, color: '#8b949e', marginTop: 10 }}>
-          NGO operations dashboard — coming soon.
-        </p>
-      </div>
-    </div>
-  )
+  redirect('/ngo/board')
 }

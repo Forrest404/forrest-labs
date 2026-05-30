@@ -51,6 +51,9 @@ export default function NgoLayout({ children }: { children: ReactNode }) {
 
         <nav style={{ flex: 1, padding: '12px 8px', display: 'flex', flexDirection: 'column', gap: 2 }}>
           {(role === 'org_admin' || role === 'team_leader') && (
+            <NavLink href="/ngo/board" label="Situation board" active={pathname.startsWith('/ngo/board')} />
+          )}
+          {(role === 'org_admin' || role === 'team_leader') && (
             <NavLink href="/ngo/teams" label="Teams" active={pathname.startsWith('/ngo/teams')} />
           )}
           {role === 'org_admin' && (
