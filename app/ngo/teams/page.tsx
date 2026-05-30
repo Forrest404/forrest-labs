@@ -1,0 +1,240 @@
+'use client'
+
+import { useEffect, useState, useCallback } from 'react'
+
+// Team roster: org_admin and team_leader manage teams and their members.
+// Only org_admin may delete a team or invite a member as a field coordinator.
+
+const TEAM_TYPES = ['medical', 'rescue', 'assessment', 'shelter', 'logistics'] as const
+
+interface Team { id: string; name: string; type: string; capacity: number | null; status: string }
+interface Member { id: string; name: string; role: string | null; phone: string | null; emergency_contact: string | null; ngo_user_id: string | null }
+
+const STATUS_COLOUR: Record<string, string> = {
+  standby: '#3fb950', deployed: '#d29922', unavailable: '#8b949e', offline: '#484f58',
+}
+
+export default function NgoTeamsPage() {
+  const [role, setRole] = useState<string | null>(null)
+  const [teams, setTeams] = useState<Team[]>([])
+  const [selected, setSelected] = useState<string | null>(null)
+  const [members, setMembers] = useState<Member[]>([])
+  const [err, setErr] = useState<string | null>(null)
+
+  // modal state
+  const [teamModal, setTeamModal] = useState<null | { id?: string; name: string; type: string; capacity: string }>(null)
+  const [memberForm, setMemberForm] = useState({ name: '', role: '', phone: '', emergency_contact: '' })
+  const [inviteModal, setInviteModal] = useState<null | { memberId: string; name: string; email: string; pin: string }>(null)
+  const [busy, setBusy] = useState(false)
+
+  const isAdmin = role === 'org_admin'
+
+  useEffect(() => {
+    fetch('/api/ngo/auth/check').then((r) => (r.ok ? r.json() : null)).then((d) => setRole(d?.role ?? null)).catch(() => {})
+  }, [])
+
+  const loadTeams = useCallback(async () => {
+    const res = await fetch('/api/ngo/teams')
+    if (res.ok) setTeams((await res.json()).teams ?? [])
+  }, [])
+  useEffect(() => { loadTeams() }, [loadTeams])
+
+  const loadMembers = useCallback(async (teamId: string) => {
+    const res = await fetch(`/api/ngo/teams/${teamId}/members`)
+    if (res.ok) setMembers((await res.json()).members ?? [])
+  }, [])
+  useEffect(() => { if (selected) loadMembers(selected); else setMembers([]) }, [selected, loadMembers])
+
+  // ── Team CRUD ──────────────────────────────────────────────────────────
+  async function saveTeam() {
+    if (!teamModal) return
+    setErr(null); setBusy(true)
+    const editing = !!teamModal.id
+    try {
+      const res = await fetch(editing ? `/api/ngo/teams/${teamModal.id}` : '/api/ngo/teams', {
+        method: editing ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: teamModal.name, type: teamModal.type, capacity: teamModal.capacity || null }),
+      })
+      const data = await res.json()
+      if (res.ok) { setTeamModal(null); await loadTeams() }
+      else setErr(data.error ?? 'Could not save team.')
+    } finally { setBusy(false) }
+  }
+
+  async function deleteTeam(id: string) {
+    if (!confirm('Delete this team and all its members?')) return
+    setErr(null)
+    const res = await fetch(`/api/ngo/teams/${id}`, { method: 'DELETE' })
+    if (res.ok) { if (selected === id) setSelected(null); await loadTeams() }
+    else setErr((await res.json()).error ?? 'Could not delete team.')
+  }
+
+  // ── Members ──────────────────────────────────────────────────────────────
+  async function addMember() {
+    if (!selected || !memberForm.name.trim()) { setErr('Member name is required.'); return }
+    setErr(null); setBusy(true)
+    try {
+      const res = await fetch(`/api/ngo/teams/${selected}/members`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(memberForm),
+      })
+      if (res.ok) { setMemberForm({ name: '', role: '', phone: '', emergency_contact: '' }); await loadMembers(selected) }
+      else setErr((await res.json()).error ?? 'Could not add member.')
+    } finally { setBusy(false) }
+  }
+
+  async function removeMember(memberId: string) {
+    if (!selected || !confirm('Remove this member from the team?')) return
+    const res = await fetch(`/api/ngo/teams/${selected}/members/${memberId}`, { method: 'DELETE' })
+    if (res.ok) await loadMembers(selected)
+    else setErr((await res.json()).error ?? 'Could not remove member.')
+  }
+
+  async function sendInvite() {
+    if (!inviteModal || !selected) return
+    setErr(null); setBusy(true)
+    try {
+      const res = await fetch(`/api/ngo/teams/${selected}/members/${inviteModal.memberId}/invite`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: inviteModal.email, pin: inviteModal.pin }),
+      })
+      const data = await res.json()
+      if (res.ok) { setInviteModal(null); await loadMembers(selected) }
+      else setErr(data.error ?? 'Could not send invite.')
+    } finally { setBusy(false) }
+  }
+
+  const selectedTeam = teams.find((t) => t.id === selected)
+
+  return (
+    <div style={{ padding: 24, maxWidth: 1100, margin: '0 auto', color: '#e6edf3', fontFamily: 'system-ui, sans-serif' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <div>
+          <h1 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>Teams</h1>
+          <div style={{ fontSize: 13, color: '#8b949e', marginTop: 2 }}>Build your teams and the people in them.</div>
+        </div>
+        <button type="button" onClick={() => setTeamModal({ name: '', type: 'medical', capacity: '' })} style={primaryBtn}>+ New team</button>
+      </div>
+
+      {err && <div style={errorBox}>{err}</div>}
+
+      <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
+        {/* Teams list */}
+        <div style={{ flex: '0 0 340px' }}>
+          {teams.length === 0 && <div style={{ ...card, color: '#8b949e', fontSize: 13 }}>No teams yet.</div>}
+          {teams.map((t) => (
+            <div key={t.id} onClick={() => setSelected(t.id)} style={{ ...card, cursor: 'pointer', borderColor: selected === t.id ? '#58a6ff' : '#21262d', marginBottom: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontWeight: 600 }}>{t.name}</div>
+                <span style={{ fontSize: 11, color: STATUS_COLOUR[t.status] ?? '#484f58' }}>● {t.status}</span>
+              </div>
+              <div style={{ fontSize: 12, color: '#8b949e', marginTop: 4 }}>
+                {t.type}{t.capacity != null ? ` · capacity ${t.capacity}` : ''}
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                <button type="button" onClick={(e) => { e.stopPropagation(); setTeamModal({ id: t.id, name: t.name, type: t.type, capacity: t.capacity?.toString() ?? '' }) }} style={miniBtn}>Edit</button>
+                {isAdmin && <button type="button" onClick={(e) => { e.stopPropagation(); deleteTeam(t.id) }} style={{ ...miniBtn, color: '#f85149', borderColor: 'rgba(248,81,73,0.4)' }}>Delete</button>}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Members panel */}
+        <div style={{ flex: 1 }}>
+          {!selectedTeam ? (
+            <div style={{ ...card, color: '#8b949e', fontSize: 13 }}>Select a team to manage its members.</div>
+          ) : (
+            <div style={card}>
+              <div style={{ fontWeight: 600, marginBottom: 12 }}>{selectedTeam.name} — members</div>
+
+              {members.length === 0 && <div style={{ fontSize: 13, color: '#8b949e', marginBottom: 12 }}>No members yet.</div>}
+              {members.map((m) => (
+                <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #21262d' }}>
+                  <div>
+                    <div style={{ fontSize: 14 }}>
+                      {m.name}
+                      {m.ngo_user_id && <span style={{ fontSize: 11, color: '#3fb950', marginLeft: 8 }}>App access ✓</span>}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#8b949e' }}>
+                      {[m.role, m.phone].filter(Boolean).join(' · ') || '—'}
+                      {m.emergency_contact ? ` · ICE: ${m.emergency_contact}` : ''}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    {isAdmin && !m.ngo_user_id && (
+                      <button type="button" onClick={() => setInviteModal({ memberId: m.id, name: m.name, email: '', pin: '' })} style={miniBtn}>Invite</button>
+                    )}
+                    <button type="button" onClick={() => removeMember(m.id)} style={{ ...miniBtn, color: '#f85149', borderColor: 'rgba(248,81,73,0.4)' }}>Remove</button>
+                  </div>
+                </div>
+              ))}
+
+              {/* Add member */}
+              <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #21262d' }}>
+                <div style={{ fontSize: 13, color: '#8b949e', marginBottom: 8 }}>Add a member</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <input style={field} placeholder="Name" value={memberForm.name} onChange={(e) => setMemberForm({ ...memberForm, name: e.target.value })} />
+                  <input style={field} placeholder="Role (e.g. medic)" value={memberForm.role} onChange={(e) => setMemberForm({ ...memberForm, role: e.target.value })} />
+                  <input style={field} placeholder="Phone" value={memberForm.phone} onChange={(e) => setMemberForm({ ...memberForm, phone: e.target.value })} />
+                  <input style={field} placeholder="Emergency contact" value={memberForm.emergency_contact} onChange={(e) => setMemberForm({ ...memberForm, emergency_contact: e.target.value })} />
+                </div>
+                <button type="button" onClick={addMember} disabled={busy} style={{ ...primaryBtn, marginTop: 8 }}>Add member</button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Team modal */}
+      {teamModal && (
+        <Modal title={teamModal.id ? 'Edit team' : 'New team'} onClose={() => setTeamModal(null)}>
+          <label style={labelStyle}>Name</label>
+          <input style={field} value={teamModal.name} onChange={(e) => setTeamModal({ ...teamModal, name: e.target.value })} />
+          <label style={{ ...labelStyle, marginTop: 12 }}>Type</label>
+          <select style={field} value={teamModal.type} onChange={(e) => setTeamModal({ ...teamModal, type: e.target.value })}>
+            {TEAM_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
+          <label style={{ ...labelStyle, marginTop: 12 }}>Capacity (optional)</label>
+          <input style={field} type="number" min={0} value={teamModal.capacity} onChange={(e) => setTeamModal({ ...teamModal, capacity: e.target.value })} />
+          <button type="button" onClick={saveTeam} disabled={busy || !teamModal.name.trim()} style={{ ...primaryBtn, marginTop: 16, opacity: busy || !teamModal.name.trim() ? 0.6 : 1 }}>
+            {busy ? 'Saving…' : 'Save team'}
+          </button>
+        </Modal>
+      )}
+
+      {/* Invite modal */}
+      {inviteModal && (
+        <Modal title={`Invite ${inviteModal.name}`} onClose={() => setInviteModal(null)}>
+          <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 12 }}>
+            Creates a field-coordinator login. They sign in on mobile with this email and PIN.
+          </div>
+          <label style={labelStyle}>Email</label>
+          <input style={field} type="email" value={inviteModal.email} onChange={(e) => setInviteModal({ ...inviteModal, email: e.target.value })} />
+          <label style={{ ...labelStyle, marginTop: 12 }}>PIN (4–6 digits)</label>
+          <input style={field} inputMode="numeric" value={inviteModal.pin} onChange={(e) => setInviteModal({ ...inviteModal, pin: e.target.value })} />
+          <button type="button" onClick={sendInvite} disabled={busy} style={{ ...primaryBtn, marginTop: 16, opacity: busy ? 0.6 : 1 }}>
+            {busy ? 'Inviting…' : 'Send invite'}
+          </button>
+        </Modal>
+      )}
+    </div>
+  )
+}
+
+function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: 360, background: '#161b22', border: '1px solid #21262d', borderRadius: 12, padding: 22 }}>
+        <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 16 }}>{title}</div>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+const card: React.CSSProperties = { background: '#161b22', border: '1px solid #21262d', borderRadius: 10, padding: 14 }
+const field: React.CSSProperties = { width: '100%', height: 38, padding: '0 10px', boxSizing: 'border-box', background: '#0d1117', border: '1px solid #21262d', borderRadius: 6, color: '#e6edf3', fontSize: 13, fontFamily: 'system-ui', outline: 'none' }
+const labelStyle: React.CSSProperties = { fontSize: 12, color: '#8b949e', marginBottom: 6, display: 'block' }
+const primaryBtn: React.CSSProperties = { height: 38, padding: '0 16px', background: '#238636', border: '1px solid #2ea043', color: '#fff', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'system-ui' }
+const miniBtn: React.CSSProperties = { height: 28, padding: '0 10px', background: 'rgba(255,255,255,0.04)', border: '1px solid #21262d', color: '#8b949e', borderRadius: 6, fontSize: 12, cursor: 'pointer', fontFamily: 'system-ui' }
+const errorBox: React.CSSProperties = { background: 'rgba(248,81,73,0.1)', border: '1px solid rgba(248,81,73,0.3)', color: '#f85149', borderRadius: 6, padding: '9px 12px', fontSize: 13, marginBottom: 14 }

@@ -47,7 +47,7 @@ export async function GET() {
       system_version: '1.0.0'
     }, {
       headers: {
-        'Cache-Control': 'public, max-age=60',
+        'Cache-Control': 'no-store',
         'Access-Control-Allow-Origin': '*'
       }
     })

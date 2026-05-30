@@ -1,0 +1,91 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createServiceClient } from '@/lib/supabase/service'
+import { hashSecret } from '@/lib/ngo-auth'
+
+const ORG_TYPES = ['ingo', 'lngo', 'un_agency', 'crescent_cross', 'community', 'other']
+
+export async function POST(request: NextRequest) {
+  let body: Record<string, unknown>
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
+  }
+
+  const orgName = String(body.org_name ?? '').trim()
+  const orgType = String(body.org_type ?? '').trim()
+  const country = String(body.country ?? '').trim()
+  const operationalArea = String(body.operational_area ?? '').trim()
+  const fullName = String(body.full_name ?? '').trim()
+  const email = String(body.email ?? '').trim().toLowerCase()
+  const phone = String(body.phone ?? '').trim()
+  const password = String(body.password ?? '')
+
+  if (!orgName || !orgType || !fullName || !email || !password) {
+    return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+  }
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    return NextResponse.json({ error: 'Invalid email address' }, { status: 400 })
+  }
+  if (password.length < 8) {
+    return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 })
+  }
+
+  const supabase = createServiceClient()
+
+  // Reject duplicate email up front for a friendly message (unique constraint backs it up).
+  const { data: existing } = await supabase
+    .from('ngo_users')
+    .select('id')
+    .eq('email', email)
+    .maybeSingle()
+  if (existing) {
+    return NextResponse.json({ error: 'An account with this email already exists' }, { status: 409 })
+  }
+
+  // 1) Organisation — pending approval. operational_area kept as a JSON note until
+  //    the map editor (Session 2) replaces it with a GeoJSON polygon.
+  const { data: org, error: orgError } = await supabase
+    .from('ngo_organisations')
+    .insert({
+      name: orgName,
+      type: ORG_TYPES.includes(orgType) ? orgType : 'other',
+      country: country || null,
+      operational_area: operationalArea ? { description: operationalArea } : null,
+      status: 'pending',
+    })
+    .select('id')
+    .single()
+
+  if (orgError || !org) {
+    console.error('NGO signup — org insert failed:', orgError)
+    return NextResponse.json({ error: 'Could not create organisation' }, { status: 500 })
+  }
+
+  // 2) First user — org admin, active.
+  const { error: userError } = await supabase.from('ngo_users').insert({
+    org_id: org.id,
+    email,
+    password_hash: hashSecret(password),
+    role: 'org_admin',
+    full_name: fullName || null,
+    phone: phone || null,
+    status: 'active',
+  })
+
+  if (userError) {
+    // Roll back the org so a failed signup doesn't leave an orphan pending org.
+    await supabase.from('ngo_organisations').delete().eq('id', org.id)
+    if ((userError as { code?: string }).code === '23505') {
+      return NextResponse.json({ error: 'An account with this email already exists' }, { status: 409 })
+    }
+    console.error('NGO signup — user insert failed:', userError)
+    return NextResponse.json({ error: 'Could not create account' }, { status: 500 })
+  }
+
+  return NextResponse.json({
+    success: true,
+    status: 'pending',
+    message: 'Your organisation is pending approval.',
+  })
+}

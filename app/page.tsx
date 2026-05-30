@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { createClient } from '@/lib/supabase/client'
 
 // ─── Translations ─────────────────────────────────────────────────────────────
 
@@ -144,6 +145,7 @@ export default function HomePage() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const nodesRef = useRef<CanvasNode[]>([])
   const animFrameRef = useRef<number>(0)
+  const supabase = useRef(createClient())
 
   const t = useCallback((key: LangKey): string => LANG[lang][key], [lang])
 
@@ -164,7 +166,7 @@ export default function HomePage() {
 
   const fetchStats = useCallback(async () => {
     try {
-      const res = await fetch('/api/stats')
+      const res = await fetch('/api/stats', { cache: 'no-store' })
       if (!res.ok) return
       const data = (await res.json()) as StatsData
       setStats(data)
@@ -195,12 +197,39 @@ export default function HomePage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // ── Periodic stats refresh ──────────────────────────────────────────────
+  // ── Periodic stats refresh (fallback for reports_today, which anon RLS
+  //    blocks from per-insert Realtime) ─────────────────────────────────────
 
   useEffect(() => {
-    const interval = setInterval(fetchStats, 30000)
+    const interval = setInterval(fetchStats, 15000)
     return () => clearInterval(interval)
   }, [fetchStats])
+
+  // ── Real-time stats via Supabase Realtime ─────────────────────────────────
+  // confirmed_incidents + active_warnings update the instant a cluster is
+  // confirmed or a warning goes active/clears. Uses a ref to the latest
+  // fetchStats so the subscription is set up once and never re-subscribes.
+
+  const fetchStatsRef = useRef(fetchStats)
+  useEffect(() => { fetchStatsRef.current = fetchStats }, [fetchStats])
+
+  useEffect(() => {
+    const sb = supabase.current
+    let timer: ReturnType<typeof setTimeout> | null = null
+    const refresh = () => {
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(() => fetchStatsRef.current(), 400)
+    }
+    const channel = sb
+      .channel('landing-stats')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'clusters' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'warning_clusters' }, refresh)
+      .subscribe()
+    return () => {
+      if (timer) clearTimeout(timer)
+      sb.removeChannel(channel)
+    }
+  }, [])
 
   // ── Location cycling ────────────────────────────────────────────────────
 
