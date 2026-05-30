@@ -101,6 +101,8 @@ export default function NgoBoardPage() {
   const [rankedTeams, setRankedTeams] = useState<RankedTeam[]>([])
   const [assignNote, setAssignNote] = useState('')
   const [assignBusy, setAssignBusy] = useState(false)
+  const [recallFor, setRecallFor] = useState<{ id: string; team: string | null } | null>(null)
+  const [recallReason, setRecallReason] = useState('')
 
   useEffect(() => { locNamesRef.current = locNames }, [locNames])
 
@@ -354,10 +356,10 @@ export default function NgoBoardPage() {
     const res = await fetch(`/api/ngo/safety/panic/${panicId}/resolve`, { method: 'POST' })
     if (res.ok) fetchBoard()
   }
-  async function recall(dispatchId: string) {
-    const reason = prompt('Recall reason (optional):') ?? ''
-    const res = await fetch(`/api/ngo/dispatch/${dispatchId}/recall`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason }) })
-    if (res.ok) fetchBoard()
+  async function confirmRecall() {
+    if (!recallFor) return
+    const res = await fetch(`/api/ngo/dispatch/${recallFor.id}/recall`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: recallReason }) })
+    if (res.ok) { setRecallFor(null); setRecallReason(''); fetchBoard() }
   }
   const activeDispatchFor = (clusterId: string) => dispatches.find((d) => d.cluster_id === clusterId && ACTIVE_DISPATCH.includes(d.status))
 
@@ -455,7 +457,7 @@ export default function NgoBoardPage() {
                           🚑 {d.team_name} · {DISPATCH_LABEL[d.status] ?? d.status}
                           {d.response_minutes != null && <span style={{ color: '#8b949e' }}> · {d.response_minutes}m response</span>}
                         </div>
-                        <button type="button" onClick={() => recall(d.id)} style={{ ...assignBtn, color: '#f85149', borderColor: 'rgba(248,81,73,0.35)', background: 'rgba(248,81,73,0.08)' }}>Recall</button>
+                        <button type="button" onClick={() => { setRecallFor({ id: d.id, team: d.team_name }); setRecallReason('') }} style={{ ...assignBtn, color: '#f85149', borderColor: 'rgba(248,81,73,0.35)', background: 'rgba(248,81,73,0.08)' }}>Recall</button>
                       </div>
                     )
                     return <button type="button" onClick={() => openAssign(c)} style={assignBtn}>Assign</button>
@@ -463,6 +465,21 @@ export default function NgoBoardPage() {
                 </div>
               )
             })}
+          </div>
+        </div>
+      )}
+
+      {/* Recall modal */}
+      {recallFor && (
+        <div onClick={() => setRecallFor(null)} style={modalBackdrop}>
+          <div onClick={(e) => e.stopPropagation()} style={{ ...modalBox, width: 340 }}>
+            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>Recall {recallFor.team ?? 'team'}?</div>
+            <div style={{ fontSize: 13, color: '#8b949e', marginBottom: 12 }}>The team is told to stand down and the incident reopens as a coverage gap.</div>
+            <input style={noteField} placeholder="Reason (optional)" value={recallReason} onChange={(e) => setRecallReason(e.target.value)} />
+            <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+              <button type="button" onClick={confirmRecall} style={{ ...assignBtn, flex: 1, color: '#f85149', borderColor: 'rgba(248,81,73,0.4)', background: 'rgba(248,81,73,0.08)' }}>Recall</button>
+              <button type="button" onClick={() => setRecallFor(null)} style={{ ...assignBtn, flex: 1 }}>Cancel</button>
+            </div>
           </div>
         </div>
       )}

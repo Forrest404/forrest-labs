@@ -27,6 +27,7 @@ export default function NgoDispatchPage() {
   const [dispatches, setDispatches] = useState<Dispatch[]>([])
   const [incidents, setIncidents] = useState<Incident[]>([])
   const [reassignFor, setReassignFor] = useState<Dispatch | null>(null)
+  const [recallFor, setRecallFor] = useState<Dispatch | null>(null)
   const [reason, setReason] = useState('')
 
   const load = useCallback(async () => {
@@ -48,10 +49,10 @@ export default function NgoDispatchPage() {
     }
   }, [load])
 
-  async function recall(id: string) {
-    const r = prompt('Recall reason (optional):') ?? ''
-    const res = await fetch(`/api/ngo/dispatch/${id}/recall`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: r }) })
-    if (res.ok) load()
+  async function confirmRecall() {
+    if (!recallFor) return
+    const res = await fetch(`/api/ngo/dispatch/${recallFor.id}/recall`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason }) })
+    if (res.ok) { setRecallFor(null); setReason(''); load() }
   }
   async function doReassign(clusterId: string) {
     if (!reassignFor) return
@@ -67,8 +68,8 @@ export default function NgoDispatchPage() {
       <h1 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>Dispatch</h1>
       <div style={{ fontSize: 13, color: '#8b949e', marginTop: 2, marginBottom: 20 }}>Teams in the field and their response.</div>
 
-      <Section title={`Active (${active.length})`} rows={active} onRecall={recall} onReassign={setReassignFor} />
-      <Section title={`History (${closed.length})`} rows={closed} onRecall={recall} onReassign={setReassignFor} />
+      <Section title={`Active (${active.length})`} rows={active} onRecall={(d) => { setRecallFor(d); setReason('') }} onReassign={setReassignFor} />
+      <Section title={`History (${closed.length})`} rows={closed} onRecall={(d) => { setRecallFor(d); setReason('') }} onReassign={setReassignFor} />
 
       {reassignFor && (
         <div onClick={() => setReassignFor(null)} style={backdrop}>
@@ -86,11 +87,25 @@ export default function NgoDispatchPage() {
           </div>
         </div>
       )}
+
+      {recallFor && (
+        <div onClick={() => setRecallFor(null)} style={backdrop}>
+          <div onClick={(e) => e.stopPropagation()} style={modal}>
+            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>Recall {recallFor.team_name}?</div>
+            <div style={{ fontSize: 13, color: '#8b949e', marginBottom: 12 }}>The team stands down and the incident reopens as a coverage gap.</div>
+            <input style={input} placeholder="Reason (optional)" value={reason} onChange={(e) => setReason(e.target.value)} />
+            <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+              <button type="button" onClick={confirmRecall} style={{ ...incBtn, flex: 1, color: '#f85149', borderColor: 'rgba(248,81,73,0.4)' }}>Recall</button>
+              <button type="button" onClick={() => setRecallFor(null)} style={{ ...incBtn, flex: 1, color: '#8b949e' }}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
-function Section({ title, rows, onRecall, onReassign }: { title: string; rows: Dispatch[]; onRecall: (id: string) => void; onReassign: (d: Dispatch) => void }) {
+function Section({ title, rows, onRecall, onReassign }: { title: string; rows: Dispatch[]; onRecall: (d: Dispatch) => void; onReassign: (d: Dispatch) => void }) {
   return (
     <div style={{ marginBottom: 24 }}>
       <div style={{ fontSize: 13, fontWeight: 600, color: '#8b949e', marginBottom: 8 }}>{title}</div>
@@ -118,7 +133,7 @@ function Section({ title, rows, onRecall, onReassign }: { title: string; rows: D
             {open && (
               <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
                 <button type="button" onClick={() => onReassign(d)} style={smallBtn}>Reassign</button>
-                <button type="button" onClick={() => onRecall(d.id)} style={{ ...smallBtn, color: '#f85149', borderColor: 'rgba(248,81,73,0.4)' }}>Recall</button>
+                <button type="button" onClick={() => onRecall(d)} style={{ ...smallBtn, color: '#f85149', borderColor: 'rgba(248,81,73,0.4)' }}>Recall</button>
               </div>
             )}
           </div>
