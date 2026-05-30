@@ -30,6 +30,36 @@ const TEAM_STATUS_COLOUR: Record<string, string> = {
   standby: '#3fb950', deployed: '#d29922', unavailable: '#8b949e', offline: '#484f58',
 }
 
+// Selectable base map styles.
+const MAP_STYLES = [
+  { id: 'dark', label: 'Dark', url: 'mapbox://styles/mapbox/dark-v11' },
+  { id: 'streets', label: 'Streets', url: 'mapbox://styles/mapbox/streets-v12' },
+  { id: 'satellite', label: 'Satellite', url: 'mapbox://styles/mapbox/satellite-v9' },
+  { id: 'sat-streets', label: 'Satellite + roads', url: 'mapbox://styles/mapbox/satellite-streets-v12' },
+] as const
+
+// Add our sources + layers. Idempotent (guards on getSource/getLayer) so it can be
+// re-run after a base-style switch, which wipes custom layers.
+function setupBoardLayers(m: any) {
+  if (!m) return
+  const empty = { type: 'FeatureCollection', features: [] }
+  const src = (id: string) => { if (!m.getSource(id)) m.addSource(id, { type: 'geojson', data: empty }) }
+  src('area'); src('inc-radius'); src('inc-dots'); src('gaps'); src('teams'); src('panics')
+  const layer = (def: any) => { if (!m.getLayer(def.id)) m.addLayer(def) }
+
+  layer({ id: 'area-fill', type: 'fill', source: 'area', paint: { 'fill-color': '#58a6ff', 'fill-opacity': 0.05 } })
+  layer({ id: 'area-line', type: 'line', source: 'area', paint: { 'line-color': '#58a6ff', 'line-width': 1.5, 'line-dasharray': [2, 2], 'line-opacity': 0.5 } })
+  layer({ id: 'gap-glow', type: 'circle', source: 'gaps', paint: { 'circle-radius': 22, 'circle-color': '#f85149', 'circle-opacity': 0.35, 'circle-blur': 0.6 } })
+  layer({ id: 'inc-radius-fill', type: 'fill', source: 'inc-radius', paint: { 'fill-color': STATUS_COLOUR_EXPR, 'fill-opacity': ['case', ['get', 'inside'], 0.25, 0.04] } })
+  layer({ id: 'inc-radius-line', type: 'line', source: 'inc-radius', paint: { 'line-color': STATUS_COLOUR_EXPR, 'line-width': 1.2, 'line-opacity': ['case', ['get', 'inside'], 0.8, 0.2] } })
+  layer({ id: 'inc-dots', type: 'circle', source: 'inc-dots', paint: { 'circle-radius': 7, 'circle-color': STATUS_COLOUR_EXPR, 'circle-opacity': ['case', ['get', 'inside'], 1, 0.3], 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1.5, 'circle-stroke-opacity': ['case', ['get', 'inside'], 0.8, 0.2] } })
+  layer({ id: 'team-dots', type: 'circle', source: 'teams', paint: { 'circle-radius': 8, 'circle-color': ['case', ['==', ['get', 'status'], 'standby'], TEAM_STATUS_COLOUR.standby, ['==', ['get', 'status'], 'deployed'], TEAM_STATUS_COLOUR.deployed, ['==', ['get', 'status'], 'unavailable'], TEAM_STATUS_COLOUR.unavailable, TEAM_STATUS_COLOUR.offline], 'circle-stroke-color': '#0d1117', 'circle-stroke-width': 2 } })
+  layer({ id: 'team-labels', type: 'symbol', source: 'teams', layout: { 'text-field': ['get', 'label'], 'text-size': 11, 'text-offset': [0, 1.4], 'text-anchor': 'top', 'text-max-width': 14 }, paint: { 'text-color': '#e6edf3', 'text-halo-color': 'rgba(0,0,0,0.85)', 'text-halo-width': 1.5 } })
+  layer({ id: 'panic-glow', type: 'circle', source: 'panics', paint: { 'circle-radius': 26, 'circle-color': '#f85149', 'circle-opacity': 0.4, 'circle-blur': 0.5 } })
+  layer({ id: 'panic-dot', type: 'circle', source: 'panics', paint: { 'circle-radius': 9, 'circle-color': '#f85149', 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2 } })
+  layer({ id: 'panic-label', type: 'symbol', source: 'panics', layout: { 'text-field': ['get', 'label'], 'text-size': 12, 'text-offset': [0, 1.5], 'text-anchor': 'top', 'text-max-width': 14 }, paint: { 'text-color': '#f85149', 'text-halo-color': 'rgba(0,0,0,0.9)', 'text-halo-width': 1.5 } })
+}
+
 interface Incident {
   id: string; lat: number; lon: number; status: string; confidence_score: number
   report_count: number; created_at: string; radius_metres: number; inside: boolean; covered: boolean
@@ -106,6 +136,19 @@ export default function NgoBoardPage() {
   const [windowDays, setWindowDays] = useState<string>('10') // '10' | '30' | '90' | 'all'
   const daysRef = useRef('10')
   useEffect(() => { daysRef.current = windowDays }, [windowDays])
+  const [mapStyle, setMapStyle] = useState<string>('dark')
+  const [panicDispatchFor, setPanicDispatchFor] = useState<Panic | null>(null)
+  const [panicTeams, setPanicTeams] = useState<{ id: string; name: string; type: string; status: string }[]>([])
+  const [panicBusy, setPanicBusy] = useState(false)
+
+  function changeMapStyle(id: string) {
+    const s = MAP_STYLES.find((x) => x.id === id)
+    if (!s || !map.current) return
+    setMapStyle(id)
+    map.current.setStyle(s.url)
+    // setStyle wipes custom layers — re-add them and repaint once the new style loads.
+    map.current.once('style.load', () => { setupBoardLayers(map.current); renderSources() })
+  }
 
   useEffect(() => { locNamesRef.current = locNames }, [locNames])
 
@@ -221,70 +264,7 @@ export default function NgoBoardPage() {
         attributionControl: false,
       })
       map.current.on('load', () => {
-        const m = map.current
-        const empty = { type: 'FeatureCollection', features: [] }
-        m.addSource('area', { type: 'geojson', data: empty })
-        m.addSource('inc-radius', { type: 'geojson', data: empty })
-        m.addSource('inc-dots', { type: 'geojson', data: empty })
-        m.addSource('gaps', { type: 'geojson', data: empty })
-        m.addSource('teams', { type: 'geojson', data: empty })
-        m.addSource('panics', { type: 'geojson', data: empty })
-
-        // Operational area — subtle.
-        m.addLayer({ id: 'area-fill', type: 'fill', source: 'area', paint: { 'fill-color': '#58a6ff', 'fill-opacity': 0.05 } })
-        m.addLayer({ id: 'area-line', type: 'line', source: 'area', paint: { 'line-color': '#58a6ff', 'line-width': 1.5, 'line-dasharray': [2, 2], 'line-opacity': 0.5 } })
-
-        // Coverage-gap glow (behind incident dots) — the key feature.
-        m.addLayer({ id: 'gap-glow', type: 'circle', source: 'gaps', paint: { 'circle-radius': 22, 'circle-color': '#f85149', 'circle-opacity': 0.35, 'circle-blur': 0.6 } })
-
-        // Incident radius — opacity emphasises inside vs outside the area.
-        m.addLayer({
-          id: 'inc-radius-fill', type: 'fill', source: 'inc-radius',
-          paint: { 'fill-color': STATUS_COLOUR_EXPR, 'fill-opacity': ['case', ['get', 'inside'], 0.25, 0.04] },
-        })
-        m.addLayer({
-          id: 'inc-radius-line', type: 'line', source: 'inc-radius',
-          paint: { 'line-color': STATUS_COLOUR_EXPR, 'line-width': 1.2, 'line-opacity': ['case', ['get', 'inside'], 0.8, 0.2] },
-        })
-        // Incident dots.
-        m.addLayer({
-          id: 'inc-dots', type: 'circle', source: 'inc-dots',
-          paint: {
-            'circle-radius': 7, 'circle-color': STATUS_COLOUR_EXPR,
-            'circle-opacity': ['case', ['get', 'inside'], 1, 0.3],
-            'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1.5,
-            'circle-stroke-opacity': ['case', ['get', 'inside'], 0.8, 0.2],
-          },
-        })
-        // Team pins + labels.
-        m.addLayer({
-          id: 'team-dots', type: 'circle', source: 'teams',
-          paint: {
-            'circle-radius': 8,
-            'circle-color': ['case',
-              ['==', ['get', 'status'], 'standby'], TEAM_STATUS_COLOUR.standby,
-              ['==', ['get', 'status'], 'deployed'], TEAM_STATUS_COLOUR.deployed,
-              ['==', ['get', 'status'], 'unavailable'], TEAM_STATUS_COLOUR.unavailable,
-              TEAM_STATUS_COLOUR.offline,
-            ],
-            'circle-stroke-color': '#0d1117', 'circle-stroke-width': 2,
-          },
-        })
-        m.addLayer({
-          id: 'team-labels', type: 'symbol', source: 'teams',
-          layout: { 'text-field': ['get', 'label'], 'text-size': 11, 'text-offset': [0, 1.4], 'text-anchor': 'top', 'text-max-width': 14 },
-          paint: { 'text-color': '#e6edf3', 'text-halo-color': 'rgba(0,0,0,0.85)', 'text-halo-width': 1.5 },
-        })
-
-        // Panic markers — pulsing red halo + dot + name, drawn on top of everything.
-        m.addLayer({ id: 'panic-glow', type: 'circle', source: 'panics', paint: { 'circle-radius': 26, 'circle-color': '#f85149', 'circle-opacity': 0.4, 'circle-blur': 0.5 } })
-        m.addLayer({ id: 'panic-dot', type: 'circle', source: 'panics', paint: { 'circle-radius': 9, 'circle-color': '#f85149', 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2 } })
-        m.addLayer({
-          id: 'panic-label', type: 'symbol', source: 'panics',
-          layout: { 'text-field': ['get', 'label'], 'text-size': 12, 'text-offset': [0, 1.5], 'text-anchor': 'top', 'text-max-width': 14 },
-          paint: { 'text-color': '#f85149', 'text-halo-color': 'rgba(0,0,0,0.9)', 'text-halo-width': 1.5 },
-        })
-
+        setupBoardLayers(map.current)
         setMapLoaded(true)
       })
     }
@@ -356,6 +336,23 @@ export default function NgoBoardPage() {
     const res = await fetch(`/api/ngo/safety/panic/${panicId}/resolve`, { method: 'POST' })
     if (res.ok) fetchBoard()
   }
+  async function openPanicDispatch(p: Panic) {
+    setPanicDispatchFor(p); setPanicTeams([]); setPanicBusy(false)
+    try {
+      const res = await fetch('/api/ngo/teams')
+      if (res.ok) setPanicTeams((await res.json()).teams ?? [])
+    } catch { /* show empty */ }
+  }
+  async function sendPanicTeam(teamId: string) {
+    if (!panicDispatchFor) return
+    setPanicBusy(true)
+    try {
+      const res = await fetch(`/api/ngo/safety/panic/${panicDispatchFor.id}/dispatch`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ team_id: teamId }),
+      })
+      if (res.ok) { setPanicDispatchFor(null); fetchBoard() }
+    } finally { setPanicBusy(false) }
+  }
   async function confirmRecall() {
     if (!recallFor) return
     const res = await fetch(`/api/ngo/dispatch/${recallFor.id}/recall`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: recallReason }) })
@@ -378,6 +375,13 @@ export default function NgoBoardPage() {
         </div>
       )}
 
+      {/* Base-map style switcher */}
+      <div style={styleSwitcher}>
+        {MAP_STYLES.map((s) => (
+          <button key={s.id} type="button" onClick={() => changeMapStyle(s.id)} style={styleBtn(mapStyle === s.id)}>{s.label}</button>
+        ))}
+      </div>
+
       {/* Collapse toggle */}
       <button type="button" onClick={() => setPanelOpen((o) => !o)} style={{ ...toggleBtn, right: panelOpen ? 340 : 12 }}>
         {panelOpen ? '›' : '‹'}
@@ -396,7 +400,10 @@ export default function NgoBoardPage() {
                     <strong>{p.name}</strong> · {timeAgo(p.created_at)}
                     <div style={{ color: '#8b949e' }}>{p.lat != null && p.lon != null ? `${p.lat.toFixed(4)}, ${p.lon.toFixed(4)}` : 'no location'}</div>
                   </div>
-                  <button type="button" onClick={() => resolvePanic(p.id)} style={resolveBtn}>Resolve</button>
+                  <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                    <button type="button" onClick={() => openPanicDispatch(p)} style={{ ...resolveBtn, color: '#58a6ff', borderColor: 'rgba(88,166,255,0.4)', background: 'rgba(88,166,255,0.1)' }}>Send team</button>
+                    <button type="button" onClick={() => resolvePanic(p.id)} style={resolveBtn}>Resolve</button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -473,6 +480,28 @@ export default function NgoBoardPage() {
         </div>
       )}
 
+      {/* Send-a-crew-to-panic modal */}
+      {panicDispatchFor && (
+        <div onClick={() => setPanicDispatchFor(null)} style={modalBackdrop}>
+          <div onClick={(e) => e.stopPropagation()} style={{ ...modalBox, width: 360 }}>
+            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Send a team to {panicDispatchFor.name}</div>
+            <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 12 }}>
+              {panicDispatchFor.lat != null && panicDispatchFor.lon != null ? `Last seen ${panicDispatchFor.lat.toFixed(4)}, ${panicDispatchFor.lon.toFixed(4)}` : 'No location reported'} · the team is alerted by push + SMS.
+            </div>
+            <div style={{ maxHeight: 280, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {panicTeams.length === 0 && <div style={{ fontSize: 13, color: '#8b949e' }}>No teams.</div>}
+              {panicTeams.map((t) => (
+                <button key={t.id} type="button" disabled={panicBusy} onClick={() => sendPanicTeam(t.id)} style={teamRow}>
+                  <span style={{ fontWeight: 600 }}>{t.name}</span>
+                  <span style={{ fontSize: 11, color: '#8b949e', marginLeft: 8 }}>{t.type} · {t.status}</span>
+                </button>
+              ))}
+            </div>
+            <button type="button" onClick={() => setPanicDispatchFor(null)} style={{ ...assignBtn, marginTop: 12 }}>Cancel</button>
+          </div>
+        </div>
+      )}
+
       {/* Recall modal */}
       {recallFor && (
         <div onClick={() => setRecallFor(null)} style={modalBackdrop}>
@@ -529,6 +558,10 @@ const toggleBtn: React.CSSProperties = {
   background: 'rgba(13,17,23,0.95)', border: '1px solid #21262d', color: '#8b949e', cursor: 'pointer', fontFamily: 'system-ui',
 }
 const statusChip: React.CSSProperties = { position: 'absolute', top: 12, left: 12, zIndex: 7, fontSize: 12, color: '#8b949e', background: 'rgba(13,17,23,0.95)', border: '1px solid #21262d', borderRadius: 999, padding: '4px 12px', fontFamily: 'system-ui' }
+const styleSwitcher: React.CSSProperties = { position: 'absolute', bottom: 12, left: 12, zIndex: 7, display: 'flex', gap: 4, background: 'rgba(13,17,23,0.9)', border: '1px solid #21262d', borderRadius: 8, padding: 4 }
+function styleBtn(active: boolean): React.CSSProperties {
+  return { height: 26, padding: '0 10px', borderRadius: 6, fontSize: 11, cursor: 'pointer', fontFamily: 'system-ui', whiteSpace: 'nowrap', background: active ? 'rgba(88,166,255,0.15)' : 'transparent', border: active ? '1px solid #58a6ff' : '1px solid transparent', color: active ? '#58a6ff' : '#8b949e' }
+}
 const chipRetry: React.CSSProperties = { marginLeft: 6, background: 'none', border: 'none', color: '#f85149', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }
 function rangeBtn(active: boolean): React.CSSProperties {
   return { flex: 1, height: 26, borderRadius: 6, fontSize: 11, cursor: 'pointer', fontFamily: 'system-ui', background: active ? 'rgba(88,166,255,0.15)' : 'rgba(255,255,255,0.04)', border: active ? '1px solid #58a6ff' : '1px solid #21262d', color: active ? '#58a6ff' : '#8b949e' }
