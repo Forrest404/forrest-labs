@@ -17,7 +17,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const reason = body.reason ? String(body.reason).slice(0, 300) : null
 
   const supabase = createServiceClient()
-  const { data: d } = await supabase.from('ngo_dispatches').select('id, org_id, team_id, status, note').eq('id', id).maybeSingle()
+  const { data: d } = await supabase.from('ngo_dispatches').select('id, org_id, team_id, status, note').eq('id', id).eq('org_id', session!.orgId).maybeSingle()
   if (!d || d.org_id !== session!.orgId) return NextResponse.json({ error: 'Dispatch not found' }, { status: 404 })
   if (d.status === 'done' || d.status === 'cancelled') {
     return NextResponse.json({ error: 'Dispatch is already closed' }, { status: 400 })

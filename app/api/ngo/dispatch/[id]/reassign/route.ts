@@ -19,7 +19,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!clusterId) return NextResponse.json({ error: 'cluster_id required' }, { status: 400 })
 
   const supabase = createServiceClient()
-  const { data: d } = await supabase.from('ngo_dispatches').select('id, org_id, team_id, note').eq('id', id).maybeSingle()
+  const { data: d } = await supabase.from('ngo_dispatches').select('id, org_id, team_id, note').eq('id', id).eq('org_id', session!.orgId).maybeSingle()
   if (!d || d.org_id !== session!.orgId) return NextResponse.json({ error: 'Dispatch not found' }, { status: 404 })
 
   const { data: cluster } = await supabase

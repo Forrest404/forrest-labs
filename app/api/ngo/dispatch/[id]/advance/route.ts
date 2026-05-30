@@ -15,7 +15,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const supabase = createServiceClient()
 
   const { data: d } = await supabase
-    .from('ngo_dispatches').select('id, org_id, team_id, status').eq('id', id).maybeSingle()
+    .from('ngo_dispatches').select('id, org_id, team_id, status').eq('id', id).eq('org_id', session.orgId).maybeSingle()
   if (!d || d.org_id !== session.orgId) return NextResponse.json({ error: 'Dispatch not found' }, { status: 404 })
 
   // Authorise: leader/admin, or the field coordinator assigned to this team.
