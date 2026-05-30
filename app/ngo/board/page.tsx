@@ -44,6 +44,14 @@ interface RollCall {
   id: string; created_at: string; message: string | null; safe_count: number; total: number
   members: { id: string; name: string; safe: boolean }[]
 }
+interface Dispatch {
+  id: string; cluster_id: string; team_id: string; team_name: string | null; status: string; response_minutes: number | null
+}
+interface RankedTeam {
+  id: string; name: string; type: string; status: string; type_match: boolean; distance_km: number | null; busy: boolean
+}
+const ACTIVE_DISPATCH = ['assigned', 'en_route', 'on_scene']
+const DISPATCH_LABEL: Record<string, string> = { assigned: 'Assigned', en_route: 'En route', on_scene: 'On scene', done: 'Done', cancelled: 'Cancelled' }
 
 // Geographic radius (metres) → polygon ring of [lon,lat] (from app/map/page.tsx).
 function circlePolygon(lon: number, lat: number, radiusMeters: number, steps = 48): [number, number][] {
@@ -88,7 +96,11 @@ export default function NgoBoardPage() {
   const locNamesRef = useRef<Record<string, string>>({})
   const [dismissed, setDismissed] = useState<Set<string>>(new Set())
   const [urgent, setUrgent] = useState<Incident | null>(null)
-  const [assignStub, setAssignStub] = useState<Incident | null>(null)
+  const [dispatches, setDispatches] = useState<Dispatch[]>([])
+  const [assignFor, setAssignFor] = useState<Incident | null>(null)
+  const [rankedTeams, setRankedTeams] = useState<RankedTeam[]>([])
+  const [assignNote, setAssignNote] = useState('')
+  const [assignBusy, setAssignBusy] = useState(false)
 
   useEffect(() => { locNamesRef.current = locNames }, [locNames])
 
@@ -175,6 +187,7 @@ export default function NgoBoardPage() {
       setTeams(tms)
       setPanics(pnc)
       setRollCall(data.roll_call ?? null)
+      setDispatches(data.dispatches ?? [])
       renderSources()
 
       // In-area feed → geocode for labels.
@@ -312,6 +325,28 @@ export default function NgoBoardPage() {
     } finally { setRcBusy(false) }
   }
 
+  async function openAssign(c: Incident) {
+    setAssignFor(c); setAssignNote(''); setRankedTeams([])
+    try {
+      const res = await fetch(`/api/ngo/dispatch/teams?cluster_id=${c.id}`)
+      if (res.ok) setRankedTeams((await res.json()).teams ?? [])
+    } catch { /* show empty */ }
+  }
+  async function assignTeam(teamId: string) {
+    if (!assignFor) return
+    setAssignBusy(true)
+    try {
+      const res = await fetch('/api/ngo/dispatch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cluster_id: assignFor.id, team_id: teamId, note: assignNote || undefined }) })
+      if (res.ok) { setAssignFor(null); fetchBoard() }
+    } finally { setAssignBusy(false) }
+  }
+  async function recall(dispatchId: string) {
+    const reason = prompt('Recall reason (optional):') ?? ''
+    const res = await fetch(`/api/ngo/dispatch/${dispatchId}/recall`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason }) })
+    if (res.ok) fetchBoard()
+  }
+  const activeDispatchFor = (clusterId: string) => dispatches.find((d) => d.cluster_id === clusterId && ACTIVE_DISPATCH.includes(d.status))
+
   const feed = incidents.filter((c) => c.inside)
   const gapCount = feed.filter((c) => !c.covered).length
 
@@ -395,7 +430,19 @@ export default function NgoBoardPage() {
                     {c.confidence_score}% · {c.report_count} report{c.report_count === 1 ? '' : 's'} · {timeAgo(c.created_at)}
                     {!c.covered && <span style={{ color: '#f85149' }}> · unassigned</span>}
                   </div>
-                  <button type="button" onClick={() => setAssignStub(c)} style={assignBtn}>Assign</button>
+                  {(() => {
+                    const d = activeDispatchFor(c.id)
+                    if (d) return (
+                      <div style={{ marginTop: 8 }}>
+                        <div style={{ fontSize: 12, color: '#3fb950' }}>
+                          🚑 {d.team_name} · {DISPATCH_LABEL[d.status] ?? d.status}
+                          {d.response_minutes != null && <span style={{ color: '#8b949e' }}> · {d.response_minutes}m response</span>}
+                        </div>
+                        <button type="button" onClick={() => recall(d.id)} style={{ ...assignBtn, color: '#f85149', borderColor: 'rgba(248,81,73,0.35)', background: 'rgba(248,81,73,0.08)' }}>Recall</button>
+                      </div>
+                    )
+                    return <button type="button" onClick={() => openAssign(c)} style={assignBtn}>Assign</button>
+                  })()}
                 </div>
               )
             })}
@@ -403,15 +450,30 @@ export default function NgoBoardPage() {
         </div>
       )}
 
-      {/* Assign stub modal (real dispatch arrives in a later session) */}
-      {assignStub && (
-        <div onClick={() => setAssignStub(null)} style={modalBackdrop}>
-          <div onClick={(e) => e.stopPropagation()} style={modalBox}>
-            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>Assign a team</div>
-            <div style={{ fontSize: 13, color: '#8b949e', marginBottom: 16 }}>
-              Dispatch for “{locNames[assignStub.id] ?? `${assignStub.lat.toFixed(3)}, ${assignStub.lon.toFixed(3)}`}” is coming in a later session.
+      {/* Assign modal — teams ranked by type match + proximity */}
+      {assignFor && (
+        <div onClick={() => setAssignFor(null)} style={modalBackdrop}>
+          <div onClick={(e) => e.stopPropagation()} style={{ ...modalBox, width: 380 }}>
+            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Assign a team</div>
+            <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 12 }}>
+              {locNames[assignFor.id] ?? `${assignFor.lat.toFixed(3)}, ${assignFor.lon.toFixed(3)}`}
             </div>
-            <button type="button" onClick={() => setAssignStub(null)} style={assignBtn}>Close</button>
+            <input style={noteField} placeholder="Note (optional)" value={assignNote} onChange={(e) => setAssignNote(e.target.value)} />
+            <div style={{ maxHeight: 280, overflowY: 'auto', marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {rankedTeams.length === 0 && <div style={{ fontSize: 13, color: '#8b949e' }}>No teams available.</div>}
+              {rankedTeams.map((t) => (
+                <button key={t.id} type="button" disabled={assignBusy} onClick={() => assignTeam(t.id)} style={teamRow}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ fontWeight: 600 }}>{t.name} {t.type_match && <span style={{ color: '#3fb950' }}>✓match</span>}</span>
+                    <span style={{ color: '#8b949e' }}>{t.distance_km != null ? `${t.distance_km} km` : 'no loc'}</span>
+                  </div>
+                  <div style={{ fontSize: 11, color: '#8b949e', marginTop: 2 }}>
+                    {t.type} · {t.status}{t.busy && <span style={{ color: '#d29922' }}> · busy</span>}
+                  </div>
+                </button>
+              ))}
+            </div>
+            <button type="button" onClick={() => setAssignFor(null)} style={{ ...assignBtn, marginTop: 12 }}>Cancel</button>
           </div>
         </div>
       )}
@@ -444,5 +506,7 @@ const banner: React.CSSProperties = {
 const bannerClose: React.CSSProperties = {
   position: 'absolute', top: 8, right: 12, background: 'none', border: 'none', color: '#fff', fontSize: 14, cursor: 'pointer',
 }
+const noteField: React.CSSProperties = { width: '100%', height: 36, padding: '0 10px', boxSizing: 'border-box', background: '#0d1117', border: '1px solid #21262d', borderRadius: 6, color: '#e6edf3', fontSize: 13, fontFamily: 'system-ui', outline: 'none' }
+const teamRow: React.CSSProperties = { textAlign: 'left', background: '#0d1117', border: '1px solid #21262d', borderRadius: 8, padding: '8px 10px', color: '#e6edf3', fontSize: 13, cursor: 'pointer', fontFamily: 'system-ui' }
 const modalBackdrop: React.CSSProperties = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }
 const modalBox: React.CSSProperties = { width: 340, background: '#161b22', border: '1px solid #21262d', borderRadius: 12, padding: 22, fontFamily: 'system-ui', color: '#e6edf3' }

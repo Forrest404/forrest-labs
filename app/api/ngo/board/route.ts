@@ -154,12 +154,34 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // Dispatches (active + recent) keyed to incidents, with response time, for the
+  // feed cards and quick reassign/recall.
+  const { data: dispRows } = await supabase
+    .from('ngo_dispatches')
+    .select('id, cluster_id, team_id, status, assigned_at, on_scene_at, ngo_teams ( name )')
+    .eq('org_id', orgId)
+    .order('assigned_at', { ascending: false })
+  const dispatchSummaries = (dispRows ?? []).map((d: any) => {
+    const team = Array.isArray(d.ngo_teams) ? d.ngo_teams[0] : d.ngo_teams
+    return {
+      id: d.id,
+      cluster_id: d.cluster_id,
+      team_id: d.team_id,
+      team_name: team?.name ?? null,
+      status: d.status,
+      response_minutes: d.on_scene_at && d.assigned_at
+        ? Math.round((new Date(d.on_scene_at).getTime() - new Date(d.assigned_at).getTime()) / 60000)
+        : null,
+    }
+  })
+
   return NextResponse.json({
     operational_area: area,
     incidents,
     teams: teamPins,
     panics,
     roll_call: rollCall,
+    dispatches: dispatchSummaries,
     generated_at: new Date().toISOString(),
   })
 }

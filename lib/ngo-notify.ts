@@ -72,3 +72,25 @@ export async function notifyOrgRoles(
   await Promise.all(phones.map((p) => sendSms(p, `${msg.title} — ${msg.body}`)))
   return { pushed: true, smsCount: phones.length }
 }
+
+// Push (one broadcast) + SMS to the field coordinators on a specific team.
+export async function notifyTeam(
+  supabase: any,
+  teamId: string,
+  msg: { title: string; body: string; priority?: Priority; tags?: string },
+): Promise<{ pushed: boolean; smsCount: number }> {
+  const { data: members } = await supabase
+    .from('team_members')
+    .select('ngo_users ( phone, status )')
+    .eq('team_id', teamId)
+    .not('ngo_user_id', 'is', null)
+
+  await sendPush(msg)
+
+  const phones = (members ?? [])
+    .map((m: any) => (Array.isArray(m.ngo_users) ? m.ngo_users[0] : m.ngo_users))
+    .filter((u: any) => u && u.status === 'active' && u.phone)
+    .map((u: any) => u.phone) as string[]
+  await Promise.all(phones.map((p) => sendSms(p, `${msg.title} — ${msg.body}`)))
+  return { pushed: true, smsCount: phones.length }
+}

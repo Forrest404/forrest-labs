@@ -55,6 +55,9 @@ export default function NgoFieldPage() {
   const [manLon, setManLon] = useState('')
   const [holding, setHolding] = useState(false)
   const holdTimer = useRef<any>(null)
+  const [dispatch, setDispatch] = useState<any>(null)
+  const [report, setReport] = useState({ people: '', services: '', hazards: '' })
+  const [reportSent, setReportSent] = useState(false)
 
   // POST helper: send now, or queue if offline / on failure.
   const send = useCallback(async (url: string, body: any, label: string): Promise<boolean> => {
@@ -88,18 +91,25 @@ export default function NgoFieldPage() {
     try { const r = await fetch('/api/ngo/safety/field'); if (r.ok) setState(await r.json()) } catch { /* offline */ }
   }, [])
 
+  const loadDispatch = useCallback(async () => {
+    try {
+      const r = await fetch('/api/ngo/dispatch/mine')
+      if (r.ok) { const d = (await r.json()).dispatch; setDispatch(d); if (d?.has_report) setReportSent(true) }
+    } catch { /* offline */ }
+  }, [])
+
   // Boot: register SW, set online listeners, first load, polling.
   useEffect(() => {
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('/ngo-sw.js', { scope: '/ngo/field' }).catch(() => {})
-    const setOn = () => { setOnline(true); flushQueue(); loadState() }
+    const setOn = () => { setOnline(true); flushQueue(); loadState(); loadDispatch() }
     const setOff = () => setOnline(false)
     setOnline(navigator.onLine)
     window.addEventListener('online', setOn)
     window.addEventListener('offline', setOff)
-    refreshQueueCount(); flushQueue(); loadState()
-    const id = setInterval(() => { loadState(); flushQueue() }, 15000)
+    refreshQueueCount(); flushQueue(); loadState(); loadDispatch()
+    const id = setInterval(() => { loadState(); flushQueue(); loadDispatch() }, 15000)
     return () => { window.removeEventListener('online', setOn); window.removeEventListener('offline', setOff); clearInterval(id) }
-  }, [flushQueue, loadState, refreshQueueCount])
+  }, [flushQueue, loadState, loadDispatch, refreshQueueCount])
 
   async function resolveCoords(): Promise<{ lat: number | null; lon: number | null }> {
     if (manual) {
@@ -138,6 +148,27 @@ export default function NgoFieldPage() {
     loadState()
   }
 
+  const NEXT_STATUS: Record<string, string> = { assigned: 'en_route', en_route: 'on_scene', on_scene: 'done' }
+  const STATUS_TEXT: Record<string, string> = { assigned: 'Assigned', en_route: 'En route', on_scene: 'On scene', done: 'Done' }
+
+  async function advanceDispatch() {
+    if (!dispatch) return
+    const next = NEXT_STATUS[dispatch.status]
+    const sent = await send(`/api/ngo/dispatch/${dispatch.id}/advance`, {}, 'advance')
+    setMsg(sent ? `Status: ${STATUS_TEXT[next] ?? next}` : 'Queued — will send when online')
+    loadDispatch()
+  }
+  async function submitReport() {
+    if (!dispatch) return
+    const sent = await send(`/api/ngo/dispatch/${dispatch.id}/report`, {
+      people_assisted: report.people === '' ? null : Number(report.people),
+      services: report.services || null,
+      new_hazards: report.hazards || null,
+    }, 'report')
+    setReportSent(true)
+    setMsg(sent ? 'On-scene report sent' : 'Queued — report will send when online')
+  }
+
   // Panic press-and-hold (2s) to avoid misfire.
   const startHold = () => { setHolding(true); holdTimer.current = setTimeout(() => { setHolding(false); doPanic() }, 2000) }
   const cancelHold = () => { setHolding(false); if (holdTimer.current) clearTimeout(holdTimer.current) }
@@ -157,6 +188,32 @@ export default function NgoFieldPage() {
       {state?.team && (
         <div style={{ fontSize: 13, color: '#8b949e', textAlign: 'center' }}>
           {state.team.name} · {state.team.type} · status: <span style={{ color: '#e6edf3' }}>{state.team.status}</span>
+        </div>
+      )}
+
+      {/* Active dispatch */}
+      {dispatch && (
+        <div style={dispatchCard}>
+          <div style={{ fontSize: 12, color: '#d29922', fontWeight: 600 }}>DISPATCH · {STATUS_TEXT[dispatch.status] ?? dispatch.status}</div>
+          <div style={{ fontSize: 15, fontWeight: 600, marginTop: 4 }}>{dispatch.hazard ? `${dispatch.hazard} — ` : ''}{dispatch.location_name ?? 'Incident'}</div>
+          {dispatch.note && <div style={{ fontSize: 12, color: '#8b949e', marginTop: 4 }}>{dispatch.note}</div>}
+          {dispatch.map_link && <a href={dispatch.map_link} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: '#58a6ff' }}>Open map ↗</a>}
+          {NEXT_STATUS[dispatch.status] && (
+            <button type="button" onClick={advanceDispatch} style={{ ...bigBtn, height: 64, fontSize: 18, background: '#1f6feb', borderColor: '#58a6ff', marginTop: 10 }}>
+              ADVANCE TO {(STATUS_TEXT[NEXT_STATUS[dispatch.status]] ?? '').toUpperCase()}
+            </button>
+          )}
+          {/* On-scene report (3 fields) — available once on scene */}
+          {dispatch.status === 'on_scene' && !reportSent && (
+            <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ fontSize: 12, color: '#8b949e' }}>On-scene report</div>
+              <input style={field} inputMode="numeric" placeholder="People assisted" value={report.people} onChange={(e) => setReport({ ...report, people: e.target.value })} />
+              <input style={field} placeholder="Services delivered" value={report.services} onChange={(e) => setReport({ ...report, services: e.target.value })} />
+              <input style={field} placeholder="New hazards" value={report.hazards} onChange={(e) => setReport({ ...report, hazards: e.target.value })} />
+              <button type="button" onClick={submitReport} style={{ ...statusBtn(false), height: 44 }}>Submit report</button>
+            </div>
+          )}
+          {reportSent && <div style={{ fontSize: 12, color: '#3fb950', marginTop: 8 }}>On-scene report filed ✓</div>}
         </div>
       )}
 
@@ -227,3 +284,4 @@ function statusBtn(active: boolean): React.CSSProperties {
 }
 const field: React.CSSProperties = { flex: 1, height: 44, padding: '0 10px', boxSizing: 'border-box', background: '#161b22', border: '1px solid #21262d', borderRadius: 8, color: '#e6edf3', fontSize: 14, outline: 'none', fontFamily: 'system-ui' }
 const msgBox: React.CSSProperties = { textAlign: 'center', fontSize: 14, color: '#e6edf3', background: '#161b22', border: '1px solid #21262d', borderRadius: 8, padding: '10px 12px' }
+const dispatchCard: React.CSSProperties = { background: '#161b22', border: '1px solid #d29922', borderRadius: 12, padding: 14 }
