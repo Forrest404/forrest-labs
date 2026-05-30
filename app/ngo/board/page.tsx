@@ -7,9 +7,9 @@ declare global {
 }
 
 // Situation board — the NGO home screen. One map (incidents + own team pins +
-// coverage gaps + operational area) plus a collapsible incident feed and an
-// urgent banner. Reads /api/ngo/board (org-scoped, read-only on clusters) and
-// refreshes every 30s without a full reload. Mirrors the public map's colours.
+// coverage gaps + operational area) plus a collapsible incident feed.
+// Reads /api/ngo/board (org-scoped, read-only on clusters) and refreshes on a
+// short poll without a full reload. Mirrors the public map's colours.
 
 const STATUS_COLOUR_EXPR = [
   'case',
@@ -94,8 +94,6 @@ export default function NgoBoardPage() {
   const [panelOpen, setPanelOpen] = useState(true)
   const [locNames, setLocNames] = useState<Record<string, string>>({})
   const locNamesRef = useRef<Record<string, string>>({})
-  const [dismissed, setDismissed] = useState<Set<string>>(new Set())
-  const [urgent, setUrgent] = useState<Incident | null>(null)
   const [dispatches, setDispatches] = useState<Dispatch[]>([])
   const [assignFor, setAssignFor] = useState<Incident | null>(null)
   const [rankedTeams, setRankedTeams] = useState<RankedTeam[]>([])
@@ -200,15 +198,8 @@ export default function NgoBoardPage() {
 
       // In-area feed → geocode for labels.
       inc.filter((c) => c.inside).forEach((c) => fetchLocationName(c.lat, c.lon, c.id))
-
-      // Urgent banner: official_verified OR confidence >= 85, in-area, newest first.
-      const urgentInc = inc.find((c) => c.inside && (c.status === 'official_verified' || c.confidence_score >= 85))
-      setUrgent(urgentInc && !dismissedRef.current.has(urgentInc.id) ? urgentInc : null)
     } catch { setLoadError(true); setLoaded(true) /* keep last good data */ }
   }, [renderSources, fetchLocationName])
-
-  const dismissedRef = useRef<Set<string>>(new Set())
-  useEffect(() => { dismissedRef.current = dismissed }, [dismissed])
 
   // ── Map init ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -387,16 +378,6 @@ export default function NgoBoardPage() {
         </div>
       )}
 
-      {/* Urgent banner */}
-      {urgent && (
-        <div style={banner}>
-          <span style={{ fontWeight: 600 }}>⚠ Urgent:</span>{' '}
-          {STATUS_LABEL[urgent.status] ?? urgent.status} incident in your area —{' '}
-          {locNames[urgent.id] ?? `${urgent.lat.toFixed(3)}, ${urgent.lon.toFixed(3)}`} ({urgent.confidence_score}% confidence)
-          <button type="button" onClick={() => setDismissed((s) => new Set(s).add(urgent.id))} style={bannerClose}>✕</button>
-        </div>
-      )}
-
       {/* Collapse toggle */}
       <button type="button" onClick={() => setPanelOpen((o) => !o)} style={{ ...toggleBtn, right: panelOpen ? 340 : 12 }}>
         {panelOpen ? '›' : '‹'}
@@ -561,13 +542,6 @@ const feedCard: React.CSSProperties = { padding: '12px 16px', borderBottom: '1px
 const assignBtn: React.CSSProperties = {
   marginTop: 8, height: 28, padding: '0 12px', background: 'rgba(88,166,255,0.1)', border: '1px solid rgba(88,166,255,0.35)',
   color: '#58a6ff', borderRadius: 6, fontSize: 12, cursor: 'pointer', fontFamily: 'system-ui',
-}
-const banner: React.CSSProperties = {
-  position: 'absolute', top: 0, left: 0, right: 0, zIndex: 8, padding: '10px 44px 10px 16px',
-  background: '#f85149', color: '#fff', fontSize: 13, fontFamily: 'system-ui', textAlign: 'center',
-}
-const bannerClose: React.CSSProperties = {
-  position: 'absolute', top: 8, right: 12, background: 'none', border: 'none', color: '#fff', fontSize: 14, cursor: 'pointer',
 }
 const noteField: React.CSSProperties = { width: '100%', height: 36, padding: '0 10px', boxSizing: 'border-box', background: '#0d1117', border: '1px solid #21262d', borderRadius: 6, color: '#e6edf3', fontSize: 13, fontFamily: 'system-ui', outline: 'none' }
 const teamRow: React.CSSProperties = { textAlign: 'left', background: '#0d1117', border: '1px solid #21262d', borderRadius: 8, padding: '8px 10px', color: '#e6edf3', fontSize: 13, cursor: 'pointer', fontFamily: 'system-ui' }
