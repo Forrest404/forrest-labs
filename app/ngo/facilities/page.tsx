@@ -187,6 +187,8 @@ export default function NgoFacilitiesPage() {
       {/* ───── FACILITIES ───── */}
       {tab === 'facilities' && (
         <>
+          {/* Jump to the situation board with the facilities layer switched on. */}
+          <a href="/ngo/board?layer=facilities" className="fac-add" style={{ ...mapLinkBtn, marginBottom: 10 }}>🗺 Show on map</a>
           {canManage && <button type="button" onClick={openNewFac} className="fac-add" style={{ ...primaryBtn, marginBottom: 14 }}>+ Add facility</button>}
 
           {/* Filters */}
@@ -363,6 +365,7 @@ const statusBadge: React.CSSProperties = { display: 'inline-block', padding: '3p
 const callBtn: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minHeight: 40, padding: '0 14px', background: 'rgba(63,185,80,0.12)', border: '1px solid rgba(63,185,80,0.45)', color: '#3fb950', borderRadius: 8, fontSize: 14, fontWeight: 700, textDecoration: 'none' }
 const miniBtn: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minHeight: 40, padding: '0 14px', background: 'rgba(255,255,255,0.04)', border: '1px solid #21262d', color: '#c9d1d9', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'system-ui', textDecoration: 'none' }
 const primaryBtn: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minHeight: 44, padding: '0 18px', background: '#238636', border: '1px solid #2ea043', color: '#fff', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'system-ui' }
+const mapLinkBtn: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minHeight: 44, padding: '0 18px', background: 'rgba(88,166,255,0.12)', border: '1px solid rgba(88,166,255,0.45)', color: '#58a6ff', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'system-ui', textDecoration: 'none' }
 const ghostBtn: React.CSSProperties = { minHeight: 44, padding: '0 14px', background: 'transparent', border: '1px solid #21262d', color: '#8b949e', borderRadius: 8, fontSize: 14, cursor: 'pointer', fontFamily: 'system-ui' }
 const muted: React.CSSProperties = { fontSize: 13, color: '#8b949e' }
 const emptyBox: React.CSSProperties = { fontSize: 13, color: '#484f58', padding: '24px 0', textAlign: 'center' }

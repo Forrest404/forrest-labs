@@ -168,9 +168,10 @@ export default function NgoBoardPage() {
   const [showWorkers, setShowWorkers] = useState(true)
   const showWorkersRef = useRef(true)
   useEffect(() => { showWorkersRef.current = showWorkers }, [showWorkers])
-  // Facilities overlay (where to take people) — off by default to keep the board clean.
+  // Facilities overlay (where to take people) — off by default to keep the board clean,
+  // but the Facilities page links here with ?layer=facilities to switch it on.
   const [facilities, setFacilities] = useState<FacilityPin[]>([])
-  const [showFacilities, setShowFacilities] = useState(false)
+  const [showFacilities, setShowFacilities] = useState(() => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('layer') === 'facilities')
   const showFacilitiesRef = useRef(false)
   useEffect(() => { showFacilitiesRef.current = showFacilities }, [showFacilities])
   const [panicDispatchFor, setPanicDispatchFor] = useState<Panic | null>(null)
