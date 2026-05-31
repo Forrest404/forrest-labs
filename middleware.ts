@@ -9,9 +9,12 @@ const NGO_PUBLIC_PATHS = [
   '/ngo/signup',
   '/api/ngo/auth/login',
   '/api/ngo/auth/signup',
-  // Scheduler-invoked; gated by its own ?key=REVIEW_SECRET_KEY check, so it must
-  // bypass the cookie gate (the cron caller has no NGO session).
+  // Scheduler-invoked; gated by their own ?key=REVIEW_SECRET_KEY check, so they must
+  // bypass the cookie gate (the cron caller has no NGO session). NOTE: panic-escalate
+  // was previously missing here, so the cron was redirected to login and unacknowledged
+  // duress alerts never auto-widened (finding M1).
   '/api/ngo/safety/escalate',
+  '/api/ngo/safety/panic-escalate',
 ]
 
 function getJwtSecret(): Uint8Array {

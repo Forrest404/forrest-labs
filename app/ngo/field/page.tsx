@@ -32,6 +32,21 @@ async function qDel(id: string) {
   const db = await openDb()
   await new Promise((res) => { const t = db.transaction('queue', 'readwrite'); t.objectStore('queue').delete(id); t.oncomplete = () => res(null); t.onerror = () => res(null) })
 }
+async function qClear() {
+  try {
+    const db = await openDb()
+    await new Promise((res) => { const t = db.transaction('queue', 'readwrite'); t.objectStore('queue').clear(); t.oncomplete = () => res(null); t.onerror = () => res(null) })
+  } catch { /* nothing to clear */ }
+}
+
+// Device-capture defence (finding H3): wipe everything sensitive this view caches
+// locally — the last-known GPS fix and the offline queue (which holds check-in/panic
+// payloads with coordinates). Called on logout so a seized phone retains no location
+// data. The httpOnly session cookie can only be cleared server-side (online logout).
+async function wipeLocalSensitive() {
+  try { localStorage.removeItem(LAST_GPS_KEY) } catch { /* storage off */ }
+  await qClear()
+}
 
 // Fresh GPS fix. timeoutMs is tunable so a panic can fail fast and fall back to the
 // last-known fix rather than make someone in danger wait. On success the fix is cached
@@ -229,9 +244,16 @@ export default function NgoFieldPage() {
   // logout and sign out locally, flushing when back online.
   async function logout() {
     if (typeof navigator !== 'undefined' && navigator.onLine) {
-      try { await fetch('/api/ngo/auth/logout', { method: 'POST' }); window.location.replace('/ngo/login'); return } catch { /* fall through */ }
+      try {
+        await fetch('/api/ngo/auth/logout', { method: 'POST' })
+        await wipeLocalSensitive()              // H3: leave no location data on the device
+        window.location.replace('/ngo/login'); return
+      } catch { /* fall through to offline path */ }
     }
-    await qAdd({ id: `logout|${typeof performance !== 'undefined' ? performance.now() : ''}|${Math.round(Math.random() * 1e9)}`, url: '/api/ngo/auth/logout', body: {}, label: 'logout', method: 'POST' })
+    // Offline: we can't clear the httpOnly cookie, but we MUST still wipe local
+    // sensitive data (last GPS + any queued located payloads). Clearing the queue
+    // drops unsynced check-ins by design — on explicit logout, data minimisation wins.
+    await wipeLocalSensitive()
     setMsg(t('signed_out'))
     setTimeout(() => window.location.replace('/ngo/login'), 700)
   }
