@@ -23,7 +23,11 @@ export async function GET(request: NextRequest) {
   if (error || !data) {
     return NextResponse.json({ error: 'Organisation not found' }, { status: 404 })
   }
-  return NextResponse.json({ area: data.operational_area ?? null })
+  // operational_area may hold a free-text {description} note from signup (kept until
+  // the org draws a polygon here). Only return it when it is an actual GeoJSON
+  // Polygon, so the map editor never receives a non-drawable shape and crashes.
+  const area = isPolygon(data.operational_area) ? data.operational_area : null
+  return NextResponse.json({ area })
 }
 
 function isPolygon(area: unknown): area is { type: 'Polygon'; coordinates: number[][][] } {
