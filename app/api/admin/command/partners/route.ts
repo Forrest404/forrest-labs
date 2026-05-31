@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
-import { getSessionFromRequest, hashPartnerPassword, generatePartnerPassword } from '@/lib/admin/auth'
+import { getSessionFromRequest, hashPartnerPasswordScrypt, generatePartnerPassword } from '@/lib/admin/auth'
 import { writeAuditLog } from '@/lib/admin/audit'
 
 export async function GET(request: NextRequest) {
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
   }
 
   const tempPassword = generatePartnerPassword()
-  const passwordHash = hashPartnerPassword(tempPassword)
+  const passwordHash = hashPartnerPasswordScrypt(tempPassword)
 
   const { data, error } = await supabase
     .from('partner_accounts')

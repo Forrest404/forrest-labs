@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
-import { hashPartnerPassword, createPartnerSession } from '@/lib/admin/auth'
+import { verifyPartnerPassword, hashPartnerPasswordScrypt, createPartnerSession } from '@/lib/admin/auth'
 
 export async function POST(request: NextRequest) {
   let body: { email?: string; password?: string }
@@ -28,14 +28,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
   }
 
-  const inputHash = hashPartnerPassword(password)
-  if (inputHash !== account.password_hash) {
+  // Verify against scrypt or legacy sha256 (security H4). On a successful legacy
+  // verification, transparently upgrade the stored hash to salted scrypt.
+  const { ok, needsRehash } = verifyPartnerPassword(password, account.password_hash as string | null)
+  if (!ok) {
     return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
   }
 
   await supabase
     .from('partner_accounts')
-    .update({ last_login: new Date().toISOString() })
+    .update({
+      last_login: new Date().toISOString(),
+      ...(needsRehash ? { password_hash: hashPartnerPasswordScrypt(password) } : {}),
+    })
     .eq('id', account.id)
 
   const token = await createPartnerSession(
