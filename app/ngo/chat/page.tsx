@@ -146,9 +146,18 @@ export default function NgoChatPage() {
   const teamLinks = links.filter((l) => l.scope === 'team')
 
   return (
-    <div style={wrap}>
+    <div className="chat-page" style={wrap}>
+      {/* Mobile tuning: full-width add button + action buttons that grow to fill the
+          row so every tap target is comfortable on a phone. */}
+      <style>{`
+        @media (max-width: 600px) {
+          .chat-page .chat-add { width: 100%; }
+          .chat-page .chat-actions > a,
+          .chat-page .chat-actions > button { flex: 1 1 40%; margin-inline-start: 0 !important; }
+        }
+      `}</style>
       <h1 style={h1}>Group chats</h1>
-      <p style={sub}>Tap to join your organisation’s external chat groups.</p>
+      <p style={sub}>All your organisation’s group links in one place — open, copy, or share.</p>
 
       {/* Trust notice — always shown */}
       <div style={trustBox}>Joining opens an external app NOUR doesn’t control. Only join groups you trust.</div>
@@ -158,7 +167,7 @@ export default function NgoChatPage() {
       {!loaded && <div style={muted}>Loading…</div>}
 
       {canManage && (
-        <button type="button" onClick={openNew} style={{ ...primaryBtn, marginBottom: 16 }}>+ Add link</button>
+        <button type="button" onClick={openNew} className="chat-add" style={{ ...primaryBtn, marginBottom: 16 }}>+ Add link</button>
       )}
 
       {loaded && !error && links.length === 0 && (
@@ -258,13 +267,12 @@ function LinkCard({ l, canManage, busy, onEdit, onDelete }: { l: ChatLink; canMa
           )}
         </div>
       </div>
-      <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+      <div className="chat-actions" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
         {/* Tap to open — never auto-open. New tab, no referrer/opener. */}
         <a href={l.url} target="_blank" rel="noreferrer noopener" style={joinBtn}>Open / Join ↗</a>
         <button type="button" onClick={doCopy} style={{ ...miniBtn, ...(copied ? { color: '#3fb950', borderColor: 'rgba(63,185,80,0.45)' } : {}) }}>{copied ? '✓ Copied' : 'Copy link'}</button>
         {canShare && <button type="button" onClick={doShare} style={miniBtn}>Share</button>}
-        <div style={{ flex: 1 }} />
-        {canManage && <button type="button" disabled={busy} onClick={() => onEdit(l)} style={miniBtn}>Edit</button>}
+        {canManage && <button type="button" disabled={busy} onClick={() => onEdit(l)} style={{ ...miniBtn, marginInlineStart: 'auto' }}>Edit</button>}
         {canManage && <button type="button" disabled={busy} onClick={() => onDelete(l)} style={{ ...miniBtn, color: '#f85149', borderColor: 'rgba(248,81,73,0.4)' }}>Delete</button>}
       </div>
     </div>
@@ -278,9 +286,9 @@ const sub: React.CSSProperties = { fontSize: 13, color: '#8b949e', margin: '0 0 
 const trustBox: React.CSSProperties = { background: 'rgba(210,153,34,0.1)', border: '1px solid rgba(210,153,34,0.35)', color: '#d29922', borderRadius: 8, padding: '10px 14px', fontSize: 12.5, marginBottom: 16 }
 const sectionLabel: React.CSSProperties = { fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#484f58', margin: '0 0 8px' }
 const card: React.CSSProperties = { background: '#161b22', border: '1px solid #21262d', borderRadius: 10, padding: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }
-const joinBtn: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', height: 34, padding: '0 14px', background: 'rgba(63,185,80,0.12)', border: '1px solid rgba(63,185,80,0.45)', color: '#3fb950', borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: 'none' }
+const joinBtn: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minHeight: 40, padding: '0 16px', background: 'rgba(63,185,80,0.12)', border: '1px solid rgba(63,185,80,0.45)', color: '#3fb950', borderRadius: 8, fontSize: 14, fontWeight: 700, textDecoration: 'none' }
 const pill: React.CSSProperties = { background: '#21262d', color: '#c9d1d9', borderRadius: 999, padding: '1px 8px', fontSize: 11, fontWeight: 600 }
-const miniBtn: React.CSSProperties = { height: 32, padding: '0 12px', background: 'rgba(255,255,255,0.04)', border: '1px solid #21262d', color: '#c9d1d9', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'system-ui' }
+const miniBtn: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minHeight: 40, padding: '0 14px', background: 'rgba(255,255,255,0.04)', border: '1px solid #21262d', color: '#c9d1d9', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'system-ui' }
 const primaryBtn: React.CSSProperties = { height: 42, padding: '0 18px', background: '#238636', border: '1px solid #2ea043', color: '#fff', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'system-ui' }
 const ghostBtn: React.CSSProperties = { padding: '0 14px', background: 'transparent', border: '1px solid #21262d', color: '#8b949e', borderRadius: 8, fontSize: 13, cursor: 'pointer', fontFamily: 'system-ui' }
 const muted: React.CSSProperties = { fontSize: 13, color: '#8b949e' }
@@ -291,8 +299,10 @@ const retryBtn: React.CSSProperties = { marginLeft: 8, background: 'transparent'
 const backdrop: React.CSSProperties = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }
 const modal: React.CSSProperties = { width: 420, maxWidth: '100%', maxHeight: '90vh', overflowY: 'auto', background: '#161b22', border: '1px solid #21262d', borderRadius: 12, padding: 22 }
 const lbl: React.CSSProperties = { display: 'block', fontSize: 12, color: '#8b949e', marginBottom: 6 }
-const input: React.CSSProperties = { width: '100%', height: 38, boxSizing: 'border-box', background: '#0d1117', border: '1px solid #21262d', borderRadius: 6, color: '#e6edf3', fontSize: 14, padding: '0 10px', fontFamily: 'system-ui', outline: 'none' }
+// height 44 + fontSize 16: comfortable finger target and prevents iOS Safari from
+// auto-zooming the viewport when an input < 16px gains focus.
+const input: React.CSSProperties = { width: '100%', height: 44, boxSizing: 'border-box', background: '#0d1117', border: '1px solid #21262d', borderRadius: 6, color: '#e6edf3', fontSize: 16, padding: '0 12px', fontFamily: 'system-ui', outline: 'none' }
 const hint: React.CSSProperties = { fontSize: 11, color: '#8b949e', marginTop: 4 }
 function toggle(active: boolean): React.CSSProperties {
-  return { flex: 1, height: 36, borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'system-ui', background: active ? 'rgba(88,166,255,0.15)' : '#0d1117', border: active ? '1px solid #58a6ff' : '1px solid #21262d', color: active ? '#58a6ff' : '#8b949e' }
+  return { flex: 1, minHeight: 44, borderRadius: 6, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'system-ui', background: active ? 'rgba(88,166,255,0.15)' : '#0d1117', border: active ? '1px solid #58a6ff' : '1px solid #21262d', color: active ? '#58a6ff' : '#8b949e' }
 }
