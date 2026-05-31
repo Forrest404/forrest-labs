@@ -93,6 +93,7 @@ const LANG = {
     sending_alert: 'Sending alert…', alert_sent_msg: '🆘 Alert sent to your team', alert_queued: 'Queued — alert will send when online',
     signed_out: 'Signed out — will sync when back online', sharing_loc: 'Sharing location…',
     open_chat: 'OPEN GROUP CHAT', actions: 'Actions', map: 'Map',
+    chats: 'Chats', no_chats: 'No group chats shared with you yet.', chats_trust: 'Opens an external app NOUR doesn’t control. Only join groups you trust.', open: 'Open', team_chat: 'Team', org_chat: 'Organisation',
     silent_mode: 'Silent', alert_active: 'Alert active', help_seen: 'Help has seen this',
     choose_reason: 'What’s happening? (optional)', cancel_false_alarm: 'Cancel — false alarm',
     locked_note: 'Locked — only a responder can resolve this now', cancelled: 'Alert cancelled',
@@ -114,6 +115,7 @@ const LANG = {
     sending_alert: 'Envoi de l’alerte…', alert_sent_msg: '🆘 Alerte envoyée à votre équipe', alert_queued: 'En attente — alerte envoyée à la reconnexion',
     signed_out: 'Déconnecté — synchro à la reconnexion', sharing_loc: 'Partage de la position…',
     open_chat: 'OUVRIR LE GROUPE', actions: 'Actions', map: 'Carte',
+    chats: 'Groupes', no_chats: 'Aucun groupe partagé pour l’instant.', chats_trust: 'Ouvre une app externe que NOUR ne contrôle pas. Ne rejoignez que des groupes de confiance.', open: 'Ouvrir', team_chat: 'Équipe', org_chat: 'Organisation',
     silent_mode: 'Silencieux', alert_active: 'Alerte active', help_seen: 'Les secours ont vu',
     choose_reason: 'Que se passe-t-il ? (facultatif)', cancel_false_alarm: 'Annuler — fausse alerte',
     locked_note: 'Verrouillé — seul un répondant peut clôturer', cancelled: 'Alerte annulée',
@@ -135,6 +137,7 @@ const LANG = {
     sending_alert: 'جارٍ إرسال الاستغاثة…', alert_sent_msg: '🆘 تم إرسال الاستغاثة إلى فريقك', alert_queued: 'في الانتظار — ستُرسل الاستغاثة عند الاتصال',
     signed_out: 'تم تسجيل الخروج — ستتم المزامنة عند الاتصال', sharing_loc: 'جارٍ مشاركة الموقع…',
     open_chat: 'فتح مجموعة الدردشة', actions: 'الإجراءات', map: 'الخريطة',
+    chats: 'الدردشات', no_chats: 'لا توجد مجموعات دردشة متاحة لك بعد.', chats_trust: 'يفتح تطبيقًا خارجيًا لا تتحكم به نور. انضمّ فقط إلى المجموعات الموثوقة.', open: 'فتح', team_chat: 'الفريق', org_chat: 'المنظمة',
     silent_mode: 'صامت', alert_active: 'الاستغاثة نشطة', help_seen: 'شاهد المنقذون التنبيه',
     choose_reason: 'ماذا يحدث؟ (اختياري)', cancel_false_alarm: 'إلغاء — إنذار خاطئ',
     locked_note: 'مقفل — لا يمكن إنهاؤه إلا من قبل المنقذ', cancelled: 'تم إلغاء الاستغاثة',
@@ -154,6 +157,14 @@ interface FieldState {
 }
 const REASONS = ['injured', 'under_fire', 'detained', 'vehicle', 'medical', 'moving'] as const
 const CANCEL_WINDOW_S = 10
+
+// Group chats the operator can see (org-scope + their own team), as returned by
+// /api/ngo/chat. Cached locally so they're available offline in the field.
+interface ChatLink { id: string; label: string; platform: string; url: string; scope: 'org' | 'team'; team_name: string | null; description: string | null }
+const CHATS_CACHE_KEY = 'nour-chats'
+function chatIcon(p: string): string {
+  switch (p) { case 'signal': return '🔵'; case 'whatsapp': return '🟢'; case 'telegram': return '🔷'; default: return '💬' }
+}
 
 export default function NgoFieldPage() {
   const [lang, setLang] = useState<Lang>('ar')
@@ -181,10 +192,25 @@ export default function NgoFieldPage() {
   const [refreshError, setRefreshError] = useState(false)
   const [who, setWho] = useState<{ name: string; org: string | null } | null>(null)
   const [nowTick, setNowTick] = useState(0) // forces the "next due" line to refresh
-  const [tab, setTab] = useState<'actions' | 'map'>('actions')
+  const [tab, setTab] = useState<'actions' | 'map' | 'chats'>('actions')
   const [mapStatus, setMapStatus] = useState<'idle' | 'loading' | 'ready' | 'offline'>('idle')
+  const [chatLinks, setChatLinks] = useState<ChatLink[]>([])
   const mapEl = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<any>(null)
+
+  // Group chats the operator can access. Hydrate from the local cache first so they
+  // show instantly and offline, then refresh from the server when online.
+  useEffect(() => {
+    try { const c = localStorage.getItem(CHATS_CACHE_KEY); if (c) setChatLinks(JSON.parse(c)) } catch { /* no cache */ }
+    fetch('/api/ngo/chat', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!d?.links) return
+        setChatLinks(d.links)
+        try { localStorage.setItem(CHATS_CACHE_KEY, JSON.stringify(d.links)) } catch { /* quota */ }
+      })
+      .catch(() => { /* offline — keep cached */ })
+  }, [])
 
   // Language: reuse the site-wide fl_lang; default Arabic (Arabic-first).
   useEffect(() => {
@@ -570,6 +596,7 @@ export default function NgoFieldPage() {
       <div style={{ display: 'flex', gap: 8 }}>
         <button type="button" onClick={() => setTab('actions')} style={tabBtn(tab === 'actions')}>{t('actions')}</button>
         <button type="button" onClick={() => setTab('map')} style={tabBtn(tab === 'map')}>🗺 {t('map')}</button>
+        <button type="button" onClick={() => setTab('chats')} style={tabBtn(tab === 'chats')}>💬 {t('chats')}{chatLinks.length > 0 ? ` (${chatLinks.length})` : ''}</button>
       </div>
 
       {tab === 'actions' && (<>
@@ -705,6 +732,29 @@ export default function NgoFieldPage() {
               })()}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Chats tab — the group chats this operator can access (org-wide + their team),
+          as added by the NGO in the dashboard. Cached locally so they open offline. */}
+      {tab === 'chats' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ fontSize: 12, color: '#d29922', background: 'rgba(210,153,34,0.1)', border: '1px solid rgba(210,153,34,0.35)', borderRadius: 10, padding: '10px 12px' }}>{t('chats_trust')}</div>
+          {chatLinks.length === 0 && <div style={{ fontSize: 14, color: '#8b949e', textAlign: 'center', padding: '24px 0' }}>{t('no_chats')}</div>}
+          {chatLinks.map((l) => (
+            <div key={l.id} style={{ background: '#161b22', border: '1px solid #21262d', borderRadius: 12, padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                <span style={{ fontSize: 22, lineHeight: '26px' }}>{chatIcon(l.platform)}</span>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: '#e6edf3' }}>{l.label}</div>
+                  {l.description && <div style={{ fontSize: 13, color: '#8b949e', marginTop: 2 }}>{l.description}</div>}
+                  <div style={{ fontSize: 12, color: '#6e7681', marginTop: 4 }}>{l.scope === 'team' ? `${t('team_chat')}${l.team_name ? ` · ${l.team_name}` : ''}` : t('org_chat')}</div>
+                </div>
+              </div>
+              {/* Tap to open — never auto-open. */}
+              <a href={l.url} target="_blank" rel="noreferrer noopener" style={{ ...groupChatBtn, minHeight: 52 }}>💬 {t('open')} ↗</a>
+            </div>
+          ))}
         </div>
       )}
 
