@@ -16,6 +16,8 @@ interface ChatLink {
   team_id: string | null
   team_name: string | null
   description: string | null
+  added_by: string | null
+  created_at: string | null
 }
 interface Team { id: string; name: string }
 type Editing = { id?: string; label: string; platform: string; url: string; scope: 'org' | 'team'; team_id: string; description: string }
@@ -28,6 +30,31 @@ const PLATFORMS = [
 ]
 function platformIcon(p: string): string {
   switch (p) { case 'signal': return '🔵'; case 'whatsapp': return '🟢'; case 'telegram': return '🔷'; default: return '💬' }
+}
+function platformLabel(p: string): string {
+  return PLATFORMS.find((x) => x.value === p)?.label ?? 'Other'
+}
+// Human host (e.g. "chat.whatsapp.com") so members can eyeball the link before opening.
+function hostOf(url: string): string {
+  try { return new URL(url).host } catch { return url }
+}
+function shortDate(iso: string | null): string | null {
+  if (!iso) return null
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return null
+  return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+}
+// Copy text to clipboard with a textarea fallback for non-secure contexts.
+async function copyText(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(text); return true }
+  } catch { /* fall through */ }
+  try {
+    const ta = document.createElement('textarea')
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0'
+    document.body.appendChild(ta); ta.focus(); ta.select()
+    const ok = document.execCommand('copy'); document.body.removeChild(ta); return ok
+  } catch { return false }
 }
 // Mirror of the server allowlist for fast client feedback (server is the real gate).
 function clientUrlOk(raw: string): boolean {
@@ -197,21 +224,46 @@ export default function NgoChatPage() {
 }
 
 function LinkCard({ l, canManage, busy, onEdit, onDelete }: { l: ChatLink; canManage: boolean; busy: boolean; onEdit: (l: ChatLink) => void; onDelete: (l: ChatLink) => void }) {
+  const [copied, setCopied] = useState(false)
+  const [canShare, setCanShare] = useState(false)
+  useEffect(() => { setCanShare(typeof navigator !== 'undefined' && !!navigator.share) }, [])
+
+  const doCopy = async () => {
+    const ok = await copyText(l.url)
+    if (ok) { setCopied(true); setTimeout(() => setCopied(false), 1600) }
+  }
+  const doShare = async () => {
+    try { await navigator.share({ title: l.label, text: `Join ${l.label} on ${platformLabel(l.platform)}`, url: l.url }) } catch { /* user dismissed */ }
+  }
+
+  const added = shortDate(l.created_at)
   return (
-    <div style={card}>
+    <div style={{ ...card, flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, minWidth: 0 }}>
         <span style={{ fontSize: 20, lineHeight: '24px' }}>{platformIcon(l.platform)}</span>
-        <div style={{ minWidth: 0 }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ fontSize: 14, fontWeight: 600, color: '#e6edf3' }}>{l.label}</div>
           {l.description && <div style={{ fontSize: 12, color: '#8b949e', marginTop: 2 }}>{l.description}</div>}
-          <div style={{ fontSize: 11, color: '#484f58', marginTop: 4 }}>
-            {l.scope === 'team' ? `Team${l.team_name ? ` · ${l.team_name}` : ''}` : 'Organisation'}
+          {/* Group info: platform, the link's host (eyeball before opening), scope. */}
+          <div style={{ fontSize: 11, color: '#8b949e', marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+            <span style={pill}>{platformLabel(l.platform)}</span>
+            <span style={{ color: '#6e7681' }}>{hostOf(l.url)}</span>
+            <span style={{ color: '#484f58' }}>·</span>
+            <span style={{ color: '#6e7681' }}>{l.scope === 'team' ? `Team${l.team_name ? ` · ${l.team_name}` : ''}` : 'Whole org'}</span>
           </div>
+          {(l.added_by || added) && (
+            <div style={{ fontSize: 11, color: '#484f58', marginTop: 3 }}>
+              Added{l.added_by ? ` by ${l.added_by}` : ''}{added ? ` · ${added}` : ''}
+            </div>
+          )}
         </div>
       </div>
-      <div style={{ display: 'flex', gap: 6, flexShrink: 0, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
         {/* Tap to open — never auto-open. New tab, no referrer/opener. */}
         <a href={l.url} target="_blank" rel="noreferrer noopener" style={joinBtn}>Open / Join ↗</a>
+        <button type="button" onClick={doCopy} style={{ ...miniBtn, ...(copied ? { color: '#3fb950', borderColor: 'rgba(63,185,80,0.45)' } : {}) }}>{copied ? '✓ Copied' : 'Copy link'}</button>
+        {canShare && <button type="button" onClick={doShare} style={miniBtn}>Share</button>}
+        <div style={{ flex: 1 }} />
         {canManage && <button type="button" disabled={busy} onClick={() => onEdit(l)} style={miniBtn}>Edit</button>}
         {canManage && <button type="button" disabled={busy} onClick={() => onDelete(l)} style={{ ...miniBtn, color: '#f85149', borderColor: 'rgba(248,81,73,0.4)' }}>Delete</button>}
       </div>
@@ -227,6 +279,7 @@ const trustBox: React.CSSProperties = { background: 'rgba(210,153,34,0.1)', bord
 const sectionLabel: React.CSSProperties = { fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#484f58', margin: '0 0 8px' }
 const card: React.CSSProperties = { background: '#161b22', border: '1px solid #21262d', borderRadius: 10, padding: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }
 const joinBtn: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', height: 34, padding: '0 14px', background: 'rgba(63,185,80,0.12)', border: '1px solid rgba(63,185,80,0.45)', color: '#3fb950', borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: 'none' }
+const pill: React.CSSProperties = { background: '#21262d', color: '#c9d1d9', borderRadius: 999, padding: '1px 8px', fontSize: 11, fontWeight: 600 }
 const miniBtn: React.CSSProperties = { height: 32, padding: '0 12px', background: 'rgba(255,255,255,0.04)', border: '1px solid #21262d', color: '#c9d1d9', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'system-ui' }
 const primaryBtn: React.CSSProperties = { height: 42, padding: '0 18px', background: '#238636', border: '1px solid #2ea043', color: '#fff', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'system-ui' }
 const ghostBtn: React.CSSProperties = { padding: '0 14px', background: 'transparent', border: '1px solid #21262d', color: '#8b949e', borderRadius: 8, fontSize: 13, cursor: 'pointer', fontFamily: 'system-ui' }

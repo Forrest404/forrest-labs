@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await supabase
     .from('chat_links')
-    .select('id, label, platform, url, scope, team_id, description, created_at, updated_at, ngo_teams ( name )')
+    .select('id, label, platform, url, scope, team_id, description, created_at, updated_at, ngo_teams ( name ), creator:ngo_users ( full_name )')
     .eq('org_id', orgId) // org-scope: never another org's links
     .order('created_at', { ascending: false })
   if (error) {
@@ -44,6 +44,7 @@ export async function GET(request: NextRequest) {
     team_id: r.team_id,
     team_name: Array.isArray(r.ngo_teams) ? r.ngo_teams[0]?.name ?? null : r.ngo_teams?.name ?? null,
     description: r.description,
+    added_by: Array.isArray(r.creator) ? r.creator[0]?.full_name ?? null : r.creator?.full_name ?? null,
     created_at: r.created_at,
     updated_at: r.updated_at,
   }))
