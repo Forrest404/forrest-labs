@@ -135,7 +135,12 @@ export function setNgoCookie(response: Response, token: string, maxAgeSeconds: n
       `${NGO_COOKIE_NAME}=${token}`,
       'HttpOnly',
       'Secure',
-      'SameSite=Strict',
+      // Lax (not Strict): the session must survive top-level loads reached via an
+      // external link — field staff open the QR/login link from Signal/WhatsApp, and
+      // some mobile in-app browsers withhold Strict cookies on those navigations and
+      // even on reloads, logging the worker out. State changes are POSTs, which Lax
+      // still does not send cross-site, so CSRF protection is preserved.
+      'SameSite=Lax',
       'Path=/',
       `Max-Age=${maxAgeSeconds}`,
     ].join('; '),
@@ -145,7 +150,7 @@ export function setNgoCookie(response: Response, token: string, maxAgeSeconds: n
 export function clearNgoCookie(response: Response): void {
   response.headers.set(
     'Set-Cookie',
-    [`${NGO_COOKIE_NAME}=`, 'HttpOnly', 'Secure', 'SameSite=Strict', 'Path=/', 'Max-Age=0'].join('; '),
+    [`${NGO_COOKIE_NAME}=`, 'HttpOnly', 'Secure', 'SameSite=Lax', 'Path=/', 'Max-Age=0'].join('; '),
   )
 }
 
