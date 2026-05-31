@@ -58,10 +58,35 @@ export default function NgoLayout({ children }: { children: ReactNode }) {
     window.location.replace('/ngo/login')
   }
 
-  if (isBare) return <>{children}</>
+  // Instant press feedback for every control in the NGO section. Scoped to
+  // `.ngo-scope` so it can never leak into the civilian/admin/partner apps. On
+  // press the control dips (scale + slight dim) the moment the finger lands —
+  // before any async handler runs — so the UI never feels dead on a slow or
+  // offline link. `touch-action: manipulation` removes the ~300ms mobile tap
+  // delay; the grey tap highlight is cleared so our own dip is the only feedback
+  // shown. Disabled buttons are excluded; inline `transform` (e.g. the field
+  // panic button's hold state) wins over this rule, so existing gestures stand.
+  const pressFeedback = (
+    <style>{`
+      .ngo-scope button, .ngo-scope [role="button"], .ngo-scope a {
+        -webkit-tap-highlight-color: transparent;
+        touch-action: manipulation;
+        transition: transform 70ms ease, filter 70ms ease;
+      }
+      .ngo-scope button:not(:disabled):active,
+      .ngo-scope [role="button"]:not([aria-disabled="true"]):active,
+      .ngo-scope a:active {
+        transform: scale(0.97);
+        filter: brightness(0.9);
+      }
+    `}</style>
+  )
+
+  if (isBare) return <div className="ngo-scope" style={{ display: 'contents' }}>{pressFeedback}{children}</div>
 
   return (
     <div
+      className="ngo-scope"
       style={{
         display: 'flex',
         height: '100vh',
@@ -71,6 +96,7 @@ export default function NgoLayout({ children }: { children: ReactNode }) {
         overflow: 'hidden',
       }}
     >
+      {pressFeedback}
       <aside
         style={{
           width: 220,
