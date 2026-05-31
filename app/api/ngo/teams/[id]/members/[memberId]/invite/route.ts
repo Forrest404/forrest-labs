@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
-import { getNgoSession, requireRole, hashSecret } from '@/lib/ngo-auth'
+import { getNgoSession, requireRole, generateLoginCode } from '@/lib/ngo-auth'
 
-// Invite a roster member as a field_coordinator: create their ngo_users row
-// (PIN-only mobile login) and link it back to the team_members row.
-// Only org_admin may invite. Scoped to the caller's org.
+// Invite a roster member as a field_coordinator: create their ngo_users row with a
+// unique access code (sign in by typing it or scanning a QR/link) and link it back
+// to the team_members row. Only org_admin may invite. Scoped to the caller's org.
 
 export async function POST(
   request: NextRequest,
@@ -16,7 +16,7 @@ export async function POST(
   }
   const { id, memberId } = await params
 
-  let body: { email?: string; pin?: string }
+  let body: { email?: string }
   try {
     body = await request.json()
   } catch {
@@ -24,15 +24,12 @@ export async function POST(
   }
 
   const email = String(body.email ?? '').trim().toLowerCase()
-  const pin = String(body.pin ?? '').trim()
   if (!email || !email.includes('@')) {
     return NextResponse.json({ error: 'A valid email is required' }, { status: 400 })
   }
-  if (!/^\d{4,6}$/.test(pin)) {
-    return NextResponse.json({ error: 'PIN must be 4–6 digits' }, { status: 400 })
-  }
 
   const supabase = createServiceClient()
+  const loginCode = generateLoginCode()
 
   // Member must exist, belong to this team, and the team must belong to the org.
   const { data: member } = await supabase
@@ -58,7 +55,7 @@ export async function POST(
       email,
       role: 'field_coordinator',
       status: 'active',
-      pin_hash: hashSecret(pin),
+      login_code: loginCode,
       full_name: member.name,
       phone: member.phone ?? null,
     })
@@ -66,15 +63,14 @@ export async function POST(
     .single()
 
   if (userErr || !user) {
-    // 23505 = unique_violation on the email column.
-    if ((userErr as any)?.code === '23505') {
-      return NextResponse.json({ error: 'Email already in use' }, { status: 409 })
-    }
+    // 23505 = unique_violation (email or login_code).
+    const { data: byEmail } = await supabase.from('ngo_users').select('id').eq('email', email).maybeSingle()
+    if (byEmail) return NextResponse.json({ error: 'Email already in use' }, { status: 409 })
     return NextResponse.json({ error: 'Could not create field coordinator' }, { status: 500 })
   }
 
   // Link the new user to the roster member.
   await supabase.from('team_members').update({ ngo_user_id: user.id }).eq('id', member.id)
 
-  return NextResponse.json({ success: true })
+  return NextResponse.json({ success: true, login_code: loginCode })
 }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
-import { getNgoSession, requireRole, hashSecret, type NgoRole } from '@/lib/ngo-auth'
+import { getNgoSession, requireRole, hashSecret, generateLoginCode, type NgoRole } from '@/lib/ngo-auth'
 
 const ROLES: NgoRole[] = ['org_admin', 'team_leader', 'field_coordinator']
 
@@ -29,12 +29,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     return NextResponse.json({ error: 'Not authorised' }, { status: 403 })
   }
   const { id } = await params
-  let body: { full_name?: string; phone?: string; role?: string; status?: string; password?: string; pin?: string }
+  let body: { full_name?: string; phone?: string; role?: string; status?: string; password?: string; pin?: string; regenerate_code?: boolean }
   try { body = await request.json() } catch { return NextResponse.json({ error: 'Invalid request' }, { status: 400 }) }
 
   const supabase = createServiceClient()
   const { data: target } = await supabase
-    .from('ngo_users').select('id, role, status').eq('id', id).eq('org_id', session!.orgId).maybeSingle()
+    .from('ngo_users').select('id, role, status, login_code').eq('id', id).eq('org_id', session!.orgId).maybeSingle()
   if (!target) return NextResponse.json({ error: 'User not found' }, { status: 404 })
 
   const update: Record<string, unknown> = {}
@@ -61,6 +61,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (String(body.password).length < 8) return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 })
     update.password_hash = hashSecret(String(body.password))
   }
+  // Generate/rotate the field-operative access code on request, or when promoting an
+  // account to field_coordinator that has none yet.
+  const nextRole = (update.role as string) ?? target.role
+  let newCode: string | null = null
+  if (body.regenerate_code || (nextRole === 'field_coordinator' && !(target as any).login_code)) {
+    if (nextRole !== 'field_coordinator') return NextResponse.json({ error: 'Access codes are for field coordinators' }, { status: 400 })
+    newCode = generateLoginCode()
+    update.login_code = newCode
+  }
   if (Object.keys(update).length === 0) return NextResponse.json({ error: 'Nothing to update' }, { status: 400 })
 
   if (await wouldOrphanOrg(supabase, session!.orgId, target as any, { role: update.role as string, status: update.status as string })) {
@@ -72,7 +81,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if ((error as any)?.code === '23505') return NextResponse.json({ error: 'Email already in use' }, { status: 409 })
     return NextResponse.json({ error: 'Could not update user' }, { status: 500 })
   }
-  return NextResponse.json({ success: true })
+  return NextResponse.json({ success: true, login_code: newCode })
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {

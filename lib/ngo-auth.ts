@@ -9,10 +9,25 @@ import { NextRequest } from 'next/server'
 // this from the Edge middleware (scrypt/crypto won't load there).
 
 export const NGO_COOKIE_NAME = 'fl_ngo_session'
-const JWT_EXPIRY = '12h'
-const COOKIE_MAX_AGE = 43200 // 12h, matches the JWT
+const COOKIE_MAX_AGE = 43200 // 12h default (admins/leaders)
 
 export type NgoRole = 'org_admin' | 'team_leader' | 'field_coordinator'
+
+// Field coordinators stay signed in for 30 days (they work offline, in the field);
+// admins/leaders keep a 12h desktop session.
+export function ngoSessionTtlSeconds(role: NgoRole): number {
+  return role === 'field_coordinator' ? 60 * 60 * 24 * 30 : COOKIE_MAX_AGE
+}
+
+// A unique, easy-to-read bearer access code for field-operative login (typed or via
+// a QR/link). Crockford-ish base32 minus ambiguous chars (no 0/O/1/I/L/U).
+export function generateLoginCode(): string {
+  const alphabet = '23456789ABCDEFGHJKMNPQRSTVWXYZ'
+  const bytes = randomBytes(8)
+  let code = ''
+  for (let i = 0; i < 8; i++) code += alphabet[bytes[i] % alphabet.length]
+  return code
+}
 
 export interface NgoSession {
   userId: string
@@ -53,10 +68,11 @@ export function verifySecret(plain: string, stored: string | null | undefined): 
 
 export async function createNgoSession(userId: string, orgId: string, role: NgoRole): Promise<string> {
   const secret = getJwtSecret()
+  const exp = Math.floor(Date.now() / 1000) + ngoSessionTtlSeconds(role)
   return await new SignJWT({ userId, orgId, role, type: 'ngo' })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
-    .setExpirationTime(JWT_EXPIRY)
+    .setExpirationTime(exp)
     .sign(secret)
 }
 
@@ -102,7 +118,7 @@ export async function getNgoSession(request: NextRequest): Promise<NgoSession | 
 
 // ── Cookie helpers ────────────────────────────────────────────────────────────
 
-export function setNgoCookie(response: Response, token: string): void {
+export function setNgoCookie(response: Response, token: string, maxAgeSeconds: number = COOKIE_MAX_AGE): void {
   response.headers.set(
     'Set-Cookie',
     [
@@ -111,7 +127,7 @@ export function setNgoCookie(response: Response, token: string): void {
       'Secure',
       'SameSite=Strict',
       'Path=/',
-      `Max-Age=${COOKIE_MAX_AGE}`,
+      `Max-Age=${maxAgeSeconds}`,
     ].join('; '),
   )
 }

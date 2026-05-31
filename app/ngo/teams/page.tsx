@@ -26,7 +26,8 @@ export default function NgoTeamsPage() {
   const [teamModal, setTeamModal] = useState<null | { id?: string; name: string; type: string; capacity: string }>(null)
   const [memberForm, setMemberForm] = useState({ name: '', role: '', phone: '', emergency_contact: '' })
   const [memberEdit, setMemberEdit] = useState<null | { id: string; name: string; role: string; phone: string; emergency_contact: string }>(null)
-  const [inviteModal, setInviteModal] = useState<null | { memberId: string; name: string; email: string; pin: string }>(null)
+  const [inviteModal, setInviteModal] = useState<null | { memberId: string; name: string; email: string }>(null)
+  const [inviteResult, setInviteResult] = useState<null | { name: string; code: string }>(null)
   const [busy, setBusy] = useState(false)
 
   const isAdmin = role === 'org_admin'
@@ -115,10 +116,10 @@ export default function NgoTeamsPage() {
     try {
       const res = await fetch(`/api/ngo/teams/${selected}/members/${inviteModal.memberId}/invite`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: inviteModal.email, pin: inviteModal.pin }),
+        body: JSON.stringify({ email: inviteModal.email }),
       })
       const data = await res.json()
-      if (res.ok) { setInviteModal(null); await loadMembers(selected) }
+      if (res.ok) { const name = inviteModal.name; setInviteModal(null); await loadMembers(selected); if (data.login_code) setInviteResult({ name, code: data.login_code }) }
       else setErr(data.error ?? 'Could not send invite.')
     } finally { setBusy(false) }
   }
@@ -183,7 +184,7 @@ export default function NgoTeamsPage() {
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button type="button" onClick={() => setMemberEdit({ id: m.id, name: m.name, role: m.role ?? '', phone: m.phone ?? '', emergency_contact: m.emergency_contact ?? '' })} style={miniBtn}>Edit</button>
                     {isAdmin && !m.ngo_user_id && (
-                      <button type="button" onClick={() => setInviteModal({ memberId: m.id, name: m.name, email: '', pin: '' })} style={miniBtn}>Invite</button>
+                      <button type="button" onClick={() => setInviteModal({ memberId: m.id, name: m.name, email: '' })} style={miniBtn}>Invite</button>
                     )}
                     <button type="button" onClick={() => removeMember(m.id)} style={{ ...miniBtn, color: '#f85149', borderColor: 'rgba(248,81,73,0.4)' }}>Remove</button>
                   </div>
@@ -244,15 +245,30 @@ export default function NgoTeamsPage() {
       {inviteModal && (
         <Modal title={`Invite ${inviteModal.name}`} onClose={() => setInviteModal(null)}>
           <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 12 }}>
-            Creates a field-coordinator login. They sign in on mobile with this email and PIN.
+            Creates a field-coordinator login. We generate a one-tap access code — they sign in
+            by typing it or scanning a QR. No password needed.
           </div>
           <label style={labelStyle}>Email</label>
           <input style={field} type="email" value={inviteModal.email} onChange={(e) => setInviteModal({ ...inviteModal, email: e.target.value })} />
-          <label style={{ ...labelStyle, marginTop: 12 }}>PIN (4–6 digits)</label>
-          <input style={field} inputMode="numeric" value={inviteModal.pin} onChange={(e) => setInviteModal({ ...inviteModal, pin: e.target.value })} />
           <button type="button" onClick={sendInvite} disabled={busy} style={{ ...primaryBtn, marginTop: 16, opacity: busy ? 0.6 : 1 }}>
-            {busy ? 'Inviting…' : 'Send invite'}
+            {busy ? 'Inviting…' : 'Create access code'}
           </button>
+        </Modal>
+      )}
+
+      {/* Invite result — show the access code once */}
+      {inviteResult && (
+        <Modal title={`${inviteResult.name} can sign in`} onClose={() => setInviteResult(null)}>
+          <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 12 }}>
+            Share this access code with {inviteResult.name}. They enter it on the NOUR login screen,
+            or open the link below. Manage the QR and regenerate it any time from <a href="/ngo/users" style={{ color: '#58a6ff', textDecoration: 'none' }}>Users</a>.
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, background: '#0d1117', border: '1px solid #21262d', borderRadius: 6, padding: '12px 14px' }}>
+            <span style={{ fontSize: 22, fontWeight: 700, letterSpacing: '0.18em' }}>{inviteResult.code}</span>
+            <button type="button" onClick={() => navigator.clipboard?.writeText(inviteResult.code)} style={miniBtn}>Copy code</button>
+          </div>
+          <button type="button" onClick={() => navigator.clipboard?.writeText(`${window.location.origin}/ngo/login?code=${inviteResult.code}`)} style={{ ...miniBtn, marginTop: 10 }}>Copy login link</button>
+          <button type="button" onClick={() => setInviteResult(null)} style={{ ...primaryBtn, marginTop: 16 }}>Done</button>
         </Modal>
       )}
     </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 
 const field: React.CSSProperties = {
@@ -12,47 +12,45 @@ const labelStyle: React.CSSProperties = { fontSize: 12, color: '#8b949e', margin
 
 export default function NgoLoginPage() {
   const router = useRouter()
-  const [isMobile, setIsMobile] = useState(false)
-  const [mode, setMode] = useState<'password' | 'pin'>('password')
+  const [mode, setMode] = useState<'code' | 'password'>('code')
+  const [code, setCode] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [pin, setPin] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
-  useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 600)
-    check()
-    window.addEventListener('resize', check)
-    return () => window.removeEventListener('resize', check)
-  }, [])
-
-  const submit = async () => {
-    setError(null)
-    if (!email || (mode === 'password' ? !password : !pin)) {
-      setError('Please enter your email and credentials.')
-      return
-    }
-    setBusy(true)
+  const doLogin = useCallback(async (payload: Record<string, string>, isCode: boolean) => {
+    setError(null); setBusy(true)
     try {
       const res = await fetch('/api/ngo/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(mode === 'pin' ? { email, pin } : { email, password }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
       })
       const data = await res.json()
-      if (res.ok) {
-        router.push(data.role === 'field_coordinator' ? '/ngo/field' : '/ngo/board')
-      } else {
-        setError(data.error ?? 'Sign-in failed.')
-      }
+      if (res.ok) router.push(data.role === 'field_coordinator' ? '/ngo/field' : '/ngo/board')
+      else setError(data.error ?? 'Sign-in failed.')
     } catch {
       setError('Sign-in failed. Please try again.')
-    } finally {
-      setBusy(false)
+    } finally { setBusy(false) }
+  }, [router])
+
+  // Desktop defaults to email+password; mobile to the access code. A QR/link with
+  // ?code=XXXX signs the operative straight in.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const urlCode = new URLSearchParams(window.location.search).get('code')
+    if (urlCode) { setMode('code'); setCode(urlCode.toUpperCase()); doLogin({ code: urlCode }, true); return }
+    if (window.innerWidth >= 600) setMode('password')
+  }, [doLogin])
+
+  const submit = () => {
+    if (mode === 'code') {
+      if (!code.trim()) { setError('Enter your access code.'); return }
+      doLogin({ code: code.trim() }, true)
+    } else {
+      if (!email || !password) { setError('Enter your email and password.'); return }
+      doLogin({ email, password }, false)
     }
   }
-
   const onKey = (e: { key: string }) => { if (e.key === 'Enter') submit() }
 
   return (
@@ -66,20 +64,30 @@ export default function NgoLoginPage() {
         {error && <div style={errorBox}>{error}</div>}
 
         <div style={{ display: 'grid', gap: 14, textAlign: 'left' }}>
-          <div>
-            <label style={labelStyle}>Email</label>
-            <input style={field} type="email" value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={onKey} />
-          </div>
-          {mode === 'password' ? (
+          {mode === 'code' ? (
             <div>
-              <label style={labelStyle}>Password</label>
-              <input style={field} type="password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={onKey} />
+              <label style={labelStyle}>Access code</label>
+              <input
+                style={{ ...field, letterSpacing: '0.15em', textTransform: 'uppercase', fontSize: 18, fontWeight: 600 }}
+                value={code}
+                onChange={(e) => setCode(e.target.value.toUpperCase())}
+                onKeyDown={onKey}
+                placeholder="e.g. K7P29QXM"
+                autoCapitalize="characters" autoCorrect="off" autoComplete="off"
+              />
+              <div style={{ fontSize: 11, color: '#484f58', marginTop: 6 }}>Field staff: enter the code from your team leader, or scan their QR.</div>
             </div>
           ) : (
-            <div>
-              <label style={labelStyle}>PIN</label>
-              <input style={field} type="password" inputMode="numeric" value={pin} onChange={(e) => setPin(e.target.value)} onKeyDown={onKey} placeholder="Field coordinator PIN" />
-            </div>
+            <>
+              <div>
+                <label style={labelStyle}>Email</label>
+                <input style={field} type="email" value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={onKey} />
+              </div>
+              <div>
+                <label style={labelStyle}>Password</label>
+                <input style={field} type="password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={onKey} />
+              </div>
+            </>
           )}
         </div>
 
@@ -87,16 +95,13 @@ export default function NgoLoginPage() {
           {busy ? 'Signing in…' : 'Sign in'}
         </button>
 
-        {/* PIN sign-in is offered on small screens for field coordinators. */}
-        {isMobile && (
-          <button
-            type="button"
-            onClick={() => { setMode((m) => (m === 'password' ? 'pin' : 'password')); setError(null) }}
-            style={textBtn}
-          >
-            {mode === 'password' ? 'Use a PIN instead' : 'Use a password instead'}
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={() => { setMode((m) => (m === 'code' ? 'password' : 'code')); setError(null) }}
+          style={textBtn}
+        >
+          {mode === 'code' ? 'Admin / team leader sign-in' : 'Use an access code instead'}
+        </button>
 
         <div style={{ textAlign: 'center', marginTop: 16, fontSize: 13, color: '#8b949e' }}>
           New organisation? <a href="/ngo/signup" style={{ color: '#58a6ff', textDecoration: 'none' }}>Register</a>
