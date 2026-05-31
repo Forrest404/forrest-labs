@@ -72,20 +72,19 @@ export async function POST(request: NextRequest) {
         if (maxPrior >= LEVEL_RANK[level]) continue
       } catch { /* table not migrated yet — proceed without dedup */ }
 
-      const who = (u as any).full_name ?? 'A field coordinator'
-      const overdue = Math.round(elapsedMin)
+      // Sanitised broadcast (security C1): no name on the relay; the board shows who.
       if (level === 'red') {
         red++
         await notifyOrgRoles(supabase, org.id, ['org_admin'], {
           title: '🔴 Missed check-in (escalated)',
-          body: `${who} has not checked in for ${overdue} min (> ${2 * windowMin}).`,
+          body: `A field worker has missed check-in for over ${2 * windowMin} min. Open NOUR.`,
           priority: 'urgent', tags: 'red_circle',
         })
       } else {
         amber++
         await notifyOrgRoles(supabase, org.id, ['team_leader'], {
           title: '🟠 Missed check-in',
-          body: `${who} has not checked in for ${overdue} min (> ${windowMin}).`,
+          body: `A field worker has missed a check-in (> ${windowMin} min). Open NOUR.`,
           priority: 'high', tags: 'warning',
         })
       }

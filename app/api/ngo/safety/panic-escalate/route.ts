@@ -52,19 +52,17 @@ export async function POST(request: NextRequest) {
       const current = (p as any).escalation_level ?? 0
       if (target <= current) continue
 
-      const { data: u } = await supabase.from('ngo_users').select('full_name').eq('id', p.ngo_user_id).maybeSingle()
-      const who = u?.full_name ?? 'A field coordinator'
-      const mins = Math.round(ageMin)
+      // Sanitised broadcast (security C1): no name/timing detail on the relay.
       if (target >= 2) {
         await notifyOrgRoles(supabase, org.id, ['org_admin'], {
           title: '🔴 PANIC still unacknowledged',
-          body: `${who}'s duress alert has gone ${mins} min with no acknowledgement. Respond now.`,
+          body: 'A duress alert is still unacknowledged. Open NOUR and respond now.',
           priority: 'urgent', tags: 'rotating_light',
         })
       } else {
         await notifyOrgRoles(supabase, org.id, ['org_admin', 'team_leader'], {
           title: '🆘 PANIC unacknowledged',
-          body: `${who}'s duress alert is ${mins} min old and not yet acknowledged. Respond now.`,
+          body: 'A duress alert is unacknowledged. Open NOUR and respond now.',
           priority: 'urgent', tags: 'rotating_light',
         })
       }

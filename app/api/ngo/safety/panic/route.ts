@@ -89,14 +89,12 @@ export async function POST(request: NextRequest) {
   }
   if (error || !panic) return NextResponse.json({ error: 'Could not raise alert' }, { status: 500 })
 
-  // Who is panicking — for the alert text.
-  const { data: me } = await supabase.from('ngo_users').select('full_name').eq('id', session!.userId).maybeSingle()
-  const who = me?.full_name ?? 'A field coordinator'
-  const loc = lat != null && lon != null ? `last seen ${lat.toFixed(4)}, ${lon.toFixed(4)}` : 'no location available'
-
+  // Sanitised broadcast (security C1): the push/SMS relay carries only a generic,
+  // actionable notice. The worker's identity and last-known coordinates stay behind
+  // the authenticated board (which reads the panic_events row written above).
   await notifyOrgRoles(supabase, session!.orgId, ['org_admin', 'team_leader'], {
     title: '🆘 PANIC',
-    body: `${who} triggered a duress alert — ${loc}.`,
+    body: 'A field worker triggered a duress alert. Open NOUR now to respond.',
     priority: 'urgent',
     tags: 'rotating_light',
   })

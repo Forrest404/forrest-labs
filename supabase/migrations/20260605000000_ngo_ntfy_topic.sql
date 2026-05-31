@@ -1,0 +1,14 @@
+-- Per-org push topic (additive only). Security fix C1: push notifications previously
+-- all went to ONE shared, world-readable ntfy.sh topic, carrying worker names + precise
+-- coordinates. ntfy.sh free topics have no access control, so a single topic name = a
+-- live location feed for an adversary, and every org's alerts landed on the same topic.
+--
+-- This column gives each org its OWN high-entropy topic (generated on first use by the
+-- app), so alerts are isolated per-org and the topic name is not guessable. Combined
+-- with the app-side change to stop putting names/coordinates in the broadcast body,
+-- the public relay no longer carries targeting data.
+--
+-- Nullable + additive: existing rows keep working (the app falls back to the legacy
+-- NTFY_CHANNEL only until a per-org topic is generated). No existing table is altered
+-- in structure beyond adding this column; civilian tables untouched.
+alter table ngo_organisations add column if not exists ntfy_topic text;
