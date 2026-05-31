@@ -66,7 +66,16 @@ export async function GET(request: NextRequest) {
   const covered = new Set((dispatches ?? []).map((d) => d.cluster_id).filter(Boolean))
   const coveredIncidents = new Set((dispatches ?? []).map((d) => d.ngo_incident_id).filter(Boolean))
 
-  const incidents = (clusters ?? []).map((c) => ({
+  // NGO handling overlay for public clusters (dismissed / completed). Read-only on
+  // clusters; this org's state lives in ngo_cluster_status. Pre-migration safe.
+  const clusterHandling = new Map<string, string>()
+  try {
+    const { data: handled } = await supabase
+      .from('ngo_cluster_status').select('cluster_id, status').eq('org_id', orgId)
+    for (const h of handled ?? []) clusterHandling.set(h.cluster_id, h.status)
+  } catch { /* migration not applied yet */ }
+
+  const allIncidents = (clusters ?? []).map((c) => ({
     id: c.id,
     lat: c.centroid_lat,
     lon: c.centroid_lon,
@@ -77,7 +86,12 @@ export async function GET(request: NextRequest) {
     radius_metres: c.display_radius_metres ?? 150,
     inside: area ? pointInPolygon(c.centroid_lon, c.centroid_lat, area) : false,
     covered: covered.has(c.id),
+    handling: clusterHandling.get(c.id) ?? 'active',
   }))
+  // Active incidents drive the map + feed + coverage gaps; handled (dismissed/
+  // completed) ones leave the board into a reopenable list.
+  const incidents = allIncidents.filter((c) => c.handling === 'active')
+  const handledIncidents = allIncidents.filter((c) => c.handling !== 'active')
 
   // Team pins — one per team that has a known location.
   const { data: teams } = await supabase
@@ -209,23 +223,30 @@ export async function GET(request: NextRequest) {
     }
   })
 
-  // Custom (org-created) incidents that are still open, with a covered flag.
+  // Custom (org-created) incidents. Open ones are active (with a covered flag);
+  // resolved/dismissed ones go to a reopenable handled list (recent 50).
   // Resilient to the migration not being applied yet (table/column may be absent).
   let customIncidents: any[] = []
+  let handledCustomIncidents: any[] = []
   try {
     const { data: ci } = await supabase
       .from('ngo_incidents')
-      .select('id, title, category, severity, description, address, lat, lon, created_at')
+      .select('id, title, category, severity, description, address, lat, lon, created_at, status')
       .eq('org_id', orgId)
-      .eq('status', 'open')
       .order('created_at', { ascending: false })
-    customIncidents = (ci ?? []).map((i: any) => ({ ...i, covered: coveredIncidents.has(i.id) }))
+      .limit(250)
+    const rows = ci ?? []
+    customIncidents = rows.filter((i: any) => i.status === 'open')
+      .map((i: any) => ({ ...i, covered: coveredIncidents.has(i.id) }))
+    handledCustomIncidents = rows.filter((i: any) => i.status !== 'open').slice(0, 50)
   } catch { /* migration not applied yet */ }
 
   return NextResponse.json({
     operational_area: area,
     incidents,
+    handled_incidents: handledIncidents,
     custom_incidents: customIncidents,
+    handled_custom_incidents: handledCustomIncidents,
     teams: teamPins,
     workers,
     panics,

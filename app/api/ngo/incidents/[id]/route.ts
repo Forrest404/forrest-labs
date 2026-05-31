@@ -25,10 +25,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     update.lat = lat; update.lon = lon
   }
   if (body.status !== undefined) {
-    if (!['open', 'resolved'].includes(String(body.status))) return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
+    if (!['open', 'resolved', 'dismissed'].includes(String(body.status))) return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
     update.status = body.status
-    update.resolved_at = body.status === 'resolved' ? new Date().toISOString() : null
-    update.resolved_by = body.status === 'resolved' ? session!.userId : null
+    // 'resolved' (dealt with) and 'dismissed' (not actionable) both close the incident;
+    // 'open' reopens it and clears the closure stamp.
+    const closing = body.status === 'resolved' || body.status === 'dismissed'
+    update.resolved_at = closing ? new Date().toISOString() : null
+    update.resolved_by = closing ? session!.userId : null
   }
   if (Object.keys(update).length === 0) return NextResponse.json({ error: 'Nothing to update' }, { status: 400 })
 

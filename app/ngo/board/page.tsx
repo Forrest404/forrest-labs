@@ -32,7 +32,7 @@ const TEAM_STATUS_COLOUR: Record<string, string> = {
 
 interface CustomIncident {
   id: string; title: string; category: string | null; severity: string; description: string | null
-  address: string | null; lat: number; lon: number; created_at: string; covered: boolean
+  address: string | null; lat: number; lon: number; created_at: string; covered: boolean; status?: string
 }
 interface Worker {
   ngo_user_id: string; name: string; role: string | null; lat: number; lon: number; last_seen_at: string; source: string
@@ -80,7 +80,7 @@ function setupBoardLayers(m: any) {
 
 interface Incident {
   id: string; lat: number; lon: number; status: string; confidence_score: number
-  report_count: number; created_at: string; radius_metres: number; inside: boolean; covered: boolean
+  report_count: number; created_at: string; radius_metres: number; inside: boolean; covered: boolean; handling?: string
 }
 interface TeamPin {
   id: string; name: string; type: string; status: string; lat: number; lon: number; last_seen_at: string | null
@@ -162,6 +162,10 @@ export default function NgoBoardPage() {
   const [panicDispatchFor, setPanicDispatchFor] = useState<Panic | null>(null)
   const [panicTeams, setPanicTeams] = useState<{ id: string; name: string; type: string; status: string }[]>([])
   const [panicBusy, setPanicBusy] = useState(false)
+  // Handled (dismissed/completed) incidents — collapsible reopen list.
+  const [handledIncidents, setHandledIncidents] = useState<Incident[]>([])
+  const [handledCustom, setHandledCustom] = useState<CustomIncident[]>([])
+  const [handledOpen, setHandledOpen] = useState(false)
   // Custom incidents
   const [customIncidents, setCustomIncidents] = useState<CustomIncident[]>([])
   const [creating, setCreating] = useState(false) // map-pick mode
@@ -296,10 +300,14 @@ export default function NgoBoardPage() {
       setWorkers(wrk)
       setRollCall(data.roll_call ?? null)
       setDispatches(data.dispatches ?? [])
+      const hInc: Incident[] = data.handled_incidents ?? []
+      setHandledIncidents(hInc)
+      setHandledCustom(data.handled_custom_incidents ?? [])
       renderSources()
 
-      // In-area feed → geocode for labels.
+      // In-area feed + handled public incidents → geocode for labels.
       inc.filter((c) => c.inside).forEach((c) => fetchLocationName(c.lat, c.lon, c.id))
+      hInc.forEach((c) => fetchLocationName(c.lat, c.lon, c.id))
     } catch { setLoadError(true); setLoaded(true) /* keep last good data */ }
   }, [renderSources, fetchLocationName])
 
@@ -454,6 +462,18 @@ export default function NgoBoardPage() {
     const res = await fetch(`/api/ngo/incidents/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'resolved' }) })
     if (res.ok) fetchBoard()
   }
+  // Dismiss a custom incident (not actionable) / reopen a handled one.
+  async function setCustomStatus(id: string, status: 'open' | 'dismissed', confirmMsg?: string) {
+    if (confirmMsg && !window.confirm(confirmMsg)) return
+    const res = await fetch(`/api/ngo/incidents/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) })
+    if (res.ok) fetchBoard()
+  }
+  // Dismiss / reopen a PUBLIC cluster incident via the NGO overlay.
+  async function setClusterHandling(clusterId: string, action: 'dismiss' | 'reopen', confirmMsg?: string) {
+    if (confirmMsg && !window.confirm(confirmMsg)) return
+    const res = await fetch('/api/ngo/incidents/cluster-status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cluster_id: clusterId, action }) })
+    if (res.ok) fetchBoard()
+  }
   async function openAssignIncident(i: CustomIncident) {
     setAssignIncFor(i); setIncTeams([])
     try { const res = await fetch('/api/ngo/teams'); if (res.ok) setIncTeams((await res.json()).teams ?? []) } catch { /* empty */ }
@@ -538,6 +558,7 @@ export default function NgoBoardPage() {
                   <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
                     {!d && <button type="button" onClick={() => openAssignIncident(i)} style={assignBtn}>Assign</button>}
                     <button type="button" onClick={() => resolveIncident(i.id)} style={{ ...assignBtn, color: '#8b949e', borderColor: '#21262d', background: 'rgba(255,255,255,0.04)' }}>Resolve</button>
+                    <button type="button" onClick={() => setCustomStatus(i.id, 'dismissed', 'Dismiss this incident? It leaves the board but can be reopened.')} style={{ ...assignBtn, color: '#8b949e', borderColor: '#21262d', background: 'rgba(255,255,255,0.04)' }}>Dismiss</button>
                   </div>
                 </div>
               )
@@ -625,11 +646,48 @@ export default function NgoBoardPage() {
                         <button type="button" onClick={() => { setRecallFor({ id: d.id, team: d.team_name }); setRecallReason('') }} style={{ ...assignBtn, color: '#f85149', borderColor: 'rgba(248,81,73,0.35)', background: 'rgba(248,81,73,0.08)' }}>Recall</button>
                       </div>
                     )
-                    return <button type="button" onClick={() => openAssign(c)} style={assignBtn}>Assign</button>
+                    return (
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button type="button" onClick={() => openAssign(c)} style={assignBtn}>Assign</button>
+                        <button type="button" onClick={() => setClusterHandling(c.id, 'dismiss', 'Dismiss this incident? It leaves your board but can be reopened. The public verification is unaffected.')} style={{ ...assignBtn, color: '#8b949e', borderColor: '#21262d', background: 'rgba(255,255,255,0.04)' }}>Dismiss</button>
+                      </div>
+                    )
                   })()}
                 </div>
               )
             })}
+          </div>
+
+          {/* Handled (dismissed / completed) — collapsible reopen list */}
+          <div style={{ borderTop: '1px solid #21262d', flexShrink: 0 }}>
+            <button type="button" onClick={() => setHandledOpen((o) => !o)} style={handledHeader}>
+              <span>{handledOpen ? '▾' : '▸'} Handled ({handledIncidents.length + handledCustom.length})</span>
+            </button>
+            {handledOpen && (
+              <div style={{ maxHeight: 220, overflowY: 'auto' }}>
+                {handledIncidents.length + handledCustom.length === 0 && (
+                  <div style={{ padding: '8px 16px', fontSize: 12, color: '#8b949e' }}>Nothing handled yet. Dismissed incidents and those a team completed appear here.</div>
+                )}
+                {handledIncidents.map((c) => (
+                  <div key={c.id} style={handledRow}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 12, color: '#e6edf3', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{locNames[c.id] ?? 'Incident'}</div>
+                      <div style={{ fontSize: 11, color: '#8b949e' }}>{c.handling === 'completed' ? '✓ Completed' : 'Dismissed'} · {STATUS_LABEL[c.status] ?? c.status}</div>
+                    </div>
+                    <button type="button" onClick={() => setClusterHandling(c.id, 'reopen')} style={reopenBtn}>Reopen</button>
+                  </div>
+                ))}
+                {handledCustom.map((i) => (
+                  <div key={i.id} style={handledRow}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 12, color: '#e6edf3', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{i.title}</div>
+                      <div style={{ fontSize: 11, color: '#8b949e' }}>{i.status === 'resolved' ? '✓ Resolved' : 'Dismissed'} · incident</div>
+                    </div>
+                    <button type="button" onClick={() => setCustomStatus(i.id, 'open')} style={reopenBtn}>Reopen</button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -770,6 +828,9 @@ const rollBtn: React.CSSProperties = {
   color: '#3fb950', borderRadius: 6, fontSize: 12, cursor: 'pointer', fontFamily: 'system-ui',
 }
 const feedCard: React.CSSProperties = { padding: '12px 16px', borderBottom: '1px solid #21262d' }
+const handledHeader: React.CSSProperties = { width: '100%', textAlign: 'left', padding: '10px 16px', background: 'rgba(255,255,255,0.02)', border: 'none', color: '#8b949e', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'system-ui' }
+const handledRow: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '8px 16px', borderTop: '1px solid #1b2027' }
+const reopenBtn: React.CSSProperties = { flexShrink: 0, height: 26, padding: '0 10px', background: 'rgba(88,166,255,0.1)', border: '1px solid rgba(88,166,255,0.35)', color: '#58a6ff', borderRadius: 6, fontSize: 11, cursor: 'pointer', fontFamily: 'system-ui' }
 const assignBtn: React.CSSProperties = {
   marginTop: 8, height: 28, padding: '0 12px', background: 'rgba(88,166,255,0.1)', border: '1px solid rgba(88,166,255,0.35)',
   color: '#58a6ff', borderRadius: 6, fontSize: 12, cursor: 'pointer', fontFamily: 'system-ui',

@@ -15,7 +15,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const supabase = createServiceClient()
 
   const { data: d } = await supabase
-    .from('ngo_dispatches').select('id, org_id, team_id, status').eq('id', id).eq('org_id', session.orgId).maybeSingle()
+    .from('ngo_dispatches').select('id, org_id, team_id, status, cluster_id, ngo_incident_id').eq('id', id).eq('org_id', session.orgId).maybeSingle()
   if (!d || d.org_id !== session.orgId) return NextResponse.json({ error: 'Dispatch not found' }, { status: 404 })
 
   // Authorise: leader/admin, or the field coordinator assigned to this team.
@@ -36,5 +36,25 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const { error } = await supabase.from('ngo_dispatches').update(update).eq('id', id)
   if (error) return NextResponse.json({ error: 'Could not advance dispatch' }, { status: 500 })
+
+  // The team went through every step → the incident is dealt with. Auto-mark it
+  // complete (best-effort; never fails the advance). A custom incident is resolved;
+  // a public cluster gets a 'completed' row in the NGO-owned overlay (clusters are
+  // read-only). The org can reopen either from the board.
+  if (next === 'done') {
+    const now = new Date().toISOString()
+    try {
+      if (d.ngo_incident_id) {
+        await supabase.from('ngo_incidents')
+          .update({ status: 'resolved', resolved_at: now, resolved_by: session.userId })
+          .eq('id', d.ngo_incident_id).eq('org_id', session.orgId)
+      } else if (d.cluster_id) {
+        await supabase.from('ngo_cluster_status')
+          .upsert({ org_id: session.orgId, cluster_id: d.cluster_id, status: 'completed', updated_by: session.userId, updated_at: now },
+                  { onConflict: 'org_id,cluster_id' })
+      }
+    } catch { /* overlay/table may be pre-migration; advancing still succeeded */ }
+  }
+
   return NextResponse.json({ success: true, status: next })
 }
