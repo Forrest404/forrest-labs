@@ -43,6 +43,25 @@ export function distanceKm(lat1: number, lon1: number, lat2: number, lon2: numbe
   return Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) * 10) / 10
 }
 
+// Forward-geocode a typed address/place → coordinates + a label (Mapbox), biased to
+// Lebanon. Returns null if nothing matches or the token is missing.
+export async function forwardGeocode(query: string): Promise<{ lat: number; lon: number; label: string } | null> {
+  const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
+  if (!token || !query.trim()) return null
+  try {
+    const url =
+      `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query.trim())}.json` +
+      `?access_token=${token}&limit=1&country=lb&proximity=35.5,33.9`
+    const res = await fetch(url)
+    const data = (await res.json()) as { features?: { center: [number, number]; place_name: string }[] }
+    const f = data.features?.[0]
+    if (!f) return null
+    return { lon: f.center[0], lat: f.center[1], label: f.place_name }
+  } catch {
+    return null
+  }
+}
+
 // Reverse-geocode a centroid to a place name (Mapbox). Falls back to coordinates.
 export async function geocode(lat: number, lon: number): Promise<string> {
   const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN

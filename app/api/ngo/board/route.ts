@@ -57,13 +57,14 @@ export async function GET(request: NextRequest) {
   if (days !== null) clusterQuery = clusterQuery.gte('created_at', new Date(Date.now() - days * 86400000).toISOString())
   const { data: clusters } = await clusterQuery.order('created_at', { ascending: false }).limit(500)
 
-  // Active dispatches for this org → which clusters are currently covered.
+  // Active dispatches for this org → which clusters / custom incidents are covered.
   const { data: dispatches } = await supabase
     .from('ngo_dispatches')
-    .select('cluster_id')
+    .select('cluster_id, ngo_incident_id')
     .eq('org_id', orgId)
     .in('status', ACTIVE_DISPATCH)
   const covered = new Set((dispatches ?? []).map((d) => d.cluster_id).filter(Boolean))
+  const coveredIncidents = new Set((dispatches ?? []).map((d) => d.ngo_incident_id).filter(Boolean))
 
   const incidents = (clusters ?? []).map((c) => ({
     id: c.id,
@@ -161,7 +162,7 @@ export async function GET(request: NextRequest) {
   // feed cards and quick reassign/recall.
   const { data: dispRows } = await supabase
     .from('ngo_dispatches')
-    .select('id, cluster_id, team_id, status, assigned_at, on_scene_at, ngo_teams ( name )')
+    .select('id, cluster_id, ngo_incident_id, team_id, status, assigned_at, on_scene_at, ngo_teams ( name )')
     .eq('org_id', orgId)
     .order('assigned_at', { ascending: false })
   const dispatchSummaries = (dispRows ?? []).map((d: any) => {
@@ -169,6 +170,7 @@ export async function GET(request: NextRequest) {
     return {
       id: d.id,
       cluster_id: d.cluster_id,
+      ngo_incident_id: d.ngo_incident_id,
       team_id: d.team_id,
       team_name: team?.name ?? null,
       status: d.status,
@@ -178,9 +180,23 @@ export async function GET(request: NextRequest) {
     }
   })
 
+  // Custom (org-created) incidents that are still open, with a covered flag.
+  // Resilient to the migration not being applied yet (table/column may be absent).
+  let customIncidents: any[] = []
+  try {
+    const { data: ci } = await supabase
+      .from('ngo_incidents')
+      .select('id, title, category, severity, description, address, lat, lon, created_at')
+      .eq('org_id', orgId)
+      .eq('status', 'open')
+      .order('created_at', { ascending: false })
+    customIncidents = (ci ?? []).map((i: any) => ({ ...i, covered: coveredIncidents.has(i.id) }))
+  } catch { /* migration not applied yet */ }
+
   return NextResponse.json({
     operational_area: area,
     incidents,
+    custom_incidents: customIncidents,
     teams: teamPins,
     panics,
     roll_call: rollCall,

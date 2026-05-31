@@ -287,8 +287,14 @@ export default function NgoFieldPage() {
       {/* Active dispatch */}
       {dispatch && (
         <div style={dispatchCard}>
-          <div style={{ fontSize: 12, color: '#d29922', fontWeight: 600 }}>DISPATCH · {STATUS_TEXT[dispatch.status] ?? dispatch.status}</div>
-          <div style={{ fontSize: 15, fontWeight: 600, marginTop: 4 }}>{dispatch.hazard ? `${dispatch.hazard} — ` : ''}{dispatch.location_name ?? 'Incident'}</div>
+          <div style={{ fontSize: 12, color: '#d29922', fontWeight: 600 }}>
+            DISPATCH · {STATUS_TEXT[dispatch.status] ?? dispatch.status}{dispatch.severity ? ` · ${String(dispatch.severity).toUpperCase()}` : ''}
+          </div>
+          <div style={{ fontSize: 16, fontWeight: 700, marginTop: 4 }}>{dispatch.title ?? (dispatch.hazard ? `${dispatch.hazard} — ` : '') + (dispatch.location_name ?? 'Incident')}</div>
+          {dispatch.title && (dispatch.hazard || dispatch.location_name) && (
+            <div style={{ fontSize: 12, color: '#8b949e', marginTop: 2 }}>{[dispatch.hazard, dispatch.location_name].filter(Boolean).join(' · ')}</div>
+          )}
+          {dispatch.description && <div style={{ fontSize: 13, color: '#e6edf3', marginTop: 6 }}>{dispatch.description}</div>}
           {dispatch.note && <div style={{ fontSize: 12, color: '#8b949e', marginTop: 4 }}>{dispatch.note}</div>}
           {dispatch.map_link && <a href={dispatch.map_link} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: '#58a6ff' }}>Open map ↗</a>}
           {NEXT_STATUS[dispatch.status] && (
