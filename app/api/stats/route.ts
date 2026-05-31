@@ -2,13 +2,12 @@ import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 
 // Count exactly what the public map plots so the landing "incidents" number
-// agrees with it. app/map (MapClient) plots clusters in these four statuses with
-// no bounding-box filter — pending_review renders dimmer but is still shown.
-// Counting only 'confirmed' here was undercounting badly (e.g. 67 vs ~175 on the
-// map). NOTE: this set includes pending_review, which is not strictly
-// "confirmed" — kept in sync with the map deliberately; revisit if the tile is
-// meant to mean confirmed-only.
-const MAP_STATUSES = ['confirmed', 'news_verified', 'official_verified', 'pending_review'] as const
+// agrees with the pin count. Source of truth is app/map/page.tsx:818, which
+// fetches clusters in these four statuses (no bounding-box filter). Counting
+// only 'confirmed' here was undercounting badly (e.g. 67 vs ~175 on the map).
+// 'auto_confirmed' currently yields zero rows (the live DB constraint rejects
+// it) but is kept for exact parity with the map's query.
+const MAP_STATUSES = ['confirmed', 'auto_confirmed', 'news_verified', 'official_verified'] as const
 
 export async function GET() {
   try {
