@@ -141,6 +141,8 @@ export default function HomePage() {
   const [locationIdx, setLocationIdx] = useState(0)
   const [locationFade, setLocationFade] = useState(true)
   const [isMobile, setIsMobile] = useState(false)
+  // Live system status behind the "uptime" tile — refreshed with the stats poll.
+  const [health, setHealth] = useState<'healthy' | 'degraded' | 'down'>('healthy')
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const nodesRef = useRef<CanvasNode[]>([])
@@ -167,18 +169,24 @@ export default function HomePage() {
   const fetchStats = useCallback(async () => {
     try {
       const res = await fetch('/api/stats', { cache: 'no-store' })
-      if (!res.ok) return
-      const data = (await res.json()) as StatsData
-      setStats(data)
-      if (!statsLoaded) {
-        setStatsLoaded(true)
-        animateNumber(0, data.reports_today, 2000, (n) => setDisplayStats((p) => ({ ...p, reports_today: n })))
-        animateNumber(0, data.confirmed_incidents, 2000, (n) => setDisplayStats((p) => ({ ...p, confirmed_incidents: n })))
-        animateNumber(0, data.active_warnings, 2000, (n) => setDisplayStats((p) => ({ ...p, active_warnings: n })))
-      } else {
-        setDisplayStats({ reports_today: data.reports_today, confirmed_incidents: data.confirmed_incidents, active_warnings: data.active_warnings })
+      if (res.ok) {
+        const data = (await res.json()) as StatsData
+        setStats(data)
+        if (!statsLoaded) {
+          setStatsLoaded(true)
+          animateNumber(0, data.reports_today, 2000, (n) => setDisplayStats((p) => ({ ...p, reports_today: n })))
+          animateNumber(0, data.confirmed_incidents, 2000, (n) => setDisplayStats((p) => ({ ...p, confirmed_incidents: n })))
+          animateNumber(0, data.active_warnings, 2000, (n) => setDisplayStats((p) => ({ ...p, active_warnings: n })))
+        } else {
+          setDisplayStats({ reports_today: data.reports_today, confirmed_incidents: data.confirmed_incidents, active_warnings: data.active_warnings })
+        }
       }
     } catch { /* ignore */ }
+    // Live uptime tile: reflect the real backend health check, not a static figure.
+    try {
+      const h = await fetch('/api/health', { cache: 'no-store' })
+      setHealth(h.ok && (await h.json())?.status === 'healthy' ? 'healthy' : 'degraded')
+    } catch { setHealth('down') }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [animateNumber, statsLoaded])
 
@@ -482,9 +490,13 @@ export default function HomePage() {
             { key: 'active_warnings' as const, label: t('stat_warnings'), accent: 'amber' as const },
             { key: null, label: t('stat_uptime'), accent: null },
           ]).map((s, i) => {
+            const isUptime = s.key === null
             const val = s.key ? displayStats[s.key] : 0
-            const isAmber = s.accent === 'amber' && val > 0
-            const isRed = s.accent === 'red' && val > 0
+            // Uptime tile reflects live health: green/SLA when healthy, amber when
+            // degraded, red when the health check can't be reached.
+            const uptimeText = health === 'healthy' ? '99.9%' : health === 'degraded' ? 'DEGRADED' : 'OFFLINE'
+            const isAmber = (s.accent === 'amber' && val > 0) || (isUptime && health === 'degraded')
+            const isRed = (s.accent === 'red' && val > 0) || (isUptime && health === 'down')
             const accentColor = isAmber ? 'rgba(249,115,22,' : isRed ? 'rgba(239,68,68,' : null
             return (
               <div key={i} style={{
@@ -494,8 +506,8 @@ export default function HomePage() {
               }}>
                 {cornerAccent('tl', accentColor ? `${accentColor}0.5)` : undefined)}
                 {cornerAccent('br', accentColor ? `${accentColor}0.5)` : undefined)}
-                <div style={{ fontSize: 32, fontWeight: 500, color: isAmber ? '#f97316' : isRed ? '#ef4444' : '#ffffff', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em', fontFamily: 'monospace' }}>
-                  {s.key ? val : '99.9%'}
+                <div style={{ fontSize: isUptime && health !== 'healthy' ? 18 : 32, fontWeight: 500, color: isAmber ? '#f97316' : isRed ? '#ef4444' : '#ffffff', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em', fontFamily: 'monospace' }}>
+                  {isUptime ? uptimeText : val}
                 </div>
                 <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 4, fontFamily: 'monospace' }}>{s.label}</div>
               </div>
