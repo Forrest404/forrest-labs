@@ -162,6 +162,8 @@ export default function NgoBoardPage() {
   const showWorkersRef = useRef(true)
   useEffect(() => { showWorkersRef.current = showWorkers }, [showWorkers])
   const [panicDispatchFor, setPanicDispatchFor] = useState<Panic | null>(null)
+  const [resolvePanicFor, setResolvePanicFor] = useState<Panic | null>(null)
+  const [panicNote, setPanicNote] = useState('')
   const [panicTeams, setPanicTeams] = useState<{ id: string; name: string; type: string; status: string }[]>([])
   const [panicBusy, setPanicBusy] = useState(false)
   // Handled (dismissed/completed) incidents — collapsible reopen list.
@@ -410,9 +412,10 @@ export default function NgoBoardPage() {
   function setWindow(v: string) {
     setWindowDays(v); daysRef.current = v; fetchBoard()
   }
-  async function resolvePanic(panicId: string) {
-    const res = await fetch(`/api/ngo/safety/panic/${panicId}/resolve`, { method: 'POST' })
-    if (res.ok) fetchBoard()
+  async function resolvePanic(panicId: string, note: string) {
+    if (note.trim().length < 3) return
+    const res = await fetch(`/api/ngo/safety/panic/${panicId}/resolve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ resolution_note: note.trim() }) })
+    if (res.ok) { setResolvePanicFor(null); setPanicNote(''); fetchBoard() }
   }
   async function acknowledgePanic(panicId: string) {
     const res = await fetch(`/api/ngo/safety/panic/${panicId}/acknowledge`, { method: 'POST' })
@@ -604,7 +607,7 @@ export default function NgoBoardPage() {
                     {p.phone && <a href={`tel:${p.phone}`} style={{ ...resolveBtn, textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>Call</a>}
                     {p.lat != null && p.lon != null && <button type="button" onClick={() => locatePanic(p)} style={{ ...resolveBtn, color: '#a371f7', borderColor: 'rgba(163,113,247,0.4)', background: 'rgba(163,113,247,0.1)' }}>Locate</button>}
                     <button type="button" onClick={() => openPanicDispatch(p)} style={{ ...resolveBtn, color: '#58a6ff', borderColor: 'rgba(88,166,255,0.4)', background: 'rgba(88,166,255,0.1)' }}>Send team</button>
-                    <button type="button" onClick={() => resolvePanic(p.id)} style={resolveBtn}>Resolve</button>
+                    <button type="button" onClick={() => { setResolvePanicFor(p); setPanicNote('') }} style={resolveBtn}>Resolve</button>
                   </div>
                 </div>
               ))}
@@ -781,6 +784,21 @@ export default function NgoBoardPage() {
               ))}
             </div>
             <button type="button" onClick={() => setPanicDispatchFor(null)} style={{ ...assignBtn, marginTop: 12 }}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {/* Resolve-panic modal — outcome note required; a panic never auto-closes */}
+      {resolvePanicFor && (
+        <div onClick={() => setResolvePanicFor(null)} style={modalBackdrop}>
+          <div onClick={(e) => e.stopPropagation()} style={{ ...modalBox, width: 360 }}>
+            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>Resolve {resolvePanicFor.name}’s panic</div>
+            <div style={{ fontSize: 13, color: '#8b949e', marginBottom: 12 }}>Only resolve once the person is confirmed safe. An outcome note is required.</div>
+            <textarea value={panicNote} onChange={(e) => setPanicNote(e.target.value)} placeholder="What happened / outcome…" style={{ ...noteField, height: 84, paddingTop: 8 }} />
+            <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+              <button type="button" disabled={panicNote.trim().length < 3} onClick={() => resolvePanic(resolvePanicFor.id, panicNote)} style={{ ...assignBtn, flex: 1, color: '#3fb950', borderColor: 'rgba(63,185,80,0.4)', background: 'rgba(63,185,80,0.1)', opacity: panicNote.trim().length < 3 ? 0.5 : 1 }}>Resolve</button>
+              <button type="button" onClick={() => setResolvePanicFor(null)} style={{ ...assignBtn, flex: 1 }}>Cancel</button>
+            </div>
           </div>
         </div>
       )}
