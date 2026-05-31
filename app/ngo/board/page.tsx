@@ -34,6 +34,9 @@ interface CustomIncident {
   id: string; title: string; category: string | null; severity: string; description: string | null
   address: string | null; lat: number; lon: number; created_at: string; covered: boolean
 }
+interface Worker {
+  ngo_user_id: string; name: string; role: string | null; lat: number; lon: number; last_seen_at: string; source: string
+}
 const SEVERITY_COLOUR: Record<string, string> = { low: '#58a6ff', medium: '#d29922', high: '#f97316', critical: '#f85149' }
 const CATEGORIES = ['medical', 'fire', 'rescue', 'flood', 'shelter', 'security', 'other']
 
@@ -51,7 +54,7 @@ function setupBoardLayers(m: any) {
   if (!m) return
   const empty = { type: 'FeatureCollection', features: [] }
   const src = (id: string) => { if (!m.getSource(id)) m.addSource(id, { type: 'geojson', data: empty }) }
-  src('area'); src('inc-radius'); src('inc-dots'); src('gaps'); src('teams'); src('panics'); src('custom-inc')
+  src('area'); src('inc-radius'); src('inc-dots'); src('gaps'); src('teams'); src('panics'); src('custom-inc'); src('workers')
   const layer = (def: any) => { if (!m.getLayer(def.id)) m.addLayer(def) }
 
   layer({ id: 'area-fill', type: 'fill', source: 'area', paint: { 'fill-color': '#58a6ff', 'fill-opacity': 0.05 } })
@@ -67,6 +70,9 @@ function setupBoardLayers(m: any) {
   layer({ id: 'custom-inc-ring', type: 'circle', source: 'custom-inc', filter: ['!', ['get', 'covered']], paint: { 'circle-radius': 16, 'circle-color': '#f97316', 'circle-opacity': 0.3, 'circle-blur': 0.5 } })
   layer({ id: 'custom-inc-dot', type: 'circle', source: 'custom-inc', paint: { 'circle-radius': 8, 'circle-color': ['case', ['==', ['get', 'severity'], 'critical'], SEVERITY_COLOUR.critical, ['==', ['get', 'severity'], 'high'], SEVERITY_COLOUR.high, ['==', ['get', 'severity'], 'low'], SEVERITY_COLOUR.low, SEVERITY_COLOUR.medium], 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2 } })
   layer({ id: 'custom-inc-label', type: 'symbol', source: 'custom-inc', layout: { 'text-field': ['get', 'title'], 'text-size': 11, 'text-offset': [0, 1.3], 'text-anchor': 'top', 'text-max-width': 12 }, paint: { 'text-color': '#e6edf3', 'text-halo-color': 'rgba(0,0,0,0.85)', 'text-halo-width': 1.5 } })
+  // Per-worker live pins — red if in duress (panic), else green/grey by freshness.
+  layer({ id: 'worker-dot', type: 'circle', source: 'workers', paint: { 'circle-radius': 6, 'circle-color': ['case', ['==', ['get', 'source'], 'panic'], '#f85149', ['get', 'fresh'], '#3fb950', '#8b949e'], 'circle-stroke-color': '#0d1117', 'circle-stroke-width': 2 } })
+  layer({ id: 'worker-label', type: 'symbol', source: 'workers', layout: { 'text-field': ['get', 'label'], 'text-size': 10, 'text-offset': [0, 1.1], 'text-anchor': 'top', 'text-max-width': 12 }, paint: { 'text-color': '#c9d1d9', 'text-halo-color': 'rgba(0,0,0,0.85)', 'text-halo-width': 1.4 } })
   layer({ id: 'panic-glow', type: 'circle', source: 'panics', paint: { 'circle-radius': 26, 'circle-color': '#f85149', 'circle-opacity': 0.4, 'circle-blur': 0.5 } })
   layer({ id: 'panic-dot', type: 'circle', source: 'panics', paint: { 'circle-radius': 9, 'circle-color': '#f85149', 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2 } })
   layer({ id: 'panic-label', type: 'symbol', source: 'panics', layout: { 'text-field': ['get', 'label'], 'text-size': 12, 'text-offset': [0, 1.5], 'text-anchor': 'top', 'text-max-width': 14 }, paint: { 'text-color': '#f85149', 'text-halo-color': 'rgba(0,0,0,0.9)', 'text-halo-width': 1.5 } })
@@ -126,7 +132,7 @@ export default function NgoBoardPage() {
   const mapContainer = useRef<HTMLDivElement | null>(null)
   const map = useRef<any>(null)
   const [mapLoaded, setMapLoaded] = useState(false)
-  const dataRef = useRef<{ incidents: Incident[]; teams: TeamPin[]; area: any; panics: Panic[]; customIncidents: CustomIncident[] } | null>(null)
+  const dataRef = useRef<{ incidents: Incident[]; teams: TeamPin[]; area: any; panics: Panic[]; customIncidents: CustomIncident[]; workers: Worker[] } | null>(null)
 
   const [incidents, setIncidents] = useState<Incident[]>([])
   const [teams, setTeams] = useState<TeamPin[]>([])
@@ -149,6 +155,10 @@ export default function NgoBoardPage() {
   const daysRef = useRef('10')
   useEffect(() => { daysRef.current = windowDays }, [windowDays])
   const [mapStyle, setMapStyle] = useState<string>('dark')
+  const [workers, setWorkers] = useState<Worker[]>([])
+  const [showWorkers, setShowWorkers] = useState(true)
+  const showWorkersRef = useRef(true)
+  useEffect(() => { showWorkersRef.current = showWorkers }, [showWorkers])
   const [panicDispatchFor, setPanicDispatchFor] = useState<Panic | null>(null)
   const [panicTeams, setPanicTeams] = useState<{ id: string; name: string; type: string; status: string }[]>([])
   const [panicBusy, setPanicBusy] = useState(false)
@@ -251,8 +261,19 @@ export default function NgoBoardPage() {
       })),
     }
 
+    // Worker pins (hidden when the toggle is off). fresh = located in the last hour.
+    const now = Date.now()
+    const workerFC = {
+      type: 'FeatureCollection',
+      features: showWorkersRef.current ? (d.workers ?? []).map((w) => ({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [w.lon, w.lat] },
+        properties: { id: w.ngo_user_id, source: w.source, fresh: now - new Date(w.last_seen_at).getTime() < 3600000, label: `${w.name} · ${timeAgo(w.last_seen_at)}` },
+      })) : [],
+    }
+
     const set = (id: string, data: any) => { const s = m.getSource(id); if (s) s.setData(data) }
-    set('area', areaFC); set('inc-radius', radiusFC); set('inc-dots', dotFC); set('gaps', gapFC); set('teams', teamFC); set('panics', panicFC); set('custom-inc', customFC)
+    set('area', areaFC); set('inc-radius', radiusFC); set('inc-dots', dotFC); set('gaps', gapFC); set('teams', teamFC); set('panics', panicFC); set('custom-inc', customFC); set('workers', workerFC)
   }, [])
 
   // ── Fetch board data ───────────────────────────────────────────────────────
@@ -266,11 +287,13 @@ export default function NgoBoardPage() {
       const tms: TeamPin[] = data.teams ?? []
       const pnc: Panic[] = data.panics ?? []
       const cinc: CustomIncident[] = data.custom_incidents ?? []
-      dataRef.current = { incidents: inc, teams: tms, area: data.operational_area, panics: pnc, customIncidents: cinc }
+      const wrk: Worker[] = data.workers ?? []
+      dataRef.current = { incidents: inc, teams: tms, area: data.operational_area, panics: pnc, customIncidents: cinc, workers: wrk }
       setIncidents(inc)
       setTeams(tms)
       setPanics(pnc)
       setCustomIncidents(cinc)
+      setWorkers(wrk)
       setRollCall(data.roll_call ?? null)
       setDispatches(data.dispatches ?? [])
       renderSources()
@@ -465,11 +488,15 @@ export default function NgoBoardPage() {
         </div>
       )}
 
-      {/* Base-map style switcher */}
+      {/* Base-map style switcher + worker-pins toggle */}
       <div style={styleSwitcher}>
         {MAP_STYLES.map((s) => (
           <button key={s.id} type="button" onClick={() => changeMapStyle(s.id)} style={styleBtn(mapStyle === s.id)}>{s.label}</button>
         ))}
+        <div style={{ width: 1, background: '#21262d', margin: '0 2px' }} />
+        <button type="button" onClick={() => { const next = !showWorkers; setShowWorkers(next); showWorkersRef.current = next; renderSources() }} style={styleBtn(showWorkers)}>
+          Workers{workers.length ? ` (${workers.length})` : ''}
+        </button>
       </div>
 
       {/* Collapse toggle */}

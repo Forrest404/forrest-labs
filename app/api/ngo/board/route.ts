@@ -100,6 +100,35 @@ export async function GET(request: NextRequest) {
     })
     .filter((t) => t.lat != null && t.lon != null)
 
+  // Per-worker live pins: each active org user's last-known location — the most
+  // recent of their latest located check-in (incl. roll-call shares) and their
+  // latest located panic. Reads existing tables; no per-worker location column.
+  const { data: orgPeople } = await supabase
+    .from('ngo_users').select('id, full_name, role').eq('org_id', orgId).eq('status', 'active')
+  const peopleIds = (orgPeople ?? []).map((u) => u.id)
+  let workers: any[] = []
+  if (peopleIds.length) {
+    const [{ data: cis }, { data: pes }] = await Promise.all([
+      supabase.from('check_ins').select('ngo_user_id, lat, lon, created_at').in('ngo_user_id', peopleIds).not('lat', 'is', null).order('created_at', { ascending: false }).limit(1000),
+      supabase.from('panic_events').select('ngo_user_id, last_lat, last_lon, created_at').in('ngo_user_id', peopleIds).not('last_lat', 'is', null).order('created_at', { ascending: false }).limit(500),
+    ])
+    // Latest located event per user, across both sources.
+    const latest = new Map<string, { lat: number; lon: number; at: string; source: string }>()
+    for (const c of cis ?? []) {
+      const cur = latest.get(c.ngo_user_id)
+      if (!cur || new Date(c.created_at) > new Date(cur.at)) latest.set(c.ngo_user_id, { lat: c.lat, lon: c.lon, at: c.created_at, source: 'check_in' })
+    }
+    for (const p of pes ?? []) {
+      const cur = latest.get(p.ngo_user_id)
+      if (!cur || new Date(p.created_at) > new Date(cur.at)) latest.set(p.ngo_user_id, { lat: p.last_lat, lon: p.last_lon, at: p.created_at, source: 'panic' })
+    }
+    const nameOf = new Map((orgPeople ?? []).map((u: any) => [u.id, { name: u.full_name, role: u.role }]))
+    workers = [...latest.entries()].map(([uid, v]) => ({
+      ngo_user_id: uid, name: nameOf.get(uid)?.name ?? 'Worker', role: nameOf.get(uid)?.role ?? null,
+      lat: v.lat, lon: v.lon, last_seen_at: v.at, source: v.source,
+    }))
+  }
+
   // Active panics (unresolved) — surfaced prominently; the board flags the user.
   // panic_events has no org_id, so scope by the org's users.
   const { data: orgUsers } = await supabase.from('ngo_users').select('id, full_name').eq('org_id', orgId)
@@ -198,6 +227,7 @@ export async function GET(request: NextRequest) {
     incidents,
     custom_incidents: customIncidents,
     teams: teamPins,
+    workers,
     panics,
     roll_call: rollCall,
     dispatches: dispatchSummaries,

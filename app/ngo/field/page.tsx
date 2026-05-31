@@ -206,7 +206,9 @@ export default function NgoFieldPage() {
 
   async function respondRollCall() {
     if (!state?.active_roll_call) return
-    const sent = await send('/api/ngo/safety/roll-call/respond', { roll_call_id: state.active_roll_call.id }, 'roll-call')
+    setMsg('Sharing location…')
+    const { lat, lon } = await resolveCoords()
+    const sent = await send('/api/ngo/safety/roll-call/respond', { roll_call_id: state.active_roll_call.id, lat, lon }, 'roll-call')
     setMsg(sent ? "You're marked safe ✓" : 'Queued — response will send when online')
     loadState()
   }
