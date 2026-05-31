@@ -29,7 +29,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     return NextResponse.json({ error: 'Not authorised' }, { status: 403 })
   }
   const { id } = await params
-  let body: { full_name?: string; phone?: string; role?: string; status?: string; password?: string; pin?: string; regenerate_code?: boolean }
+  let body: { full_name?: string; phone?: string; role?: string; status?: string; password?: string; pin?: string; regenerate_code?: boolean; revoke_sessions?: boolean }
   try { body = await request.json() } catch { return NextResponse.json({ error: 'Invalid request' }, { status: 400 }) }
 
   const supabase = createServiceClient()
@@ -70,6 +70,19 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     newCode = generateLoginCode()
     update.login_code = newCode
   }
+  // "Sign out all devices": bump token_version so every token already issued to this
+  // user is rejected by getNgoSession on its next request — immediate remote revocation
+  // for a lost/seized phone, without suspending the account. Read tolerantly so a not-
+  // yet-applied column gives a clear message instead of a silent failure.
+  if (body.revoke_sessions) {
+    const { data: cur, error: curErr } = await supabase
+      .from('ngo_users').select('token_version').eq('id', id).eq('org_id', session!.orgId).maybeSingle()
+    if (curErr || !cur || typeof (cur as any).token_version !== 'number') {
+      return NextResponse.json({ error: 'Remote sign-out isn’t available yet — apply the token_version migration.' }, { status: 503 })
+    }
+    update.token_version = (cur as any).token_version + 1
+  }
+
   if (Object.keys(update).length === 0) return NextResponse.json({ error: 'Nothing to update' }, { status: 400 })
 
   if (await wouldOrphanOrg(supabase, session!.orgId, target as any, { role: update.role as string, status: update.status as string })) {

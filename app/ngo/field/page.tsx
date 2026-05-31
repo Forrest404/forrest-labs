@@ -45,6 +45,7 @@ async function qClear() {
 // data. The httpOnly session cookie can only be cleared server-side (online logout).
 async function wipeLocalSensitive() {
   try { localStorage.removeItem(LAST_GPS_KEY) } catch { /* storage off */ }
+  try { localStorage.removeItem(CHATS_CACHE_KEY) } catch { /* storage off */ }
   await qClear()
 }
 

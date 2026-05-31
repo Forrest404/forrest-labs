@@ -60,6 +60,10 @@ export async function PATCH(request: NextRequest) {
     base.type = type
   }
   if (body.country !== undefined) base.country = body.country ? String(body.country).trim() : null
+  // Cross-org sharing — DEFAULT OFF (foundation migration) and currently NOT consumed by
+  // any feature. CONTRACT for whoever builds inter-agency sharing: when one of these is
+  // on, share only team TYPE + a ROUGH AREA (coarsen() in lib/ngo-geo.ts) — never names,
+  // never precise pins. Aid-worker location is targeting data.
   if (body.share_team_presence !== undefined) base.share_team_presence = !!body.share_team_presence
   if (body.share_operational_area !== undefined) base.share_operational_area = !!body.share_operational_area
 

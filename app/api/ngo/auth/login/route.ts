@@ -96,8 +96,14 @@ export async function POST(request: NextRequest) {
   // Success — clear this IP's failure count.
   attempts.delete(ipKey)
 
+  // Embed the user's current revocation epoch so a later admin "sign out all devices"
+  // invalidates this token. Tolerant of a not-yet-applied column (defaults to 1).
+  let tokenVersion = 1
+  const { data: tv } = await supabase.from('ngo_users').select('token_version').eq('id', user.id).maybeSingle()
+  if (tv && typeof (tv as any).token_version === 'number') tokenVersion = (tv as any).token_version
+
   const role = user.role as NgoRole
-  const token = await createNgoSession(user.id, user.org_id, role)
+  const token = await createNgoSession(user.id, user.org_id, role, tokenVersion)
   const response = NextResponse.json({ success: true, role })
   setNgoCookie(response as unknown as Response, token, ngoSessionTtlSeconds(role))
   return response

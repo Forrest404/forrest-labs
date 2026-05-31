@@ -84,6 +84,18 @@ export default function NgoUsersPage() {
     else setError(data.error ?? 'Could not change status.')
   }
 
+  async function signOutDevices(u: User) {
+    if (!window.confirm(`Sign ${u.full_name || u.email} out of all devices now? Any phone or browser they’re logged in on stops working immediately. Use this for a lost or seized device.`)) return
+    setBusy(true); setMsg(null); setError(null)
+    try {
+      const res = await fetch(`/api/ngo/users/${u.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revoke_sessions: true }) })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) setMsg('Signed out of all devices.')
+      else setError(data.error ?? 'Could not sign the user out.')
+    } catch { setError('Could not sign the user out.') }
+    finally { setBusy(false) }
+  }
+
   async function resetCode(u: User) {
     if (!window.confirm(`Reset ${u.full_name || u.email}’s access code? Their current code and QR stop working immediately — you’ll need to share the new one.`)) return
     setBusy(true); setMsg(null); setError(null)
@@ -144,6 +156,7 @@ export default function NgoUsersPage() {
               <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
                 <button type="button" onClick={() => setEdit({ id: u.id, full_name: u.full_name ?? '', phone: u.phone ?? '', role: u.role, status: u.status, password: '', regenerate: false })} style={miniBtn}>Edit</button>
                 <button type="button" onClick={() => toggleStatus(u)} style={miniBtn}>{u.status === 'active' ? 'Suspend' : 'Reactivate'}</button>
+                <button type="button" onClick={() => signOutDevices(u)} style={miniBtn}>Sign out devices</button>
                 <button type="button" onClick={() => removeUser(u)} style={{ ...miniBtn, color: '#f85149', borderColor: 'rgba(248,81,73,0.4)' }}>Remove</button>
               </div>
             </div>

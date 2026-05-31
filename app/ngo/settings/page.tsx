@@ -139,6 +139,9 @@ export default function NgoSettingsPage() {
             Operational area: {org.has_operational_area ? <span style={{ color: '#3fb950' }}>defined</span> : <span style={{ color: '#8b949e' }}>not set</span>}
             {' · '}<a href="/ngo/setup" style={{ color: '#58a6ff', textDecoration: 'none' }}>Edit on map →</a>
           </div>
+          <div style={{ fontSize: 13 }}>
+            <a href="/ngo/privacy" style={{ color: '#58a6ff', textDecoration: 'none' }}>How NOUR handles your data →</a>
+          </div>
 
           {canEdit && (
             <button type="button" onClick={save} disabled={saving || !org.name.trim()} style={{ ...primaryBtn, opacity: saving || !org.name.trim() ? 0.6 : 1 }}>

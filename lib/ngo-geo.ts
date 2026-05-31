@@ -19,3 +19,13 @@ export function pointInPolygon(
   }
   return inside
 }
+
+// Coarsen a coordinate to area-level precision (data minimisation). Precise GPS is for
+// in-org RESCUE/OPS only (board pins, dispatch navigation, panic response, a worker's own
+// view). Any AWARENESS surface — above all cross-org sharing (default off; see org
+// settings) — must use this so a shared position reveals only a rough area, never a pin.
+//   decimals: 2 ≈ 1.1 km, 1 ≈ 11 km. Default 2 (neighbourhood-level).
+export function coarsen(lat: number, lon: number, decimals = 2): { lat: number; lon: number } {
+  const f = Math.pow(10, decimals)
+  return { lat: Math.round(lat * f) / f, lon: Math.round(lon * f) / f }
+}
