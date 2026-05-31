@@ -21,6 +21,10 @@ const LANG = {
     cta_primary: 'Report an Incident',
     cta_secondary: 'View Live Map',
     cta_note: 'Anonymous · No account required · Works on any phone',
+    ngo_login: 'NGO Login',
+    ngo_register: 'Register your organisation',
+    ngo_cta: 'For NGO teams',
+    ngo_cta_note: 'Aid coordinators — sign in to your operations dashboard',
     how_label: 'HOW IT WORKS',
     s1_num: '01', s1_title: 'You report in 15 seconds', s1_body: 'Tap four times to log what you heard, saw, or were warned about. No login. No app. Works on any phone anywhere in Lebanon.',
     s2_num: '02', s2_title: 'AI verifies instantly', s2_body: 'Reports from the same area are cross-referenced automatically. Coordinated fake reports are filtered out. Verified incidents appear on the map within 90 seconds.',
@@ -53,6 +57,10 @@ const LANG = {
     cta_primary: 'Signaler un Incident',
     cta_secondary: 'Voir la Carte',
     cta_note: 'Anonyme · Sans compte · Fonctionne sur tout téléphone',
+    ngo_login: 'Espace ONG',
+    ngo_register: 'Inscrire votre organisation',
+    ngo_cta: 'Pour les équipes ONG',
+    ngo_cta_note: 'Coordinateurs — connectez-vous à votre tableau de bord',
     how_label: 'COMMENT ÇA MARCHE',
     s1_num: '01', s1_title: 'Vous signalez en 15 secondes', s1_body: "Appuyez quatre fois pour signaler ce que vous avez entendu, vu ou dont vous avez été averti. Sans connexion. Sans application.",
     s2_num: '02', s2_title: "L'IA vérifie instantanément", s2_body: "Les signalements de la même zone sont recoupés automatiquement. Les faux signalements sont filtrés. Les incidents vérifiés apparaissent sur la carte en 90 secondes.",
@@ -85,6 +93,10 @@ const LANG = {
     cta_primary: 'بلّغ عن حادثة',
     cta_secondary: 'شوف الخريطة المباشرة',
     cta_note: 'مجهول الهوية · بدون حساب · بيشتغل على أي تلفون',
+    ngo_login: 'دخول المنظمات',
+    ngo_register: 'سجّل منظمتك',
+    ngo_cta: 'لفِرَق المنظمات',
+    ngo_cta_note: 'منسّقو الإغاثة — سجّلوا الدخول للوحة العمليات',
     how_label: 'كيف بيشتغل',
     s1_num: '٠١', s1_title: 'بتبلّغ بـ 15 ثانية', s1_body: 'اضغط أربع مرات تسجّل شو سمعت أو شفت أو حذّروك منه. بدون تسجيل دخول. بدون تطبيق. بيشتغل على أي تلفون بلبنان.',
     s2_num: '٠٢', s2_title: 'الذكاء الاصطناعي بيتحقق على طول', s2_body: 'البلاغات من نفس المنطقة بتتقاطع تلقائياً. البلاغات الكاذبة بتنفلتر. الحوادث المؤكدة بتظهر على الخريطة خلال 90 ثانية.',
@@ -444,6 +456,8 @@ export default function HomePage() {
           ))}
           <div className="hp-nav-links" style={{ display: 'flex', alignItems: 'center', gap: 12, marginLeft: 8 }}>
             <a href="/map" style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', textDecoration: 'none', fontFamily: 'monospace' }}>{t('nav_map')}</a>
+            {/* NGO entry — blue to stay distinct from the civilian red Report CTA. */}
+            <a href="/ngo/login" style={{ fontSize: 13, fontWeight: 500, color: '#58a6ff', border: '1px solid rgba(88,166,255,0.5)', padding: '6px 14px', borderRadius: 6, textDecoration: 'none', fontFamily: 'monospace' }}>{t('ngo_login')}</a>
             <a href="/report" style={{ fontSize: 13, fontWeight: 500, color: '#ffffff', background: '#ef4444', padding: '7px 16px', borderRadius: 6, textDecoration: 'none', fontFamily: 'monospace' }}>{t('nav_report')} →</a>
           </div>
         </div>
@@ -526,6 +540,19 @@ export default function HomePage() {
         </div>
 
         <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.2)', fontFamily: 'monospace', letterSpacing: '0.05em', marginTop: 16 }}>{t('cta_note')}</p>
+
+        {/* NGO entry — separate, blue, audience-distinct from the civilian CTAs
+            above. Lives in the hero (visible on mobile, unlike the header links
+            which hide ≤600px) so aid teams always have one-tap access. */}
+        <div style={{ marginTop: 28, padding: '16px 20px', border: '1px solid rgba(88,166,255,0.25)', background: 'rgba(88,166,255,0.05)', borderRadius: 10, maxWidth: 420, width: '100%', animation: 'fade-up 0.8s 0.7s ease both' }}>
+          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', fontFamily: 'monospace', letterSpacing: '0.05em', marginBottom: 10 }}>{t('ngo_cta_note')}</div>
+          <a href="/ngo/login" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, height: 46, background: 'rgba(88,166,255,0.12)', border: '1px solid rgba(88,166,255,0.5)', color: '#58a6ff', borderRadius: 8, fontSize: 15, fontWeight: 600, textDecoration: 'none' }}>
+            {t('ngo_cta')} →
+          </a>
+          <a href="/ngo/signup" style={{ display: 'block', textAlign: 'center', marginTop: 10, fontSize: 13, color: 'rgba(255,255,255,0.4)', textDecoration: 'none' }}>
+            {t('ngo_register')}
+          </a>
+        </div>
 
         {/* Scroll chevron */}
         <div style={{ marginTop: 48, animation: 'bounce-chevron 2s ease-in-out infinite', fontFamily: 'monospace', fontSize: 18, color: 'rgba(239,68,68,0.4)' }}>↓</div>
