@@ -7,7 +7,7 @@ import { useEffect, useState, useCallback } from 'react'
 
 const TEAM_TYPES = ['medical', 'rescue', 'assessment', 'shelter', 'logistics'] as const
 
-interface Team { id: string; name: string; type: string; capacity: number | null; status: string }
+interface Team { id: string; name: string; type: string; capacity: number | null; status: string; group_chat_url?: string | null }
 interface Member { id: string; name: string; role: string | null; phone: string | null; emergency_contact: string | null; ngo_user_id: string | null }
 
 const STATUS_COLOUR: Record<string, string> = {
@@ -23,7 +23,7 @@ export default function NgoTeamsPage() {
   const [loaded, setLoaded] = useState(false)
 
   // modal state
-  const [teamModal, setTeamModal] = useState<null | { id?: string; name: string; type: string; capacity: string }>(null)
+  const [teamModal, setTeamModal] = useState<null | { id?: string; name: string; type: string; capacity: string; chat: string }>(null)
   const [memberForm, setMemberForm] = useState({ name: '', role: '', phone: '', emergency_contact: '' })
   const [memberEdit, setMemberEdit] = useState<null | { id: string; name: string; role: string; phone: string; emergency_contact: string }>(null)
   const [inviteModal, setInviteModal] = useState<null | { memberId: string; name: string; email: string }>(null)
@@ -61,7 +61,7 @@ export default function NgoTeamsPage() {
       const res = await fetch(editing ? `/api/ngo/teams/${teamModal.id}` : '/api/ngo/teams', {
         method: editing ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: teamModal.name, type: teamModal.type, capacity: teamModal.capacity || null }),
+        body: JSON.stringify({ name: teamModal.name, type: teamModal.type, capacity: teamModal.capacity || null, group_chat_url: teamModal.chat.trim() }),
       })
       const data = await res.json()
       if (res.ok) { setTeamModal(null); await loadTeams() }
@@ -133,7 +133,7 @@ export default function NgoTeamsPage() {
           <h1 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>Teams</h1>
           <div style={{ fontSize: 13, color: '#8b949e', marginTop: 2 }}>Build your teams and the people in them.</div>
         </div>
-        <button type="button" onClick={() => setTeamModal({ name: '', type: 'medical', capacity: '' })} style={primaryBtn}>+ New team</button>
+        <button type="button" onClick={() => setTeamModal({ name: '', type: 'medical', capacity: '', chat: '' })} style={primaryBtn}>+ New team</button>
       </div>
 
       {err && <div style={errorBox}>{err}</div>}
@@ -153,7 +153,7 @@ export default function NgoTeamsPage() {
                 {t.type}{t.capacity != null ? ` · capacity ${t.capacity}` : ''}
               </div>
               <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                <button type="button" onClick={(e) => { e.stopPropagation(); setTeamModal({ id: t.id, name: t.name, type: t.type, capacity: t.capacity?.toString() ?? '' }) }} style={miniBtn}>Edit</button>
+                <button type="button" onClick={(e) => { e.stopPropagation(); setTeamModal({ id: t.id, name: t.name, type: t.type, capacity: t.capacity?.toString() ?? '', chat: t.group_chat_url ?? '' }) }} style={miniBtn}>Edit</button>
                 {isAdmin && <button type="button" onClick={(e) => { e.stopPropagation(); deleteTeam(t.id) }} style={{ ...miniBtn, color: '#f85149', borderColor: 'rgba(248,81,73,0.4)' }}>Delete</button>}
               </div>
             </div>
@@ -218,6 +218,15 @@ export default function NgoTeamsPage() {
           </select>
           <label style={{ ...labelStyle, marginTop: 12 }}>Capacity (optional)</label>
           <input style={field} type="number" min={0} value={teamModal.capacity} onChange={(e) => setTeamModal({ ...teamModal, capacity: e.target.value })} />
+          {teamModal.id ? (
+            <>
+              <label style={{ ...labelStyle, marginTop: 12 }}>Group chat link (optional)</label>
+              <input style={field} value={teamModal.chat} onChange={(e) => setTeamModal({ ...teamModal, chat: e.target.value })} placeholder="https://chat.whatsapp.com/… or signal:…" />
+              <div style={{ fontSize: 11, color: '#8b949e', marginTop: 4 }}>Field staff open this in one tap. Signal / WhatsApp / Telegram invite link.</div>
+            </>
+          ) : (
+            <div style={{ fontSize: 11, color: '#8b949e', marginTop: 8 }}>You can add a group-chat link after creating the team.</div>
+          )}
           <button type="button" onClick={saveTeam} disabled={busy || !teamModal.name.trim()} style={{ ...primaryBtn, marginTop: 16, opacity: busy || !teamModal.name.trim() ? 0.6 : 1 }}>
             {busy ? 'Saving…' : 'Save team'}
           </button>

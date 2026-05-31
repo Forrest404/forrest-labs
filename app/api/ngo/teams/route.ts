@@ -14,17 +14,17 @@ export async function GET(request: NextRequest) {
 
   const supabase = createServiceClient()
   // Pull teams + their status row; team_status defaults to 'offline' when absent.
-  const { data: teams, error } = await supabase
-    .from('ngo_teams')
-    .select('id, name, type, capacity, created_at, team_status ( status, last_lat, last_lon, last_seen_at )')
-    .eq('org_id', session!.orgId)
-    .order('created_at', { ascending: true })
-
-  if (error) {
+  // group_chat_url is additive — fall back to a select without it pre-migration.
+  const base = 'id, name, type, capacity, created_at, team_status ( status, last_lat, last_lon, last_seen_at )'
+  let res: any = await supabase.from('ngo_teams').select(`${base}, group_chat_url`).eq('org_id', session!.orgId).order('created_at', { ascending: true })
+  if (res.error && (res.error.code === 'PGRST204' || res.error.code === '42703')) {
+    res = await supabase.from('ngo_teams').select(base).eq('org_id', session!.orgId).order('created_at', { ascending: true })
+  }
+  if (res.error) {
     return NextResponse.json({ error: 'Could not load teams' }, { status: 500 })
   }
 
-  const shaped = (teams ?? []).map((t: any) => {
+  const shaped = (res.data ?? []).map((t: any) => {
     const status = Array.isArray(t.team_status) ? t.team_status[0] : t.team_status
     return {
       id: t.id,
@@ -35,6 +35,7 @@ export async function GET(request: NextRequest) {
       last_lat: status?.last_lat ?? null,
       last_lon: status?.last_lon ?? null,
       last_seen_at: status?.last_seen_at ?? null,
+      group_chat_url: t.group_chat_url ?? null,
     }
   })
   return NextResponse.json({ teams: shaped })

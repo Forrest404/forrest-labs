@@ -26,14 +26,16 @@ export async function GET(request: NextRequest) {
 
   let team: any = null
   if (teamId) {
-    const { data } = await supabase
-      .from('ngo_teams')
-      .select('id, name, type, team_status ( status, last_seen_at )')
-      .eq('id', teamId)
-      .maybeSingle()
+    // group_chat_url is additive — fall back to the base select pre-migration.
+    const sel = 'id, name, type, team_status ( status, last_seen_at )'
+    let res: any = await supabase.from('ngo_teams').select(`${sel}, group_chat_url`).eq('id', teamId).maybeSingle()
+    if (res.error && (res.error.code === 'PGRST204' || res.error.code === '42703')) {
+      res = await supabase.from('ngo_teams').select(sel).eq('id', teamId).maybeSingle()
+    }
+    const data: any = res.data
     if (data) {
       const s = Array.isArray(data.team_status) ? data.team_status[0] : data.team_status
-      team = { id: data.id, name: data.name, type: data.type, status: s?.status ?? 'offline', last_seen_at: s?.last_seen_at ?? null }
+      team = { id: data.id, name: data.name, type: data.type, status: s?.status ?? 'offline', last_seen_at: s?.last_seen_at ?? null, group_chat_url: data.group_chat_url ?? null }
     }
   }
 

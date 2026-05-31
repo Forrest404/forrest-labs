@@ -14,7 +14,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   }
   const { id } = await params
 
-  let body: { name?: string; type?: string; capacity?: unknown }
+  let body: { name?: string; type?: string; capacity?: unknown; group_chat_url?: unknown }
   try {
     body = await request.json()
   } catch {
@@ -35,19 +35,36 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: 'Capacity must be a positive number' }, { status: 400 })
   }
 
-  const supabase = createServiceClient()
-  // Scope check: update only when org_id matches; .select() tells us if a row hit.
-  const { data, error } = await supabase
-    .from('ngo_teams')
-    .update({ name, type, capacity })
-    .eq('id', id)
-    .eq('org_id', session!.orgId)
-    .select('id, name, type, capacity')
-    .maybeSingle()
+  // Optional external group-chat link. Only set when the key is present so older clients
+  // that don't send it leave it untouched. Restrict to safe link schemes (no javascript:).
+  let chatProvided = false
+  let groupChatUrl: string | null = null
+  if (body.group_chat_url !== undefined) {
+    chatProvided = true
+    const raw = String(body.group_chat_url ?? '').trim()
+    if (raw) {
+      const ok = /^(https?:\/\/|signal:|whatsapp:|tg:)/i.test(raw)
+      if (!ok) return NextResponse.json({ error: 'Chat link must start with https://, signal:, whatsapp: or tg:' }, { status: 400 })
+      groupChatUrl = raw.slice(0, 500)
+    }
+  }
 
-  if (error) return NextResponse.json({ error: 'Could not update team' }, { status: 500 })
-  if (!data) return NextResponse.json({ error: 'Team not found' }, { status: 404 })
-  return NextResponse.json({ team: data })
+  const supabase = createServiceClient()
+  const baseUpdate: Record<string, unknown> = { name, type, capacity }
+  // Scope check: update only when org_id matches; .select() tells us if a row hit.
+  // Resilient to the chat-link migration not being applied yet: if the column is
+  // missing, retry without it so team edits keep working.
+  let res: any = await supabase
+    .from('ngo_teams')
+    .update(chatProvided ? { ...baseUpdate, group_chat_url: groupChatUrl } : baseUpdate)
+    .eq('id', id).eq('org_id', session!.orgId)
+    .select('id, name, type, capacity').maybeSingle()
+  if (res.error && chatProvided && (res.error.code === 'PGRST204' || res.error.code === '42703')) {
+    res = await supabase.from('ngo_teams').update(baseUpdate).eq('id', id).eq('org_id', session!.orgId).select('id, name, type, capacity').maybeSingle()
+  }
+  if (res.error) return NextResponse.json({ error: 'Could not update team' }, { status: 500 })
+  if (!res.data) return NextResponse.json({ error: 'Team not found' }, { status: 404 })
+  return NextResponse.json({ team: res.data })
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {

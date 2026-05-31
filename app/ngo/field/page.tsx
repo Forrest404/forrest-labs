@@ -114,7 +114,7 @@ type Lang = keyof typeof LANG
 type LangKey = keyof typeof LANG['en']
 
 interface FieldState {
-  team: { id: string; name: string; type: string; status: string } | null
+  team: { id: string; name: string; type: string; status: string; group_chat_url?: string | null } | null
   last_check_in: string | null
   active_roll_call: { id: string; message: string | null; answered: boolean } | null
   checkin_window_minutes?: number
@@ -499,6 +499,13 @@ export default function NgoFieldPage() {
         </div>
       )}
 
+      {/* Group chat — one tap to the team's Signal/WhatsApp/Telegram group */}
+      {state?.team?.group_chat_url && (
+        <a href={state.team.group_chat_url} target="_blank" rel="noreferrer" style={groupChatBtn}>
+          💬 {t('open_chat')}
+        </a>
+      )}
+
       {/* GPS source toggle + manual entry */}
       <div style={{ fontSize: 13, color: '#8b949e' }}>
         <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -563,3 +570,4 @@ function statusBtn(active: boolean): React.CSSProperties {
 const field: React.CSSProperties = { flex: 1, height: 48, padding: '0 12px', boxSizing: 'border-box', background: '#161b22', border: '1px solid #21262d', borderRadius: 8, color: '#e6edf3', fontSize: 15, outline: 'none', fontFamily: 'system-ui' }
 const msgBox: React.CSSProperties = { textAlign: 'center', fontSize: 15, fontWeight: 600, color: '#e6edf3', background: '#161b22', border: '1px solid #21262d', borderRadius: 10, padding: '12px' }
 const dispatchCard: React.CSSProperties = { background: '#161b22', border: '1px solid #d29922', borderRadius: 12, padding: 14 }
+const groupChatBtn: React.CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', minHeight: 56, background: 'rgba(63,185,80,0.12)', border: '1px solid rgba(63,185,80,0.45)', color: '#3fb950', borderRadius: 12, fontSize: 16, fontWeight: 700, textDecoration: 'none', fontFamily: 'system-ui', boxSizing: 'border-box' }
