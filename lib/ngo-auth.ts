@@ -154,3 +154,13 @@ export function clearNgoCookie(response: Response): void {
 export function requireRole(session: NgoSession | null, allowed: NgoRole[]): boolean {
   return !!session && allowed.includes(session.role)
 }
+
+// ── Credential policy ─────────────────────────────────────────────────────────
+// Field PINs must be 6 digits (security H1). A 4-digit PIN is only 10k combinations;
+// 6 digits is 1,000,000 and, combined with login rate-limiting, makes online guessing
+// infeasible. Existing shorter PINs still VERIFY (we never break a signed-in worker) —
+// this floor applies only when a PIN is set or reset.
+export const PIN_LENGTH = 6
+export function isValidPin(pin: string): boolean {
+  return new RegExp(`^\\d{${PIN_LENGTH}}$`).test(pin)
+}

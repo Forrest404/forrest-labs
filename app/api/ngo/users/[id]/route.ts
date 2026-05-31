@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
-import { getNgoSession, requireRole, hashSecret, generateLoginCode, type NgoRole } from '@/lib/ngo-auth'
+import { getNgoSession, requireRole, hashSecret, generateLoginCode, isValidPin, type NgoRole } from '@/lib/ngo-auth'
 
 const ROLES: NgoRole[] = ['org_admin', 'team_leader', 'field_coordinator']
 
@@ -54,7 +54,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
   // Optional credential reset.
   if (body.pin) {
-    if (!/^\d{4,6}$/.test(String(body.pin))) return NextResponse.json({ error: 'PIN must be 4–6 digits' }, { status: 400 })
+    if (!isValidPin(String(body.pin))) return NextResponse.json({ error: 'PIN must be 6 digits' }, { status: 400 })
     update.pin_hash = hashSecret(String(body.pin))
   }
   if (body.password) {

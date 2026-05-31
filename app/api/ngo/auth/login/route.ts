@@ -6,7 +6,37 @@ import { verifySecret, createNgoSession, setNgoCookie, ngoSessionTtlSeconds, typ
 //  - Field operative: { code }            → single bearer access code (typed or via QR)
 //  - Desktop:         { email, password }  → org admins / team leaders
 //  - Legacy fallback: { email, pin }       → pre-access-code field coordinators
+
+// ── Brute-force throttle (security H1) ─────────────────────────────────────────
+// Login had NO rate limiting: a 6-digit PIN (now enforced) or an access code could be
+// guessed online without limit. Throttle by client IP — NOT by account, so an attacker
+// can never lock a field worker out of their own account in an emergency. In-memory and
+// therefore per-instance (matches the admin login pattern); a shared store would harden
+// this further in a multi-instance deployment.
+const MAX_ATTEMPTS = 8
+const LOCK_MS = 15 * 60 * 1000
+const attempts = new Map<string, { count: number; lockedUntil: number }>()
+
+function clientIp(request: NextRequest): string {
+  const fwd = request.headers.get('x-forwarded-for') ?? request.headers.get('x-real-ip') ?? 'unknown'
+  return fwd.split(',')[0].trim()
+}
+
 export async function POST(request: NextRequest) {
+  const ipKey = clientIp(request)
+  const now = Date.now()
+  const rec = attempts.get(ipKey)
+  if (rec && rec.lockedUntil > now) {
+    return NextResponse.json({ error: 'Too many attempts. Try again in a few minutes.' }, { status: 429 })
+  }
+
+  // Record a failed credential attempt for this IP; lock once the ceiling is hit.
+  const registerFailure = () => {
+    const prev = attempts.get(ipKey)
+    const count = (prev?.count ?? 0) + 1
+    attempts.set(ipKey, { count, lockedUntil: count >= MAX_ATTEMPTS ? now + LOCK_MS : 0 })
+  }
+
   let body: { code?: string; email?: string; password?: string; pin?: string }
   try { body = await request.json() } catch { return NextResponse.json({ error: 'Invalid request' }, { status: 400 }) }
 
@@ -16,7 +46,10 @@ export async function POST(request: NextRequest) {
   const pin = body.pin ? String(body.pin) : ''
 
   const supabase = createServiceClient()
-  const invalid = () => NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
+  const invalid = () => {
+    registerFailure()
+    return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
+  }
 
   // Resolve the user + verify the credential.
   let user: { id: string; org_id: string; role: string; status: string } | null = null
@@ -59,6 +92,9 @@ export async function POST(request: NextRequest) {
         : 'Your organisation is pending approval. You will be notified once approved.'
     return NextResponse.json({ error: msg, status: org?.status ?? 'pending' }, { status: 403 })
   }
+
+  // Success — clear this IP's failure count.
+  attempts.delete(ipKey)
 
   const role = user.role as NgoRole
   const token = await createNgoSession(user.id, user.org_id, role)
