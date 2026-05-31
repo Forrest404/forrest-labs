@@ -37,15 +37,23 @@ export async function writeAuditLog({
       ? createHash('sha256').update(ipAddress).digest('hex').slice(0, 16)
       : null
 
+    // Map the caller-friendly fields onto the ACTUAL table columns. The
+    // admin_audit_log table has `actor` + `details` (jsonb) — earlier this helper
+    // wrote old_value/new_value/admin_session/notes, which don't exist, so every
+    // insert threw and was swallowed (login events never persisted). We fold the
+    // free-form fields into `details` and write the truncated session as `actor`.
+    const details: Record<string, unknown> = {}
+    if (notes) details.note = notes
+    if (oldValue) details.old = oldValue
+    if (newValue) details.new = newValue
+
     await supabase.from('admin_audit_log').insert({
       action,
       entity_type: entityType,
       entity_id: entityId ?? null,
-      old_value: oldValue ?? null,
-      new_value: newValue ?? null,
-      admin_session: sessionId.slice(0, 8) + '...',
+      actor: sessionId && sessionId !== 'none' ? sessionId.slice(0, 8) + '...' : (sessionId || 'system'),
+      details: Object.keys(details).length > 0 ? details : null,
       ip_hash: ipHash,
-      notes: notes ?? null,
     })
   } catch (error) {
     console.error('Audit log write failed:', error)

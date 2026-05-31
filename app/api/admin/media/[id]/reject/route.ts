@@ -29,7 +29,7 @@ export async function POST(
     entity_type: 'media',
     entity_id: id,
     actor: session.sessionId.slice(0, 8) + '...',
-    details: 'Media rejected and removed',
+    details: { note: 'Media rejected and removed' },
   })
 
   return NextResponse.json({ success: true })

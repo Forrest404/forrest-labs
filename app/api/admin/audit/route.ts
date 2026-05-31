@@ -34,7 +34,9 @@ export async function GET(request: NextRequest) {
     query = query.eq('entity_type', entityType)
   }
   if (search) {
-    query = query.textSearch('details', search)
+    // details is jsonb; full-text search errors on it. Match the free-form note
+    // stored at details->>note instead.
+    query = query.ilike('details->>note', `%${search}%`)
   }
   if (days !== 'all') {
     const cutoff = new Date(Date.now() - parseInt(days) * 86400000).toISOString()

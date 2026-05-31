@@ -11,11 +11,11 @@ interface AuditEntry {
   action: string
   entity_type: string
   entity_id: string | null
-  admin_session: string | null
+  // Real table columns: `actor` (truncated session) + `details` (jsonb). The
+  // free-form note lives at details.note.
+  actor: string | null
   ip_hash: string | null
-  notes: string | null
-  old_value: string | null
-  new_value: string | null
+  details: { note?: string; old?: unknown; new?: unknown } | null
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -368,7 +368,7 @@ export default function AuditPage() {
                         color: '#484f58',
                       }}
                     >
-                      {e.admin_session ?? '—'}
+                      {e.actor ?? '—'}
                     </td>
                     <td
                       style={{
@@ -381,7 +381,7 @@ export default function AuditPage() {
                       {e.ip_hash ?? '—'}
                     </td>
                     <td style={{ padding: '10px 0', fontSize: 12, color: '#8b949e' }}>
-                      {e.notes ?? '—'}
+                      {e.details?.note ?? '—'}
                     </td>
                   </tr>
                 )
