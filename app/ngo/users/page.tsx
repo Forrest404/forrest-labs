@@ -84,6 +84,17 @@ export default function NgoUsersPage() {
     else setError(data.error ?? 'Could not change status.')
   }
 
+  async function resetCode(u: User) {
+    if (!window.confirm(`Reset ${u.full_name || u.email}’s access code? Their current code and QR stop working immediately — you’ll need to share the new one.`)) return
+    setBusy(true); setMsg(null); setError(null)
+    try {
+      const res = await fetch(`/api/ngo/users/${u.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ regenerate_code: true }) })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && data.login_code) { await load(); setShare({ name: u.full_name ?? 'Worker', code: data.login_code }) }
+      else setError(data.error ?? 'Could not reset access code.')
+    } finally { setBusy(false) }
+  }
+
   async function removeUser(u: User) {
     if (!window.confirm(`Remove ${u.full_name || u.email}? This deletes their login and their personal check-in/panic history. This cannot be undone.`)) return
     setMsg(null); setError(null)
@@ -125,8 +136,8 @@ export default function NgoUsersPage() {
                 {u.role === 'field_coordinator' && (
                   <div style={{ fontSize: 12, color: '#8b949e', marginTop: 6 }}>
                     Access code: {u.login_code
-                      ? <><code style={codeChip}>{u.login_code}</code> <button type="button" onClick={() => setShare({ name: u.full_name ?? 'Worker', code: u.login_code! })} style={linkBtn}>Show QR / link</button></>
-                      : <span style={{ color: '#d29922' }}>none — use Edit → “Regenerate access code”</span>}
+                      ? <><code style={codeChip}>{u.login_code}</code> <button type="button" onClick={() => setShare({ name: u.full_name ?? 'Worker', code: u.login_code! })} style={linkBtn}>Show QR / link</button> <button type="button" onClick={() => resetCode(u)} disabled={busy} style={linkBtn}>Reset code</button></>
+                      : <><span style={{ color: '#d29922' }}>none</span> <button type="button" onClick={() => resetCode(u)} disabled={busy} style={linkBtn}>Generate code</button></>}
                   </div>
                 )}
               </div>
