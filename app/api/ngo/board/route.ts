@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { getNgoSession, requireRole } from '@/lib/ngo-auth'
+import { pointInPolygon } from '@/lib/ngo-geo'
 
 // Situation-board data for the caller's organisation. READ-ONLY on clusters —
 // the board never writes to the verification pipeline. Everything is scoped to
@@ -11,24 +12,6 @@ import { getNgoSession, requireRole } from '@/lib/ngo-auth'
 const INCIDENT_STATUSES = ['confirmed', 'auto_confirmed', 'news_verified', 'official_verified']
 // A dispatch counts as "covering" an incident while it is still in progress.
 const ACTIVE_DISPATCH = ['assigned', 'en_route', 'on_scene']
-
-// Ray-casting point-in-polygon over a GeoJSON Polygon's outer ring ([lon,lat]).
-export function pointInPolygon(
-  lon: number,
-  lat: number,
-  polygon: { type?: string; coordinates?: number[][][] } | null | undefined,
-): boolean {
-  const ring = polygon?.coordinates?.[0]
-  if (!Array.isArray(ring) || ring.length < 4) return false
-  let inside = false
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const [xi, yi] = ring[i]
-    const [xj, yj] = ring[j]
-    const intersects = yi > lat !== yj > lat && lon < ((xj - xi) * (lat - yi)) / (yj - yi) + xi
-    if (intersects) inside = !inside
-  }
-  return inside
-}
 
 export async function GET(request: NextRequest) {
   const session = await getNgoSession(request)
