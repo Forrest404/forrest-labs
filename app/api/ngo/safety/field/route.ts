@@ -13,6 +13,15 @@ export async function GET(request: NextRequest) {
   const supabase = createServiceClient()
   const userId = session!.userId
 
+  // Check-in cadence so the field view can show "next due" (field coordinators can't
+  // call /api/ngo/org). Resilient to the column being absent. Default 240 min.
+  let checkinWindow = 240
+  try {
+    const { data: org } = await supabase
+      .from('ngo_organisations').select('checkin_window_minutes').eq('id', session!.orgId).maybeSingle()
+    if (org && (org as any).checkin_window_minutes != null) checkinWindow = (org as any).checkin_window_minutes
+  } catch { /* column may be absent */ }
+
   const teamId = await resolveTeamId(supabase, userId)
 
   let team: any = null
@@ -62,5 +71,6 @@ export async function GET(request: NextRequest) {
     team,
     last_check_in: lastCheckIn?.created_at ?? null,
     active_roll_call: activeRollCall,
+    checkin_window_minutes: checkinWindow,
   })
 }
