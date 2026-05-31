@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { getSessionFromRequest } from '@/lib/admin/auth'
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://forrest-labsorg.vercel.app'
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.noursystems.org'
 
 // Admin-gated approval: flip a pending org to 'approved'.
 export async function POST(

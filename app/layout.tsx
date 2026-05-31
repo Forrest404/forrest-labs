@@ -12,7 +12,7 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://forrest-labsorg.vercel.app'
+const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.noursystems.org'
 
 export const metadata: Metadata = {
   applicationName: 'NOUR',
