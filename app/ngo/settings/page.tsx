@@ -15,6 +15,7 @@ interface Org {
   name: string; type: string; country: string | null; status: string
   checkin_window_minutes: number; share_team_presence: boolean; share_operational_area: boolean
   has_operational_area: boolean
+  panic_ack_visible_default: boolean; panic_escalation_minutes: number
 }
 
 export default function NgoSettingsPage() {
@@ -50,6 +51,8 @@ export default function NgoSettingsPage() {
         body: JSON.stringify({
           name: org.name, type: org.type, country: org.country,
           checkin_window_minutes: org.checkin_window_minutes,
+          panic_ack_visible_default: org.panic_ack_visible_default,
+          panic_escalation_minutes: org.panic_escalation_minutes,
           share_team_presence: org.share_team_presence,
           share_operational_area: org.share_operational_area,
         }),
@@ -90,6 +93,14 @@ export default function NgoSettingsPage() {
           <Field label="Check-in window (minutes)" hint="Field staff are escalated if they miss this proof-of-life window.">
             <input style={field} type="number" min={15} max={10080} value={org.checkin_window_minutes} disabled={!canEdit} onChange={(e) => set('checkin_window_minutes', Number(e.target.value))} />
           </Field>
+
+          <div style={{ height: 1, background: '#21262d' }} />
+          <div style={{ fontSize: 12, color: '#8b949e' }}>Panic / duress</div>
+          <Field label="Escalation window (minutes)" hint="If no responder acknowledges a panic within this time, it re-alerts up the chain (and again at 2× the window).">
+            <input style={field} type="number" min={1} max={1440} value={org.panic_escalation_minutes} disabled={!canEdit} onChange={(e) => set('panic_escalation_minutes', Number(e.target.value))} />
+          </Field>
+          <Toggle label="Show field staff when a panic is acknowledged" checked={org.panic_ack_visible_default} disabled={!canEdit} onChange={(v) => set('panic_ack_visible_default', v)} />
+          <div style={{ fontSize: 11, color: '#484f58', marginTop: -8 }}>Silent-mode alerts always suppress this, regardless of the setting.</div>
 
           <div style={{ height: 1, background: '#21262d' }} />
           <div style={{ fontSize: 12, color: '#8b949e' }}>Data sharing (off by default — team locations are sensitive)</div>

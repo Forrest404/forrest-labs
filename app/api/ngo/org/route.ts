@@ -28,6 +28,8 @@ export async function GET(request: NextRequest) {
       country: data.country,
       status: data.status,
       checkin_window_minutes: (data as any).checkin_window_minutes ?? 240,
+      panic_ack_visible_default: (data as any).panic_ack_visible_default ?? true,
+      panic_escalation_minutes: (data as any).panic_escalation_minutes ?? 5,
       share_team_presence: data.share_team_presence ?? false,
       share_operational_area: data.share_operational_area ?? false,
       has_operational_area: !!data.operational_area,
@@ -69,7 +71,18 @@ export async function PATCH(request: NextRequest) {
     windowValue = Math.round(w)
   }
 
-  if (Object.keys(base).length === 0 && windowValue === null) {
+  // Panic config (revamp migration). Saved separately so a missing column doesn't 500.
+  const panicUpdate: Record<string, unknown> = {}
+  if (body.panic_ack_visible_default !== undefined) panicUpdate.panic_ack_visible_default = !!body.panic_ack_visible_default
+  if (body.panic_escalation_minutes !== undefined) {
+    const e = Number(body.panic_escalation_minutes)
+    if (!Number.isFinite(e) || e < 1 || e > 1440) {
+      return NextResponse.json({ error: 'Escalation window must be 1–1440 minutes' }, { status: 400 })
+    }
+    panicUpdate.panic_escalation_minutes = Math.round(e)
+  }
+
+  if (Object.keys(base).length === 0 && windowValue === null && Object.keys(panicUpdate).length === 0) {
     return NextResponse.json({ error: 'Nothing to update' }, { status: 400 })
   }
 
@@ -85,5 +98,10 @@ export async function PATCH(request: NextRequest) {
     const { error } = await supabase.from('ngo_organisations').update({ checkin_window_minutes: windowValue }).eq('id', session!.orgId)
     checkinWindowSaved = !error
   }
-  return NextResponse.json({ success: true, checkin_window_saved: checkinWindowSaved })
+  let panicConfigSaved: boolean | null = null
+  if (Object.keys(panicUpdate).length) {
+    const { error } = await supabase.from('ngo_organisations').update(panicUpdate).eq('id', session!.orgId)
+    panicConfigSaved = !error
+  }
+  return NextResponse.json({ success: true, checkin_window_saved: checkinWindowSaved, panic_config_saved: panicConfigSaved })
 }
