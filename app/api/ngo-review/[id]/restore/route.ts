@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { getSessionFromRequest } from '@/lib/admin/auth'
+import { logAdminAction } from '@/lib/admin/audit'
 
 // Restore a revoked (or pending) NGO: approve the org and reactivate all its users.
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -25,5 +26,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     .select('id')
 
   console.log(`[ngo-review] RESTORED org "${org.name}" (${id}); reactivated ${users?.length ?? 0} users.`)
+
+  await logAdminAction({
+    action: 'ngo_org_reactivated',
+    entityType: 'ngo_organisation',
+    entityId: id,
+    sessionId: admin.sessionId,
+    details: { org: org.name, users_reactivated: users?.length ?? 0, note: `Reactivated org; ${users?.length ?? 0} user(s) restored` },
+  })
+
   return NextResponse.json({ success: true, users_reactivated: users?.length ?? 0 })
 }

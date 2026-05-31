@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { getSessionFromRequest } from '@/lib/admin/auth'
+import { logAdminAction } from '@/lib/admin/audit'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.noursystems.org'
 
@@ -47,6 +48,14 @@ export async function POST(
     `[ngo-review] APPROVED org "${org.name}" (${id}). ` +
       `Notify ${adminUser?.email ?? 'unknown'} — they can now sign in at ${APP_URL}/ngo/login`,
   )
+
+  await logAdminAction({
+    action: 'ngo_org_approved',
+    entityType: 'ngo_organisation',
+    entityId: id,
+    sessionId: admin.sessionId,
+    details: { org: org.name, note: `Approved — admin ${adminUser?.email ?? 'unknown'} can now sign in` },
+  })
 
   return NextResponse.json({
     success: true,

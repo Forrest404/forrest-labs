@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { getSessionFromRequest } from '@/lib/admin/auth'
+import { logAdminAction } from '@/lib/admin/audit'
 
 // Revoke an NGO's access: suspend the org AND every user in it. Because
 // getNgoSession re-checks status per request, this logs out anyone signed in and
@@ -27,5 +28,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     .select('id')
 
   console.log(`[ngo-review] REVOKED org "${org.name}" (${id}); suspended ${users?.length ?? 0} users.`)
+
+  await logAdminAction({
+    action: 'ngo_org_suspended',
+    entityType: 'ngo_organisation',
+    entityId: id,
+    sessionId: admin.sessionId,
+    details: { org: org.name, users_suspended: users?.length ?? 0, note: `Suspended org; ${users?.length ?? 0} user(s) blocked` },
+  })
+
   return NextResponse.json({ success: true, users_suspended: users?.length ?? 0 })
 }

@@ -11,6 +11,15 @@ export type AuditAction =
   | 'admin_login_failed'
   | 'team_dispatched'
   | 'partner_created'
+  // Platform-operator (NGO oversight) actions
+  | 'ngo_org_approved'
+  | 'ngo_org_rejected'
+  | 'ngo_org_suspended'
+  | 'ngo_org_reactivated'
+  | 'ngo_org_deleted'
+  | 'ngo_user_suspended'
+  | 'ngo_user_reactivated'
+  | 'ngo_user_removed'
 
 export async function writeAuditLog({
   action,
@@ -54,6 +63,37 @@ export async function writeAuditLog({
       actor: sessionId && sessionId !== 'none' ? sessionId.slice(0, 8) + '...' : (sessionId || 'system'),
       details: Object.keys(details).length > 0 ? details : null,
       ip_hash: ipHash,
+    })
+  } catch (error) {
+    console.error('Audit log write failed:', error)
+  }
+}
+
+// Platform-operator action logger. Writes directly to the real admin_audit_log
+// columns (actor + details jsonb). Use this for NGO-oversight mutations so every
+// approve/reject/suspend/remove is recorded for accountability. `details` is a
+// free-form object (e.g. { org: 'Acme', reason: '…' }) surfaced in the audit UI.
+export async function logAdminAction({
+  action,
+  entityType,
+  entityId,
+  sessionId,
+  details,
+}: {
+  action: AuditAction
+  entityType: string
+  entityId?: string
+  sessionId: string
+  details?: Record<string, unknown>
+}): Promise<void> {
+  try {
+    const supabase = createServiceClient()
+    await supabase.from('admin_audit_log').insert({
+      action,
+      entity_type: entityType,
+      entity_id: entityId ?? null,
+      actor: sessionId && sessionId !== 'none' ? sessionId.slice(0, 8) + '...' : (sessionId || 'system'),
+      details: details && Object.keys(details).length > 0 ? details : null,
     })
   } catch (error) {
     console.error('Audit log write failed:', error)
