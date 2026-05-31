@@ -16,7 +16,6 @@ const NAV_ITEMS = [
   { label: 'Media', href: '/admin/media', exact: false, icon: 'media' },
   { label: 'Export', href: '/admin/export', exact: false, icon: 'export' },
   { label: 'Cases', href: '/admin/cases', exact: false, icon: 'cases' },
-  { label: 'NGO Review', href: '/admin/ngo-review', exact: false, icon: 'people' },
   { label: 'Health', href: '/admin/health', exact: false, icon: 'health' },
   { label: 'Demo script', href: '/admin/demo', exact: false, icon: 'play' },
 ] as const
@@ -133,14 +132,6 @@ function NavIcon({ name, color }: { name: string; color: string }) {
           <polygon points="3,2 12,7 3,12" stroke={color} fill="none" strokeWidth="1.2" strokeLinejoin="round" />
         </svg>
       )
-    case 'people':
-      return (
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-          <circle cx="5" cy="4.5" r="2.2" stroke={color} strokeWidth="1.2" />
-          <path d="M1.5 12c0-2 1.6-3.3 3.5-3.3S8.5 10 8.5 12" stroke={color} strokeWidth="1.2" strokeLinecap="round" />
-          <path d="M9.5 3.2a2.2 2.2 0 010 4.1M10 8.9c1.5.3 2.5 1.5 2.5 3.1" stroke={color} strokeWidth="1.2" strokeLinecap="round" />
-        </svg>
-      )
     default:
       return null
   }
@@ -159,7 +150,6 @@ function getPageTitle(pathname: string): string {
   if (pathname.startsWith('/admin/media')) return 'Media'
   if (pathname.startsWith('/admin/export')) return 'Export'
   if (pathname.startsWith('/admin/cases')) return 'Cases'
-  if (pathname.startsWith('/admin/ngo-review')) return 'NGO review'
   if (pathname.startsWith('/admin/health')) return 'Health'
   if (pathname.startsWith('/admin/demo')) return 'Demo script'
   return 'Admin'

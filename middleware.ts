@@ -29,17 +29,21 @@ function getJwtSecret(): Uint8Array {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
+  // Platform-operator console: gated by the SAME admin cookie as /admin (it is a
+  // tier above all NGOs; NGO users never hold fl_admin_session). Treated exactly
+  // like the admin gate below.
+  const isPlatform = pathname.startsWith('/platform') || pathname.startsWith('/api/platform')
   const isAdmin = pathname.startsWith('/admin') || pathname.startsWith('/api/admin')
   // Note: '/ngo-review'.startsWith('/ngo') is true, so check ngo-review first.
   const isNgoReview = pathname.startsWith('/ngo-review') || pathname.startsWith('/api/ngo-review')
   const isNgo = !isNgoReview && (pathname.startsWith('/ngo') || pathname.startsWith('/api/ngo'))
 
-  if (!isAdmin && !isNgoReview && !isNgo) {
+  if (!isPlatform && !isAdmin && !isNgoReview && !isNgo) {
     return NextResponse.next()
   }
 
-  // ── Admin (existing behaviour, unchanged) ──────────────────────────────────
-  if (isAdmin) {
+  // ── Admin + Platform (existing behaviour; both gated by fl_admin_session) ───
+  if (isAdmin || isPlatform) {
     if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
       return NextResponse.next()
     }
@@ -120,6 +124,9 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
+    '/platform',
+    '/platform/:path*',
+    '/api/platform/:path*',
     '/admin/:path*',
     '/api/admin/:path*',
     '/ngo',

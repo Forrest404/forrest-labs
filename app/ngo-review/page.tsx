@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 
-// NGO review moved into the admin panel. Keep old bookmarks working.
+// NGO oversight lives in the platform-operator console. Keep old bookmarks working.
 export default function NgoReviewMoved() {
-  redirect('/admin/ngo-review')
+  redirect('/platform/review')
 }

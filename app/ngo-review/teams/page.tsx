@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 
-// NGO review moved into the admin panel. Keep old bookmarks working.
+// NGO oversight lives in the platform-operator console. The standalone cross-org
+// teams view is retired; team counts live under each org in Manage NGOs.
 export default function NgoReviewTeamsMoved() {
-  redirect('/admin/ngo-review?tab=teams')
+  redirect('/platform/ngos')
 }
