@@ -69,19 +69,21 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Not authorised' }, { status: 403 })
   }
 
-  let body: { lat?: number; lon?: number } = {}
+  let body: { lat?: number; lon?: number; silent?: boolean } = {}
   try { body = await request.json() } catch { /* panic must fire even with no body */ }
   const lat = typeof body.lat === 'number' ? body.lat : null
   const lon = typeof body.lon === 'number' ? body.lon : null
+  const silent = body.silent === true
 
   const supabase = createServiceClient()
   const teamId = await resolveTeamId(supabase, session!.userId)
 
   // Scope the row to the org. Resilient to the revamp migration not being applied yet:
-  // if the org_id column is missing, retry the legacy shape so a panic NEVER fails to fire.
+  // if the org_id/silent columns are missing, retry the legacy shape so a panic NEVER
+  // fails to fire.
   const base = { ngo_user_id: session!.userId, team_id: teamId, last_lat: lat, last_lon: lon }
   let { data: panic, error } = await supabase
-    .from('panic_events').insert({ ...base, org_id: session!.orgId }).select('id').single()
+    .from('panic_events').insert({ ...base, org_id: session!.orgId, silent }).select('id').single()
   if (error && (error.code === 'PGRST204' || error.code === '42703')) {
     ({ data: panic, error } = await supabase.from('panic_events').insert(base).select('id').single())
   }

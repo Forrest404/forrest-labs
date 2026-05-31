@@ -13,14 +13,16 @@ export async function GET(request: NextRequest) {
   const supabase = createServiceClient()
   const userId = session!.userId
 
-  // Check-in cadence so the field view can show "next due" (field coordinators can't
-  // call /api/ngo/org). Resilient to the column being absent. Default 240 min.
+  // Check-in cadence + the org's "ack visible to field" default. select('*') so missing
+  // columns (migrations not applied) don't error. Defaults: 240 min, ack visible.
   let checkinWindow = 240
+  let ackVisibleDefault = true
   try {
     const { data: org } = await supabase
-      .from('ngo_organisations').select('checkin_window_minutes').eq('id', session!.orgId).maybeSingle()
+      .from('ngo_organisations').select('*').eq('id', session!.orgId).maybeSingle()
     if (org && (org as any).checkin_window_minutes != null) checkinWindow = (org as any).checkin_window_minutes
-  } catch { /* column may be absent */ }
+    if (org && (org as any).panic_ack_visible_default != null) ackVisibleDefault = (org as any).panic_ack_visible_default
+  } catch { /* columns may be absent */ }
 
   const teamId = await resolveTeamId(supabase, userId)
 
@@ -69,10 +71,33 @@ export async function GET(request: NextRequest) {
     activeRollCall = { id: rc.id, message: rc.message, created_at: rc.created_at, answered: !!resp }
   }
 
+  // The worker's own active panic (drives the post-fire panel: reason chips, the cancel
+  // window, and the "help has seen this" feedback). Resilient to pre-revamp columns.
+  let activePanic: any = null
+  let pres: any = await supabase
+    .from('panic_events').select('id, created_at, silent, reason, acknowledged_at')
+    .eq('ngo_user_id', userId).is('resolved_at', null).is('cancelled_at', null)
+    .order('created_at', { ascending: false }).limit(1).maybeSingle()
+  if (pres.error) {
+    pres = await supabase.from('panic_events').select('id, created_at')
+      .eq('ngo_user_id', userId).is('resolved_at', null)
+      .order('created_at', { ascending: false }).limit(1).maybeSingle()
+  }
+  if (pres.data) {
+    const p = pres.data
+    activePanic = {
+      id: p.id, created_at: p.created_at,
+      silent: p.silent ?? false, reason: p.reason ?? null,
+      // Only surface acknowledgement to the device when NOT silent and the org allows it.
+      acknowledged: !!p.acknowledged_at && !(p.silent ?? false) && ackVisibleDefault,
+    }
+  }
+
   return NextResponse.json({
     team,
     last_check_in: lastCheckIn?.created_at ?? null,
     active_roll_call: activeRollCall,
     checkin_window_minutes: checkinWindow,
+    active_panic: activePanic,
   })
 }

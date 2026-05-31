@@ -78,6 +78,10 @@ const LANG = {
     sending_alert: 'Sending alert…', alert_sent_msg: '🆘 Alert sent to your team', alert_queued: 'Queued — alert will send when online',
     signed_out: 'Signed out — will sync when back online', sharing_loc: 'Sharing location…',
     open_chat: 'OPEN GROUP CHAT', actions: 'Actions', map: 'Map',
+    silent_mode: 'Silent', alert_active: 'Alert active', help_seen: 'Help has seen this',
+    choose_reason: 'What’s happening? (optional)', cancel_false_alarm: 'Cancel — false alarm',
+    locked_note: 'Locked — only a responder can resolve this now', cancelled: 'Alert cancelled',
+    r_injured: 'Injured', r_under_fire: 'Under fire', r_detained: 'Detained', r_vehicle: 'Vehicle', r_medical: 'Medical', r_moving: 'Unsafe — moving',
   },
   fr: {
     field: 'Terrain', online: 'En ligne', offline: 'Hors ligne — synchro auto', logout: 'Déconnexion',
@@ -95,6 +99,10 @@ const LANG = {
     sending_alert: 'Envoi de l’alerte…', alert_sent_msg: '🆘 Alerte envoyée à votre équipe', alert_queued: 'En attente — alerte envoyée à la reconnexion',
     signed_out: 'Déconnecté — synchro à la reconnexion', sharing_loc: 'Partage de la position…',
     open_chat: 'OUVRIR LE GROUPE', actions: 'Actions', map: 'Carte',
+    silent_mode: 'Silencieux', alert_active: 'Alerte active', help_seen: 'Les secours ont vu',
+    choose_reason: 'Que se passe-t-il ? (facultatif)', cancel_false_alarm: 'Annuler — fausse alerte',
+    locked_note: 'Verrouillé — seul un répondant peut clôturer', cancelled: 'Alerte annulée',
+    r_injured: 'Blessé', r_under_fire: 'Sous le feu', r_detained: 'Détenu', r_vehicle: 'Véhicule', r_medical: 'Médical', r_moving: 'En danger — en mouvement',
   },
   ar: {
     field: 'الميدان', online: 'متصل', offline: 'غير متصل — ستتم المزامنة', logout: 'خروج',
@@ -112,17 +120,25 @@ const LANG = {
     sending_alert: 'جارٍ إرسال الاستغاثة…', alert_sent_msg: '🆘 تم إرسال الاستغاثة إلى فريقك', alert_queued: 'في الانتظار — ستُرسل الاستغاثة عند الاتصال',
     signed_out: 'تم تسجيل الخروج — ستتم المزامنة عند الاتصال', sharing_loc: 'جارٍ مشاركة الموقع…',
     open_chat: 'فتح مجموعة الدردشة', actions: 'الإجراءات', map: 'الخريطة',
+    silent_mode: 'صامت', alert_active: 'الاستغاثة نشطة', help_seen: 'شاهد المنقذون التنبيه',
+    choose_reason: 'ماذا يحدث؟ (اختياري)', cancel_false_alarm: 'إلغاء — إنذار خاطئ',
+    locked_note: 'مقفل — لا يمكن إنهاؤه إلا من قبل المنقذ', cancelled: 'تم إلغاء الاستغاثة',
+    r_injured: 'مصاب', r_under_fire: 'تحت إطلاق نار', r_detained: 'محتجز', r_vehicle: 'مركبة', r_medical: 'طبي', r_moving: 'غير آمن — يتحرك',
   },
 } as const
 type Lang = keyof typeof LANG
 type LangKey = keyof typeof LANG['en']
 
+interface ActivePanic { id: string; created_at: string; silent: boolean; reason: string | null; acknowledged: boolean }
 interface FieldState {
   team: { id: string; name: string; type: string; status: string; group_chat_url?: string | null } | null
   last_check_in: string | null
   active_roll_call: { id: string; message: string | null; answered: boolean } | null
   checkin_window_minutes?: number
+  active_panic?: ActivePanic | null
 }
+const REASONS = ['injured', 'under_fire', 'detained', 'vehicle', 'medical', 'moving'] as const
+const CANCEL_WINDOW_S = 10
 
 export default function NgoFieldPage() {
   const [lang, setLang] = useState<Lang>('ar')
@@ -140,6 +156,7 @@ export default function NgoFieldPage() {
   const [flash, setFlash] = useState(false)
   const [checkinQueued, setCheckinQueued] = useState(false)
   const [pendingStatus, setPendingStatus] = useState<string | null>(null) // optimistic chip highlight
+  const [silent, setSilent] = useState(false) // pre-arm silent mode (no sound/flash/feedback)
   const holdTimer = useRef<any>(null)
   const audioRef = useRef<any>(null)
   const [dispatch, setDispatch] = useState<any>(null)
@@ -344,15 +361,52 @@ export default function NgoFieldPage() {
   }
 
   async function doPanic() {
-    setMsg(t('sending_alert'))
+    if (!silent) setMsg(t('sending_alert'))
     // Fresh-if-possible, else last-known; the press is the complete action — GPS never blocks it.
     const { lat, lon } = await resolvePanicCoords()
-    const sent = await send('/api/ngo/safety/panic', { lat, lon }, 'panic')
-    playAlarm()
-    setFlash(true)
-    setTimeout(() => setFlash(false), 4000)
-    setMsg(sent ? t('alert_sent_msg') : t('alert_queued'))
+    const body = { lat, lon, silent }
+    let sent = false
+    if (typeof navigator !== 'undefined' && navigator.onLine) {
+      try { const r = await fetch('/api/ngo/safety/panic', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); if (r.ok) sent = true } catch { /* queue */ }
+    }
+    if (!sent) {
+      await qAdd({ id: `panic|${typeof performance !== 'undefined' ? performance.now() : ''}|${Math.round(Math.random() * 1e9)}`, url: '/api/ngo/safety/panic', body, label: 'panic', method: 'POST' })
+      refreshQueueCount()
+    }
+    // Silent mode: NO sound, NO flash, no loud message — onlookers see nothing. The
+    // post-fire panel (driven by active_panic) is the only, subdued, change.
+    if (!silent) {
+      playAlarm()
+      setFlash(true)
+      setTimeout(() => setFlash(false), 4000)
+      setMsg(sent ? t('alert_sent_msg') : t('alert_queued'))
+    } else {
+      setMsg(sent ? '' : t('alert_queued'))
+    }
+    loadState() // surfaces active_panic → reason chips, cancel window, ack feedback
   }
+
+  // Reason chips (tap-only) + false-alarm cancel — act on the worker's active panic.
+  async function setPanicReason(reason: string) {
+    const ap = state?.active_panic
+    if (!ap) return
+    const next = ap.reason === reason ? null : reason // tap again to clear
+    await fetch(`/api/ngo/safety/panic/${ap.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: next }) })
+    loadState()
+  }
+  async function cancelPanic() {
+    const ap = state?.active_panic
+    if (!ap) return
+    const r = await fetch(`/api/ngo/safety/panic/${ap.id}/cancel`, { method: 'POST' })
+    if (r.ok) { setMsg(t('cancelled')); loadState() }
+    else { setMsg(t('locked_note')); loadState() }
+  }
+  // 1s tick to drive the cancel-window countdown while a panic is active.
+  useEffect(() => {
+    if (!state?.active_panic) return
+    const id = setInterval(() => setNowTick((n) => n + 1), 1000)
+    return () => clearInterval(id)
+  }, [state?.active_panic])
 
   async function setStatus(status: string) {
     setPendingStatus(status) // highlight the chosen chip instantly — confirms even offline
@@ -437,7 +491,7 @@ export default function NgoFieldPage() {
   const dispStatusKey = (s: string): LangKey => (['assigned', 'en_route', 'on_scene', 'done'].includes(s) ? (s as LangKey) : 'assigned')
 
   return (
-    <div dir={isRtl ? 'rtl' : 'ltr'} style={{ ...wrap, paddingBottom: 'calc(150px + env(safe-area-inset-bottom))' }}>
+    <div dir={isRtl ? 'rtl' : 'ltr'} style={{ ...wrap, paddingBottom: 'calc(196px + env(safe-area-inset-bottom))' }}>
       <style>{`@keyframes nourHoldFill{from{width:0}to{width:100%}}@keyframes nourFlash{0%,100%{background:rgba(248,81,73,0.92)}50%{background:rgba(248,81,73,0.55)}}`}</style>
 
       {/* Full-screen confirmation flash after a panic is sent */}
@@ -497,6 +551,31 @@ export default function NgoFieldPage() {
       </div>
 
       {tab === 'actions' && (<>
+      {/* Active-panic panel — appears after a panic fires (driven by polled state, so it
+          survives reloads + offline→online sync). Reason chips, the false-alarm cancel
+          window, and "help has seen this". Subdued in silent mode. */}
+      {state?.active_panic && (() => {
+        const ap = state.active_panic!
+        const left = Math.max(0, Math.ceil(CANCEL_WINDOW_S - (Date.now() - new Date(ap.created_at).getTime()) / 1000))
+        return (
+          <div style={ap.silent ? panicPanelSilent : panicPanelLoud}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: ap.silent ? '#c9d1d9' : '#f85149' }}>
+              {ap.silent ? `${t('alert_active')} · ${t('silent_mode')}` : `🆘 ${t('alert_active')}`}
+            </div>
+            {ap.acknowledged && <div style={{ fontSize: 14, color: '#3fb950', marginTop: 4 }}>✓ {t('help_seen')}</div>}
+            <div style={{ fontSize: 12, color: '#8b949e', marginTop: 10 }}>{t('choose_reason')}</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 6 }}>
+              {REASONS.map((r) => (
+                <button key={r} type="button" onClick={() => setPanicReason(r)} style={reasonChip(ap.reason === r)}>{t(('r_' + r) as LangKey)}</button>
+              ))}
+            </div>
+            {left > 0
+              ? <button type="button" onClick={cancelPanic} style={cancelBtn}>{t('cancel_false_alarm')} · {left}s</button>
+              : <div style={{ fontSize: 12, color: '#8b949e', marginTop: 10 }}>{t('locked_note')}</div>}
+          </div>
+        )
+      })()}
+
       {/* Roll-call prompt */}
       {showRc && (
         <button type="button" onClick={respondRollCall} style={rollCallBtn}>
@@ -607,22 +686,28 @@ export default function NgoFieldPage() {
         </div>
       )}
 
-      {/* Fixed PANIC bar — always visible, hard to miss, never scrolls away. */}
+      {/* Fixed PANIC bar — always visible, hard to miss, never scrolls away. A small
+          silent toggle sits above it: pre-arm for when being seen/heard is the danger. */}
       <div style={panicBar}>
-        <button
-          type="button"
-          onMouseDown={startHold} onMouseUp={cancelHold} onMouseLeave={cancelHold}
-          onTouchStart={startHold} onTouchEnd={cancelHold} onTouchCancel={cancelHold}
-          onContextMenu={(e) => e.preventDefault()}
-          style={{ ...checkInBtn, maxWidth: 480, height: 112, position: 'relative', overflow: 'hidden', pointerEvents: 'auto', background: holding ? '#b62324' : '#da3633', borderColor: '#f85149', boxShadow: '0 -2px 14px rgba(0,0,0,0.55)' }}
-        >
-          <span style={{ fontSize: 30, fontWeight: 800 }}>{holding ? t('hold') : `🆘 ${t('panic')}`}</span>
-          <span style={{ fontSize: 14, fontWeight: 500, opacity: 0.92 }}>{holding ? t('keep_holding') : t('panic_sub')}</span>
-          {/* Progress bar fills over the 2s hold. */}
-          {holding && (
-            <div style={{ position: 'absolute', insetInlineStart: 0, bottom: 0, height: 10, background: 'rgba(255,255,255,0.9)', animation: 'nourHoldFill 2s linear forwards' }} />
-          )}
-        </button>
+        <div style={{ width: '100%', maxWidth: 480, pointerEvents: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <button type="button" onClick={() => setSilent((s) => !s)} style={silentToggle(silent)} aria-pressed={silent}>
+            {silent ? '🔇' : '🔈'} {t('silent_mode')}{silent ? ' ✓' : ''}
+          </button>
+          <button
+            type="button"
+            onMouseDown={startHold} onMouseUp={cancelHold} onMouseLeave={cancelHold}
+            onTouchStart={startHold} onTouchEnd={cancelHold} onTouchCancel={cancelHold}
+            onContextMenu={(e) => e.preventDefault()}
+            style={{ ...checkInBtn, height: 112, position: 'relative', overflow: 'hidden', background: holding ? '#b62324' : '#da3633', borderColor: '#f85149', boxShadow: '0 -2px 14px rgba(0,0,0,0.55)' }}
+          >
+            <span style={{ fontSize: 30, fontWeight: 800 }}>{holding ? t('hold') : `🆘 ${t('panic')}`}</span>
+            <span style={{ fontSize: 14, fontWeight: 500, opacity: 0.92 }}>{holding ? t('keep_holding') : t('panic_sub')}</span>
+            {/* Progress bar fills over the 2s hold. */}
+            {holding && (
+              <div style={{ position: 'absolute', insetInlineStart: 0, bottom: 0, height: 10, background: 'rgba(255,255,255,0.9)', animation: 'nourHoldFill 2s linear forwards' }} />
+            )}
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -662,3 +747,12 @@ function tabBtn(active: boolean): React.CSSProperties {
 }
 const mapBox: React.CSSProperties = { width: '100%', height: 'calc(100dvh - 300px)', minHeight: 300, borderRadius: 12, overflow: 'hidden', background: '#161b22', border: '1px solid #21262d' }
 const mapOverlay: React.CSSProperties = { position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, padding: 16, textAlign: 'center' }
+function silentToggle(active: boolean): React.CSSProperties {
+  return { width: '100%', height: 40, borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'system-ui', pointerEvents: 'auto', background: active ? 'rgba(139,148,158,0.25)' : 'rgba(13,17,23,0.85)', border: active ? '1px solid #8b949e' : '1px solid #21262d', color: active ? '#e6edf3' : '#8b949e' }
+}
+const panicPanelLoud: React.CSSProperties = { background: 'rgba(248,81,73,0.1)', border: '1px solid rgba(248,81,73,0.5)', borderRadius: 12, padding: 14 }
+const panicPanelSilent: React.CSSProperties = { background: '#161b22', border: '1px solid #30363d', borderRadius: 12, padding: 14 }
+function reasonChip(active: boolean): React.CSSProperties {
+  return { height: 44, padding: '0 14px', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'system-ui', background: active ? 'rgba(210,153,34,0.22)' : '#0d1117', border: active ? '2px solid #d29922' : '1px solid #21262d', color: active ? '#d29922' : '#c9d1d9' }
+}
+const cancelBtn: React.CSSProperties = { width: '100%', height: 48, marginTop: 12, borderRadius: 10, fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'system-ui', background: 'rgba(255,255,255,0.06)', border: '1px solid #30363d', color: '#e6edf3' }
