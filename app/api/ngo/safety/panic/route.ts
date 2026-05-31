@@ -22,11 +22,14 @@ export async function POST(request: NextRequest) {
   const supabase = createServiceClient()
   const teamId = await resolveTeamId(supabase, session!.userId)
 
-  const { data: panic, error } = await supabase
-    .from('panic_events')
-    .insert({ ngo_user_id: session!.userId, team_id: teamId, last_lat: lat, last_lon: lon })
-    .select('id')
-    .single()
+  // Scope the row to the org. Resilient to the revamp migration not being applied yet:
+  // if the org_id column is missing, retry the legacy shape so a panic NEVER fails to fire.
+  const base = { ngo_user_id: session!.userId, team_id: teamId, last_lat: lat, last_lon: lon }
+  let { data: panic, error } = await supabase
+    .from('panic_events').insert({ ...base, org_id: session!.orgId }).select('id').single()
+  if (error && (error.code === 'PGRST204' || error.code === '42703')) {
+    ({ data: panic, error } = await supabase.from('panic_events').insert(base).select('id').single())
+  }
   if (error || !panic) return NextResponse.json({ error: 'Could not raise alert' }, { status: 500 })
 
   // Who is panicking — for the alert text.

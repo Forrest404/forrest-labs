@@ -28,13 +28,29 @@ async function qDel(id: string) {
   await new Promise((res) => { const t = db.transaction('queue', 'readwrite'); t.objectStore('queue').delete(id); t.oncomplete = () => res(null); t.onerror = () => res(null) })
 }
 
-function getGps(): Promise<{ lat: number; lon: number } | null> {
+// Fresh GPS fix. timeoutMs is tunable so a panic can fail fast and fall back to the
+// last-known fix rather than make someone in danger wait. On success the fix is cached
+// (last-known) — battery-conscious: we only ever read GPS on an explicit action, never
+// continuously (no watchPosition).
+const LAST_GPS_KEY = 'nour-last-gps'
+function cacheGps(lat: number, lon: number) {
+  try { localStorage.setItem(LAST_GPS_KEY, JSON.stringify({ lat, lon, at: Date.now() })) } catch { /* storage off */ }
+}
+function lastKnownGps(): { lat: number; lon: number; at: number } | null {
+  try {
+    const raw = localStorage.getItem(LAST_GPS_KEY)
+    if (!raw) return null
+    const v = JSON.parse(raw)
+    return Number.isFinite(v?.lat) && Number.isFinite(v?.lon) ? v : null
+  } catch { return null }
+}
+function getGps(timeoutMs = 8000): Promise<{ lat: number; lon: number } | null> {
   return new Promise((resolve) => {
     if (!('geolocation' in navigator)) return resolve(null)
     navigator.geolocation.getCurrentPosition(
-      (p) => resolve({ lat: p.coords.latitude, lon: p.coords.longitude }),
+      (p) => { cacheGps(p.coords.latitude, p.coords.longitude); resolve({ lat: p.coords.latitude, lon: p.coords.longitude }) },
       () => resolve(null),
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 },
+      { enableHighAccuracy: true, timeout: timeoutMs, maximumAge: 60000 },
     )
   })
 }
@@ -157,6 +173,20 @@ export default function NgoFieldPage() {
     return { lat: g?.lat ?? null, lon: g?.lon ?? null }
   }
 
+  // Panic location: never block the alert on a GPS fix. If the worker explicitly set a
+  // manual location, honour it; otherwise try a FAST fresh fix (~4s) and fall back to the
+  // last-known cached fix, then to nothing. The panic fires regardless of the outcome.
+  async function resolvePanicCoords(): Promise<{ lat: number | null; lon: number | null }> {
+    if (manual) {
+      const lat = parseFloat(manLat), lon = parseFloat(manLon)
+      if (Number.isFinite(lat) && Number.isFinite(lon)) return { lat, lon }
+    }
+    const fresh = await getGps(4000)
+    if (fresh) return fresh
+    const last = lastKnownGps()
+    return last ? { lat: last.lat, lon: last.lon } : { lat: null, lon: null }
+  }
+
   async function doCheckIn() {
     setMsg('Getting location…')
     const { lat, lon } = await resolveCoords()
@@ -189,8 +219,9 @@ export default function NgoFieldPage() {
   }
 
   async function doPanic() {
-    setMsg('Getting location…')
-    const { lat, lon } = await resolveCoords()
+    setMsg('Sending alert…')
+    // Fresh-if-possible, else last-known; the press is the complete action — GPS never blocks it.
+    const { lat, lon } = await resolvePanicCoords()
     const sent = await send('/api/ngo/safety/panic', { lat, lon }, 'panic')
     playAlarm()
     setFlash(true)
@@ -252,8 +283,10 @@ export default function NgoFieldPage() {
   const showRc = rc && !rc.answered
 
   return (
-    <div style={wrap}>
+    <div style={{ ...wrap, paddingBottom: 'calc(150px + env(safe-area-inset-bottom))' }}>
       <style>{`@keyframes nourHoldFill{from{width:0}to{width:100%}}@keyframes nourFlash{0%,100%{background:rgba(248,81,73,0.92)}50%{background:rgba(248,81,73,0.55)}}`}</style>
+      {/* Content scrolls; the PANIC bar (bottom of file) stays fixed and always visible.
+          The wrap's bottom padding reserves space so nothing hides behind it. */}
 
       {/* Full-screen confirmation flash after a panic is sent */}
       {flash && (
@@ -338,22 +371,6 @@ export default function NgoFieldPage() {
         <div style={bigSub}>I'm safe · share my location</div>
       </button>
 
-      {/* PANIC (hold 2s) */}
-      <button
-        type="button"
-        onMouseDown={startHold} onMouseUp={cancelHold} onMouseLeave={cancelHold}
-        onTouchStart={startHold} onTouchEnd={cancelHold} onTouchCancel={cancelHold}
-        onContextMenu={(e) => e.preventDefault()}
-        style={{ ...bigBtn, position: 'relative', overflow: 'hidden', background: holding ? '#b62324' : '#da3633', borderColor: '#f85149', height: 150 }}
-      >
-        {holding ? 'HOLD…' : 'PANIC'}
-        <div style={bigSub}>{holding ? 'keep holding to send' : 'press and hold 2 seconds'}</div>
-        {/* Progress bar fills over the 2s hold. */}
-        {holding && (
-          <div style={{ position: 'absolute', left: 0, bottom: 0, height: 10, background: 'rgba(255,255,255,0.9)', animation: 'nourHoldFill 2s linear forwards' }} />
-        )}
-      </button>
-
       {/* STATUS */}
       <div>
         <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 6 }}>Set status</div>
@@ -380,6 +397,24 @@ export default function NgoFieldPage() {
 
       {msg && <div style={msgBox}>{msg}</div>}
       {state?.last_check_in && <div style={{ fontSize: 12, color: '#484f58', textAlign: 'center' }}>Last check-in: {new Date(state.last_check_in).toLocaleString()}</div>}
+
+      {/* Fixed PANIC bar — always visible, hard to miss, never scrolls away. */}
+      <div style={panicBar}>
+        <button
+          type="button"
+          onMouseDown={startHold} onMouseUp={cancelHold} onMouseLeave={cancelHold}
+          onTouchStart={startHold} onTouchEnd={cancelHold} onTouchCancel={cancelHold}
+          onContextMenu={(e) => e.preventDefault()}
+          style={{ ...bigBtn, maxWidth: 480, height: 116, position: 'relative', overflow: 'hidden', pointerEvents: 'auto', background: holding ? '#b62324' : '#da3633', borderColor: '#f85149', boxShadow: '0 -2px 12px rgba(0,0,0,0.5)' }}
+        >
+          {holding ? 'HOLD…' : 'PANIC'}
+          <div style={bigSub}>{holding ? 'keep holding to send' : 'press and hold 2 seconds'}</div>
+          {/* Progress bar fills over the 2s hold. */}
+          {holding && (
+            <div style={{ position: 'absolute', left: 0, bottom: 0, height: 10, background: 'rgba(255,255,255,0.9)', animation: 'nourHoldFill 2s linear forwards' }} />
+          )}
+        </button>
+      </div>
     </div>
   )
 }
@@ -388,6 +423,15 @@ const wrap: React.CSSProperties = { minHeight: '100vh', background: '#0d1117', c
 const topbar: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'center' }
 const chip: React.CSSProperties = { fontSize: 12, padding: '3px 8px', borderRadius: 999 }
 const bigBtn: React.CSSProperties = { width: '100%', height: 120, border: '1px solid', borderRadius: 14, color: '#fff', fontSize: 26, fontWeight: 700, cursor: 'pointer', fontFamily: 'system-ui', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none', touchAction: 'manipulation' }
+// Fixed footer holding the PANIC button. Centered to the page width (max 480) and
+// padded for the device home-bar so the control is always reachable without scrolling.
+const panicBar: React.CSSProperties = {
+  position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 40,
+  display: 'flex', justifyContent: 'center',
+  padding: '10px 16px calc(10px + env(safe-area-inset-bottom))',
+  background: 'linear-gradient(to top, #0d1117 70%, rgba(13,17,23,0))',
+  pointerEvents: 'none',
+}
 const flashOverlay: React.CSSProperties = { position: 'fixed', inset: 0, zIndex: 100, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: '#fff', fontFamily: 'system-ui', animation: 'nourFlash 0.7s ease-in-out infinite', cursor: 'pointer' }
 const bigSub: React.CSSProperties = { fontSize: 13, fontWeight: 400, opacity: 0.9 }
 const rollCallBtn: React.CSSProperties = { width: '100%', padding: '18px', background: '#1f6feb', border: '1px solid #58a6ff', color: '#fff', borderRadius: 14, fontSize: 18, fontWeight: 700, cursor: 'pointer', fontFamily: 'system-ui' }
