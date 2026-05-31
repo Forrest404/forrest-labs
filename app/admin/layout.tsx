@@ -338,6 +338,26 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           Live map ↗
         </div>
 
+        {/* Platform-operator console (separate /platform area; same admin login). */}
+        <div
+          onClick={() => router.push('/platform')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 9,
+            height: 34,
+            padding: '0 10px',
+            borderRadius: 6,
+            fontSize: 13,
+            cursor: 'pointer',
+            marginBottom: 2,
+            color: '#a371f7',
+            background: 'transparent',
+          }}
+        >
+          Platform console →
+        </div>
+
         {/* Spacer */}
         <div style={{ flex: 1 }} />
 
