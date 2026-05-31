@@ -90,6 +90,17 @@ export default function NgoChatPage() {
   }, [])
   useEffect(() => { load() }, [load])
 
+  // Decide who can add/edit from the SESSION role, not from the links query — so the
+  // "+ Add link" button still appears for managers even if the links list fails to
+  // load (e.g. the chat_links table hasn't been created yet). Field coordinators
+  // never reach this page (middleware), so this is org_admin/team_leader in practice.
+  useEffect(() => {
+    fetch('/api/ngo/auth/check', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d?.role === 'org_admin' || d?.role === 'team_leader') setCanManage(true) })
+      .catch(() => { /* leave canManage as-is */ })
+  }, [])
+
   // Teams for the picker (managers only).
   useEffect(() => {
     if (!canManage) return
@@ -163,7 +174,12 @@ export default function NgoChatPage() {
       <div style={trustBox}>Joining opens an external app NOUR doesn’t control. Only join groups you trust.</div>
 
       {note && <div style={infoBox}>{note}</div>}
-      {error && <div style={errBox}>Couldn’t load chat links. <button type="button" onClick={load} style={retryBtn}>Retry</button></div>}
+      {error && (
+        <div style={errBox}>
+          Couldn’t load chat links. This feature may not be set up yet (the chat_links table is missing).
+          <button type="button" onClick={load} style={retryBtn}>Retry</button>
+        </div>
+      )}
       {!loaded && <div style={muted}>Loading…</div>}
 
       {canManage && (
