@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { getNgoSession, requireRole } from '@/lib/ngo-auth'
 import { notifyTeam } from '@/lib/ngo-notify'
-import { geocode, hazardOf, mapLink } from '@/lib/ngo-dispatch'
 
 // Move a team to a different incident: repoint the dispatch, reset to 'assigned'
 // and clear progression timestamps, record the reason, and notify the team.
@@ -22,8 +21,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { data: d } = await supabase.from('ngo_dispatches').select('id, org_id, team_id, note').eq('id', id).eq('org_id', session!.orgId).maybeSingle()
   if (!d || d.org_id !== session!.orgId) return NextResponse.json({ error: 'Dispatch not found' }, { status: 404 })
 
+  // Validate the target cluster exists — coordinates are NOT relayed (security C1).
   const { data: cluster } = await supabase
-    .from('clusters').select('centroid_lat, centroid_lon, dominant_event_types').eq('id', clusterId).maybeSingle()
+    .from('clusters').select('id').eq('id', clusterId).maybeSingle()
   if (!cluster) return NextResponse.json({ error: 'Incident not found' }, { status: 404 })
 
   const reason = body.reason ? String(body.reason).slice(0, 300) : null
@@ -41,11 +41,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }).eq('id', id)
   if (error) return NextResponse.json({ error: 'Could not reassign' }, { status: 500 })
 
-  const place = await geocode(cluster.centroid_lat, cluster.centroid_lon)
-  const hazard = hazardOf(cluster)?.replace(/_/g, ' ') ?? 'incident'
+  // Sanitised broadcast (security C1): no hazard/place/coords/map link on the relay;
+  // the team opens NOUR (authenticated) to see the new incident location.
   await notifyTeam(supabase, d.team_id, {
     title: '🔄 Reassigned',
-    body: `New incident: ${hazard} at ${place}. ${mapLink(cluster.centroid_lat, cluster.centroid_lon)}${reason ? ` · ${reason}` : ''}`,
+    body: 'You have been reassigned to a new incident. Open NOUR for the location.',
     priority: 'urgent', tags: 'arrows_counterclockwise',
   })
 

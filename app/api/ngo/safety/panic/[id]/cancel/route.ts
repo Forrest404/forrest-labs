@@ -33,12 +33,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { error } = await supabase.from('panic_events').update({ cancelled_at: new Date().toISOString() }).eq('id', id)
   if (error) return NextResponse.json({ error: 'Could not cancel' }, { status: 500 })
 
-  // Tell responders it was a false alarm (best-effort).
+  // Tell responders it was a false alarm (best-effort). Sanitised (security C1): no
+  // name on the relay; the board shows which alert cleared.
   const orgId = (panic as any).org_id ?? session!.orgId
-  const { data: me } = await supabase.from('ngo_users').select('full_name').eq('id', session!.userId).maybeSingle()
   await notifyOrgRoles(supabase, orgId, ['org_admin', 'team_leader'], {
     title: '✅ Panic cancelled',
-    body: `${me?.full_name ?? 'A field coordinator'} cancelled their alert — false alarm.`,
+    body: 'A field worker cancelled their duress alert — false alarm.',
     priority: 'high', tags: 'white_check_mark',
   })
   return NextResponse.json({ success: true })

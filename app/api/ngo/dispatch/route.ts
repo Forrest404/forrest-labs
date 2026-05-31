@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { getNgoSession, requireRole } from '@/lib/ngo-auth'
 import { notifyTeam } from '@/lib/ngo-notify'
-import { geocode, hazardOf, mapLink } from '@/lib/ngo-dispatch'
-
 // Create a dispatch (one-tap assign) and list the org's dispatches.
 
 export async function POST(request: NextRequest) {
@@ -26,19 +24,16 @@ export async function POST(request: NextRequest) {
   const { data: team } = await supabase.from('ngo_teams').select('id, name').eq('id', teamId).eq('org_id', session!.orgId).maybeSingle()
   if (!team) return NextResponse.json({ error: 'Team not found' }, { status: 404 })
 
-  // Resolve the target: a civilian cluster (read-only) or a custom org incident.
-  let lat: number, lon: number, what: string
+  // Validate the target exists and (for a custom incident) belongs to the caller's org.
+  // Only existence/authorisation is needed here — coordinates are NOT relayed (security C1).
   if (incidentId) {
     const { data: inc } = await supabase
-      .from('ngo_incidents').select('lat, lon, title, severity, address').eq('id', incidentId).eq('org_id', session!.orgId).maybeSingle()
+      .from('ngo_incidents').select('id').eq('id', incidentId).eq('org_id', session!.orgId).maybeSingle()
     if (!inc) return NextResponse.json({ error: 'Incident not found' }, { status: 404 })
-    lat = inc.lat; lon = inc.lon; what = `${inc.severity} · ${inc.title}${inc.address ? ` (${inc.address})` : ''}`
   } else {
     const { data: cluster } = await supabase
-      .from('clusters').select('centroid_lat, centroid_lon, dominant_event_types').eq('id', clusterId).maybeSingle()
+      .from('clusters').select('id').eq('id', clusterId).maybeSingle()
     if (!cluster) return NextResponse.json({ error: 'Incident not found' }, { status: 404 })
-    lat = cluster.centroid_lat; lon = cluster.centroid_lon
-    what = `${hazardOf(cluster)?.replace(/_/g, ' ') ?? 'incident'} at ${await geocode(lat, lon)}`
   }
 
   const note = body.note ? String(body.note).slice(0, 500) : null
@@ -49,9 +44,11 @@ export async function POST(request: NextRequest) {
     .single()
   if (error || !dispatch) return NextResponse.json({ error: 'Could not create dispatch' }, { status: 500 })
 
+  // Sanitised broadcast (security C1): no coordinates/place/map link on the relay; the
+  // assigned team opens NOUR (authenticated) to see the incident location.
   await notifyTeam(supabase, teamId, {
     title: '🚑 Dispatch',
-    body: `${team.name}: ${what}. ${mapLink(lat, lon)}${note ? ` · ${note}` : ''}`,
+    body: `${team.name}: new dispatch assigned. Open NOUR for the location.`,
     priority: 'urgent',
     tags: 'ambulance',
   })
