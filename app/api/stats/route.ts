@@ -1,12 +1,14 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 
-// Match the public map's filter exactly so "confirmed incidents" on the landing
-// equals what the map plots. The map (/api/events) counts the three verified
-// statuses within the Lebanon bounding box; counting only 'confirmed' here was
-// undercounting (e.g. 67 vs ~175 on the map).
-const VERIFIED = ['confirmed', 'news_verified', 'official_verified'] as const
-const LB = { minLat: 33.05, maxLat: 34.69, minLon: 35.10, maxLon: 36.62 }
+// Count exactly what the public map plots so the landing "incidents" number
+// agrees with it. app/map (MapClient) plots clusters in these four statuses with
+// no bounding-box filter — pending_review renders dimmer but is still shown.
+// Counting only 'confirmed' here was undercounting badly (e.g. 67 vs ~175 on the
+// map). NOTE: this set includes pending_review, which is not strictly
+// "confirmed" — kept in sync with the map deliberately; revisit if the tile is
+// meant to mean confirmed-only.
+const MAP_STATUSES = ['confirmed', 'news_verified', 'official_verified', 'pending_review'] as const
 
 export async function GET() {
   try {
@@ -35,11 +37,7 @@ export async function GET() {
         .gte('created_at', sevenDaysAgo),
       supabase.from('clusters')
         .select('*', { count: 'exact', head: true })
-        .in('status', VERIFIED)
-        .gte('centroid_lat', LB.minLat)
-        .lte('centroid_lat', LB.maxLat)
-        .gte('centroid_lon', LB.minLon)
-        .lte('centroid_lon', LB.maxLon),
+        .in('status', MAP_STATUSES),
       supabase.from('warning_clusters')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'active'),
