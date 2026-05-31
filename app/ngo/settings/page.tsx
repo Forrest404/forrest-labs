@@ -16,6 +16,7 @@ interface Org {
   checkin_window_minutes: number; share_team_presence: boolean; share_operational_area: boolean
   has_operational_area: boolean
   panic_ack_visible_default: boolean; panic_escalation_minutes: number
+  location_retention_hours: number
 }
 
 export default function NgoSettingsPage() {
@@ -25,6 +26,7 @@ export default function NgoSettingsPage() {
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
+  const [purging, setPurging] = useState(false)
 
   const canEdit = role === 'org_admin'
 
@@ -55,6 +57,7 @@ export default function NgoSettingsPage() {
           panic_escalation_minutes: org.panic_escalation_minutes,
           share_team_presence: org.share_team_presence,
           share_operational_area: org.share_operational_area,
+          location_retention_hours: org.location_retention_hours,
         }),
       })
       const data = await res.json().catch(() => ({}))
@@ -62,6 +65,19 @@ export default function NgoSettingsPage() {
       else setError(data.error ?? 'Could not save.')
     } catch { setError('Could not save. Please try again.') }
     finally { setSaving(false) }
+  }
+
+  // Immediate hard-delete of location data past the retention window. Irreversible.
+  async function purgeNow() {
+    if (!window.confirm('Permanently delete this organisation’s location data older than the retention window now? This cannot be undone. Active panic alerts are kept.')) return
+    setPurging(true); setMsg(null); setError(null)
+    try {
+      const res = await fetch('/api/ngo/org/purge', { method: 'POST' })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) setMsg(`Purged: ${data.check_ins_deleted} check-ins, ${data.panics_deleted} resolved panics, ${data.roll_calls_deleted} roll calls, ${data.team_positions_cleared} stale team positions cleared.`)
+      else setError(data.error ?? 'Purge failed.')
+    } catch { setError('Purge failed. Please try again.') }
+    finally { setPurging(false) }
   }
 
   return (
@@ -108,6 +124,17 @@ export default function NgoSettingsPage() {
           <Toggle label="Share operational area with other orgs" checked={org.share_operational_area} disabled={!canEdit} onChange={(v) => set('share_operational_area', v)} />
 
           <div style={{ height: 1, background: '#21262d' }} />
+          <div style={{ fontSize: 12, color: '#8b949e' }}>Location retention &amp; purge</div>
+          <Field label="Keep location data for (hours)" hint="Check-ins, GPS, resolved panics and roll-calls older than this are permanently deleted automatically. Lower means a breach or seized device exposes less. Active panic alerts are never auto-deleted.">
+            <input style={field} type="number" min={1} max={720} value={org.location_retention_hours} disabled={!canEdit} onChange={(e) => set('location_retention_hours', Number(e.target.value))} />
+          </Field>
+          {canEdit && (
+            <button type="button" onClick={purgeNow} disabled={purging} style={{ ...dangerBtn, opacity: purging ? 0.6 : 1 }}>
+              {purging ? 'Purging…' : 'Purge old location data now'}
+            </button>
+          )}
+
+          <div style={{ height: 1, background: '#21262d' }} />
           <div style={{ fontSize: 13 }}>
             Operational area: {org.has_operational_area ? <span style={{ color: '#3fb950' }}>defined</span> : <span style={{ color: '#8b949e' }}>not set</span>}
             {' · '}<a href="/ngo/setup" style={{ color: '#58a6ff', textDecoration: 'none' }}>Edit on map →</a>
@@ -146,6 +173,7 @@ const wrap: React.CSSProperties = { padding: 24, maxWidth: 720, margin: '0 auto'
 const field: React.CSSProperties = { width: '100%', height: 40, padding: '0 12px', boxSizing: 'border-box', background: '#0d1117', border: '1px solid #21262d', borderRadius: 6, color: '#e6edf3', fontSize: 14, fontFamily: 'system-ui', outline: 'none' }
 const labelStyle: React.CSSProperties = { fontSize: 12, color: '#8b949e', marginBottom: 6, display: 'block' }
 const primaryBtn: React.CSSProperties = { height: 42, padding: '0 18px', background: '#238636', border: '1px solid #2ea043', color: '#fff', borderRadius: 6, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'system-ui', justifySelf: 'start' }
+const dangerBtn: React.CSSProperties = { height: 40, padding: '0 16px', background: 'rgba(248,81,73,0.1)', border: '1px solid rgba(248,81,73,0.4)', color: '#f85149', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'system-ui', justifySelf: 'start' }
 const errorBox: React.CSSProperties = { background: 'rgba(248,81,73,0.1)', border: '1px solid rgba(248,81,73,0.3)', color: '#f85149', borderRadius: 6, padding: '9px 12px', fontSize: 13, marginBottom: 14 }
 const okBox: React.CSSProperties = { background: 'rgba(63,185,80,0.1)', border: '1px solid rgba(63,185,80,0.3)', color: '#3fb950', borderRadius: 6, padding: '9px 12px', fontSize: 13, marginBottom: 14 }
 const retryBtn: React.CSSProperties = { marginLeft: 8, background: 'none', border: '1px solid rgba(248,81,73,0.4)', color: '#f85149', borderRadius: 4, fontSize: 12, padding: '2px 8px', cursor: 'pointer' }

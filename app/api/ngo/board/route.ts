@@ -105,9 +105,14 @@ export async function GET(request: NextRequest) {
   const peopleIds = (orgPeople ?? []).map((u) => u.id)
   let workers: any[] = []
   if (peopleIds.length) {
+    // Only read the last 24h of located events. The board shows each worker's LATEST
+    // position (a stale day-old pin isn't operationally useful), and bounding the read
+    // means the server never materialises a long location trail in memory — even before
+    // the retention purge runs. Latest-per-user reduction below is unchanged.
+    const sinceIso = new Date(Date.now() - 24 * 3600 * 1000).toISOString()
     const [{ data: cis }, { data: pes }] = await Promise.all([
-      supabase.from('check_ins').select('ngo_user_id, lat, lon, created_at').in('ngo_user_id', peopleIds).not('lat', 'is', null).order('created_at', { ascending: false }).limit(1000),
-      supabase.from('panic_events').select('ngo_user_id, last_lat, last_lon, created_at').in('ngo_user_id', peopleIds).not('last_lat', 'is', null).order('created_at', { ascending: false }).limit(500),
+      supabase.from('check_ins').select('ngo_user_id, lat, lon, created_at').in('ngo_user_id', peopleIds).not('lat', 'is', null).gte('created_at', sinceIso).order('created_at', { ascending: false }).limit(1000),
+      supabase.from('panic_events').select('ngo_user_id, last_lat, last_lon, created_at').in('ngo_user_id', peopleIds).not('last_lat', 'is', null).gte('created_at', sinceIso).order('created_at', { ascending: false }).limit(500),
     ])
     // Latest located event per user, across both sources.
     const latest = new Map<string, { lat: number; lon: number; at: string; source: string }>()

@@ -30,6 +30,7 @@ export async function GET(request: NextRequest) {
       checkin_window_minutes: (data as any).checkin_window_minutes ?? 240,
       panic_ack_visible_default: (data as any).panic_ack_visible_default ?? true,
       panic_escalation_minutes: (data as any).panic_escalation_minutes ?? 5,
+      location_retention_hours: (data as any).location_retention_hours ?? 48,
       share_team_presence: data.share_team_presence ?? false,
       share_operational_area: data.share_operational_area ?? false,
       has_operational_area: !!data.operational_area,
@@ -71,6 +72,17 @@ export async function PATCH(request: NextRequest) {
     windowValue = Math.round(w)
   }
 
+  // Location retention (hours) — additive column; saved separately so a missing column
+  // doesn't 500. 1h..720h (30 days). Lower = a breach exposes less location history.
+  let retentionValue: number | null = null
+  if (body.location_retention_hours !== undefined) {
+    const h = Number(body.location_retention_hours)
+    if (!Number.isFinite(h) || h < 1 || h > 720) {
+      return NextResponse.json({ error: 'Retention must be 1–720 hours' }, { status: 400 })
+    }
+    retentionValue = Math.round(h)
+  }
+
   // Panic config (revamp migration). Saved separately so a missing column doesn't 500.
   const panicUpdate: Record<string, unknown> = {}
   if (body.panic_ack_visible_default !== undefined) panicUpdate.panic_ack_visible_default = !!body.panic_ack_visible_default
@@ -82,7 +94,7 @@ export async function PATCH(request: NextRequest) {
     panicUpdate.panic_escalation_minutes = Math.round(e)
   }
 
-  if (Object.keys(base).length === 0 && windowValue === null && Object.keys(panicUpdate).length === 0) {
+  if (Object.keys(base).length === 0 && windowValue === null && retentionValue === null && Object.keys(panicUpdate).length === 0) {
     return NextResponse.json({ error: 'Nothing to update' }, { status: 400 })
   }
 
@@ -103,5 +115,10 @@ export async function PATCH(request: NextRequest) {
     const { error } = await supabase.from('ngo_organisations').update(panicUpdate).eq('id', session!.orgId)
     panicConfigSaved = !error
   }
-  return NextResponse.json({ success: true, checkin_window_saved: checkinWindowSaved, panic_config_saved: panicConfigSaved })
+  let retentionSaved: boolean | null = null
+  if (retentionValue !== null) {
+    const { error } = await supabase.from('ngo_organisations').update({ location_retention_hours: retentionValue }).eq('id', session!.orgId)
+    retentionSaved = !error
+  }
+  return NextResponse.json({ success: true, checkin_window_saved: checkinWindowSaved, panic_config_saved: panicConfigSaved, retention_saved: retentionSaved })
 }
