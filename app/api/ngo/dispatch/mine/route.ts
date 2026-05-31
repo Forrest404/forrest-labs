@@ -27,6 +27,7 @@ export async function GET(request: NextRequest) {
 
   let place: string | null = null, hazard: string | null = null, link: string | null = null
   let title: string | null = null, severity: string | null = null, description: string | null = null
+  let lat: number | null = null, lon: number | null = null
   if (d.ngo_incident_id) {
     // Custom (org-created) incident — show its full details en route.
     const { data: inc } = await supabase
@@ -36,6 +37,7 @@ export async function GET(request: NextRequest) {
       hazard = inc.category ?? null
       place = inc.address || `${inc.lat.toFixed(4)}, ${inc.lon.toFixed(4)}`
       link = mapLink(inc.lat, inc.lon)
+      lat = inc.lat; lon = inc.lon
     }
   } else if (d.cluster_id) {
     const { data: cluster } = await supabase
@@ -44,6 +46,7 @@ export async function GET(request: NextRequest) {
       place = await geocode(cluster.centroid_lat, cluster.centroid_lon)
       hazard = hazardOf(cluster)?.replace(/_/g, ' ') ?? null
       link = mapLink(cluster.centroid_lat, cluster.centroid_lon)
+      lat = cluster.centroid_lat; lon = cluster.centroid_lon
     }
   }
   const { data: rep } = await supabase
@@ -58,7 +61,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     dispatch: {
       id: d.id, status: d.status, note: d.note,
-      location_name: place, hazard, map_link: link,
+      location_name: place, hazard, map_link: link, lat, lon,
       title, severity, description, // populated for custom incidents
       has_report: hasReport, report: rep ?? null,
     },

@@ -2,6 +2,10 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 
+declare global {
+  interface Window { mapboxgl: any }
+}
+
 // Mobile-first field view for field coordinators. One screen, no menus: identity-forward
 // status bar, a dominant CHECK-IN, big STATUS chips, the current assignment (when any), and
 // an always-visible fixed PANIC bar. Works offline (IndexedDB queue + SW). Arabic-first RTL,
@@ -64,7 +68,7 @@ const LANG = {
     rollcall: 'ROLL CALL — TAP IF SAFE', marked_safe: 'You’re marked safe ✓',
     check_in: 'CHECK IN', checkin_sub: 'I’m safe · share my location', getting_loc: 'Getting location…',
     checked: 'Checked in', next_due: 'next due', overdue: 'OVERDUE', queued_send: 'Queued — will send when online',
-    set_status: 'Set status', standby: 'Standby', deployed: 'Deployed', unavailable: 'Unavailable', status_set: 'Status set',
+    set_status: 'Set status', standby: 'Standby', deployed: 'Deployed', unavailable: 'Unavailable', status_set: 'Status set', st_offline: 'Offline',
     dispatch: 'DISPATCH', assigned: 'Assigned', en_route: 'En route', on_scene: 'On scene', done: 'Done', advance_to: 'ADVANCE TO',
     onscene_report: 'On-scene report', people_assisted: 'People assisted', services_delivered: 'Services delivered', new_hazards: 'New hazards',
     submit_report: 'Submit report', save_changes: 'Save changes', report_filed: 'On-scene report filed ✓', edit: 'Edit', report_saved: 'On-scene report saved',
@@ -81,7 +85,7 @@ const LANG = {
     rollcall: 'APPEL — TOUCHEZ SI EN SÉCURITÉ', marked_safe: 'Vous êtes en sécurité ✓',
     check_in: 'JE SUIS SAUF', checkin_sub: 'Je suis sauf · partager ma position', getting_loc: 'Localisation…',
     checked: 'Pointé', next_due: 'prochain', overdue: 'EN RETARD', queued_send: 'En attente — envoi à la reconnexion',
-    set_status: 'Définir le statut', standby: 'En attente', deployed: 'Déployé', unavailable: 'Indisponible', status_set: 'Statut défini',
+    set_status: 'Définir le statut', standby: 'En attente', deployed: 'Déployé', unavailable: 'Indisponible', status_set: 'Statut défini', st_offline: 'Hors ligne',
     dispatch: 'MISSION', assigned: 'Assigné', en_route: 'En route', on_scene: 'Sur place', done: 'Terminé', advance_to: 'PASSER À',
     onscene_report: 'Rapport sur place', people_assisted: 'Personnes aidées', services_delivered: 'Services fournis', new_hazards: 'Nouveaux dangers',
     submit_report: 'Envoyer le rapport', save_changes: 'Enregistrer', report_filed: 'Rapport déposé ✓', edit: 'Modifier', report_saved: 'Rapport enregistré',
@@ -98,7 +102,7 @@ const LANG = {
     rollcall: 'نداء التفقّد — اضغط إن كنت بأمان', marked_safe: 'تم تسجيلك بأمان ✓',
     check_in: 'أنا بأمان', checkin_sub: 'أنا بأمان · مشاركة موقعي', getting_loc: 'جارٍ تحديد الموقع…',
     checked: 'سجّلت', next_due: 'التالي', overdue: 'متأخر', queued_send: 'في الانتظار — سيُرسل عند الاتصال',
-    set_status: 'تعيين الحالة', standby: 'جاهز', deployed: 'منتشر', unavailable: 'غير متاح', status_set: 'تم تعيين الحالة',
+    set_status: 'تعيين الحالة', standby: 'جاهز', deployed: 'منتشر', unavailable: 'غير متاح', status_set: 'تم تعيين الحالة', st_offline: 'غير متصل',
     dispatch: 'مهمة', assigned: 'مُكلّف', en_route: 'في الطريق', on_scene: 'في الموقع', done: 'منجز', advance_to: 'الانتقال إلى',
     onscene_report: 'تقرير الموقع', people_assisted: 'عدد المستفيدين', services_delivered: 'الخدمات المقدّمة', new_hazards: 'مخاطر جديدة',
     submit_report: 'إرسال التقرير', save_changes: 'حفظ التغييرات', report_filed: 'تم إرسال تقرير الموقع ✓', edit: 'تعديل', report_saved: 'تم حفظ التقرير',
@@ -145,6 +149,10 @@ export default function NgoFieldPage() {
   const [refreshError, setRefreshError] = useState(false)
   const [who, setWho] = useState<{ name: string; org: string | null } | null>(null)
   const [nowTick, setNowTick] = useState(0) // forces the "next due" line to refresh
+  const [tab, setTab] = useState<'actions' | 'map'>('actions')
+  const [mapStatus, setMapStatus] = useState<'idle' | 'loading' | 'ready' | 'offline'>('idle')
+  const mapEl = useRef<HTMLDivElement | null>(null)
+  const mapRef = useRef<any>(null)
 
   // Language: reuse the site-wide fl_lang; default Arabic (Arabic-first).
   useEffect(() => {
@@ -261,6 +269,47 @@ export default function NgoFieldPage() {
     const last = lastKnownGps()
     return last ? { lat: last.lat, lon: last.lon } : { lat: null, lon: null }
   }
+
+  // Lazy map: Mapbox GL loads ONLY when the Map tab is opened, so the base screen stays
+  // light for 2G. Shows the worker's own position + their assignment pin. Offline (or if
+  // the library can't load) it degrades to a coordinates + "open in phone maps" panel.
+  function initMap() {
+    if (!mapEl.current || mapRef.current || !window.mapboxgl) return
+    const own = lastKnownGps()
+    const center: [number, number] = own ? [own.lon, own.lat]
+      : (dispatch?.lon != null && dispatch?.lat != null) ? [dispatch.lon, dispatch.lat]
+      : [35.86, 33.87] // Lebanon
+    const m = new window.mapboxgl.Map({
+      container: mapEl.current, style: 'mapbox://styles/mapbox/dark-v11',
+      center, zoom: own || dispatch?.lon != null ? 13 : 8, attributionControl: false,
+    })
+    mapRef.current = m
+    m.on('load', () => {
+      if (own) new window.mapboxgl.Marker({ color: '#58a6ff' }).setLngLat([own.lon, own.lat]).addTo(m)
+      if (dispatch?.lat != null && dispatch?.lon != null) new window.mapboxgl.Marker({ color: '#da3633' }).setLngLat([dispatch.lon, dispatch.lat]).addTo(m)
+      setMapStatus('ready')
+    })
+  }
+  useEffect(() => {
+    if (tab !== 'map') return
+    if (mapRef.current) return
+    if (typeof navigator !== 'undefined' && !navigator.onLine && !window.mapboxgl) { setMapStatus('offline'); return }
+    if (window.mapboxgl) { setMapStatus('loading'); initMap(); return }
+    setMapStatus('loading')
+    if (!document.getElementById('mbx-css')) {
+      const l = document.createElement('link'); l.id = 'mbx-css'; l.rel = 'stylesheet'
+      l.href = 'https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css'; document.head.appendChild(l)
+    }
+    const s = document.createElement('script')
+    s.src = 'https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js'
+    s.onload = () => { window.mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN; initMap() }
+    s.onerror = () => setMapStatus('offline')
+    document.body.appendChild(s)
+    return () => { /* keep the map instance across tab toggles */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, dispatch])
+  // Tear the map down on unmount.
+  useEffect(() => () => { if (mapRef.current) { mapRef.current.remove(); mapRef.current = null } }, [])
 
   async function doCheckIn() {
     setMsg(t('getting_loc'))
@@ -409,7 +458,7 @@ export default function NgoFieldPage() {
             </div>
             {state?.team && (
               <div style={{ fontSize: 12, color: '#8b949e', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {state.team.name} · {state.team.type} · {t(state.team.status as LangKey) ?? state.team.status}
+                {state.team.name} · {state.team.type} · {state.team.status === 'offline' ? t('st_offline') : (t(state.team.status as LangKey) ?? state.team.status)}
               </div>
             )}
           </div>
@@ -437,6 +486,17 @@ export default function NgoFieldPage() {
         )}
       </div>
 
+      {/* Prominent offline banner — offline is the normal state, not an error */}
+      {!online && <div style={offlineBanner}>● {t('offline')}{queued > 0 ? ` · ${queued} ${t('queued')}` : ''}</div>}
+
+      {/* Actions | Map tab switch — actions are the default; the map is secondary and
+          lazy-loaded. Panic stays fixed below regardless of the active tab. */}
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button type="button" onClick={() => setTab('actions')} style={tabBtn(tab === 'actions')}>{t('actions')}</button>
+        <button type="button" onClick={() => setTab('map')} style={tabBtn(tab === 'map')}>🗺 {t('map')}</button>
+      </div>
+
+      {tab === 'actions' && (<>
       {/* Roll-call prompt */}
       {showRc && (
         <button type="button" onClick={respondRollCall} style={rollCallBtn}>
@@ -521,6 +581,31 @@ export default function NgoFieldPage() {
       </div>
 
       {msg && <div style={msgBox}>{msg}</div>}
+      </>)}
+
+      {/* Map tab — own position + assignment; lazy Mapbox, offline-graceful */}
+      {tab === 'map' && (
+        <div style={{ position: 'relative' }}>
+          <div ref={mapEl} style={mapBox} />
+          {mapStatus !== 'ready' && (
+            <div style={mapOverlay}>
+              {mapStatus === 'loading' && <div style={{ color: '#8b949e', fontSize: 14 }}>{t('map')}…</div>}
+              {mapStatus === 'offline' && (() => {
+                const own = lastKnownGps()
+                const ownLink = own ? `https://www.google.com/maps?q=${own.lat},${own.lon}` : null
+                return (
+                  <>
+                    <div style={{ color: '#d29922', fontSize: 15, fontWeight: 700 }}>● {t('offline')}</div>
+                    {own && <div style={{ color: '#c9d1d9', fontSize: 15 }}>{own.lat.toFixed(4)}, {own.lon.toFixed(4)}</div>}
+                    {ownLink && <a href={ownLink} target="_blank" rel="noreferrer" style={{ ...groupChatBtn, maxWidth: 300 }}>🧭 {t('map')} ↗</a>}
+                    {dispatch?.map_link && <a href={dispatch.map_link} target="_blank" rel="noreferrer" style={{ ...groupChatBtn, maxWidth: 300, color: '#58a6ff', borderColor: 'rgba(88,166,255,0.45)', background: 'rgba(88,166,255,0.12)' }}>{t('dispatch')} ↗</a>}
+                  </>
+                )
+              })()}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Fixed PANIC bar — always visible, hard to miss, never scrolls away. */}
       <div style={panicBar}>
@@ -571,3 +656,9 @@ const field: React.CSSProperties = { flex: 1, height: 48, padding: '0 12px', box
 const msgBox: React.CSSProperties = { textAlign: 'center', fontSize: 15, fontWeight: 600, color: '#e6edf3', background: '#161b22', border: '1px solid #21262d', borderRadius: 10, padding: '12px' }
 const dispatchCard: React.CSSProperties = { background: '#161b22', border: '1px solid #d29922', borderRadius: 12, padding: 14 }
 const groupChatBtn: React.CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', minHeight: 56, background: 'rgba(63,185,80,0.12)', border: '1px solid rgba(63,185,80,0.45)', color: '#3fb950', borderRadius: 12, fontSize: 16, fontWeight: 700, textDecoration: 'none', fontFamily: 'system-ui', boxSizing: 'border-box' }
+const offlineBanner: React.CSSProperties = { background: 'rgba(210,153,34,0.15)', border: '1px solid rgba(210,153,34,0.5)', color: '#d29922', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontWeight: 700, textAlign: 'center' }
+function tabBtn(active: boolean): React.CSSProperties {
+  return { flex: 1, height: 44, borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'system-ui', background: active ? 'rgba(88,166,255,0.18)' : '#161b22', border: active ? '2px solid #58a6ff' : '1px solid #21262d', color: active ? '#58a6ff' : '#8b949e' }
+}
+const mapBox: React.CSSProperties = { width: '100%', height: 'calc(100dvh - 300px)', minHeight: 300, borderRadius: 12, overflow: 'hidden', background: '#161b22', border: '1px solid #21262d' }
+const mapOverlay: React.CSSProperties = { position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, padding: 16, textAlign: 'center' }
