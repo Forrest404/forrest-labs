@@ -96,24 +96,34 @@ export async function getNgoSession(request: NextRequest): Promise<NgoSession | 
   const session = await verifyNgoToken(token)
   if (!session) return null
 
-  // Revocation check: a valid JWT is not enough — the user must still be active
-  // and their org still approved. This is what makes "revoke access" log a signed-in
-  // NGO out mid-session (the token itself stays valid until expiry, but every
-  // /api/ngo/* call re-checks here). Node-only; never imported by the Edge middleware.
-  const { createServiceClient } = await import('@/lib/supabase/service')
-  const supabase = createServiceClient()
-  const { data } = await supabase
-    .from('ngo_users')
-    .select('status, ngo_organisations!inner ( status )')
-    .eq('id', session.userId)
-    .maybeSingle()
-  if (!data || data.status !== 'active') return null
-  const org = Array.isArray((data as any).ngo_organisations)
-    ? (data as any).ngo_organisations[0]
-    : (data as any).ngo_organisations
-  if (org?.status !== 'approved') return null
+  // Revocation check: a valid JWT is not enough — the user must still be active and
+  // their org still approved. "Revoke access" thus logs a signed-in NGO out mid-session.
+  //
+  // BUT we must NOT sign a field worker out on a transient DB blip (a refresh fires a
+  // burst of /api/ngo/* calls; one failed query used to 401 and bounce them to login).
+  // So we FAIL-OPEN on query errors (trust the time-bounded JWT) and only FAIL-CLOSED on
+  // a *definitive* answer: the user is gone/suspended, or the org isn't approved. Two
+  // plain queries (no fragile !inner embed). Node-only; never imported by Edge middleware.
+  try {
+    const { createServiceClient } = await import('@/lib/supabase/service')
+    const supabase = createServiceClient()
 
-  return session
+    const { data: user, error: userErr } = await supabase
+      .from('ngo_users').select('status, org_id').eq('id', session.userId).maybeSingle()
+    if (userErr) return session            // transient — keep them signed in
+    if (!user) return null                 // user deleted — genuinely revoked
+    if (user.status !== 'active') return null // suspended — revoked
+
+    const { data: org, error: orgErr } = await supabase
+      .from('ngo_organisations').select('status').eq('id', user.org_id).maybeSingle()
+    if (orgErr) return session             // transient — keep them signed in
+    if (org && org.status !== 'approved') return null // org suspended/pending — revoked
+
+    return session
+  } catch {
+    // Network/runtime error reaching the DB — trust the valid JWT rather than bounce.
+    return session
+  }
 }
 
 // ── Cookie helpers ────────────────────────────────────────────────────────────
