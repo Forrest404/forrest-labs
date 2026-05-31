@@ -143,26 +143,34 @@ export async function GET(request: NextRequest) {
     }))
   }
 
-  // Active panics (unresolved) — surfaced prominently; the board flags the user.
-  // panic_events has no org_id, so scope by the org's users.
-  const { data: orgUsers } = await supabase.from('ngo_users').select('id, full_name').eq('org_id', orgId)
+  // Active panics (unresolved, un-cancelled) — surfaced prominently. Scope by the
+  // org's users (also gives us names + phones for Call). Rich responder fields where
+  // present; resilient to the panic-revamp columns being absent.
+  const { data: orgUsers } = await supabase.from('ngo_users').select('id, full_name, phone').eq('org_id', orgId)
   const userName = new Map((orgUsers ?? []).map((u: any) => [u.id, u.full_name]))
+  const userPhone = new Map((orgUsers ?? []).map((u: any) => [u.id, u.phone]))
   const orgUserIds = (orgUsers ?? []).map((u: any) => u.id)
   let panics: any[] = []
   if (orgUserIds.length) {
-    const { data: panicRows } = await supabase
-      .from('panic_events')
-      .select('id, last_lat, last_lon, created_at, ngo_user_id')
-      .is('resolved_at', null)
-      .in('ngo_user_id', orgUserIds)
-      .order('created_at', { ascending: false })
-    panics = (panicRows ?? []).map((p: any) => ({
+    const rich = 'id, last_lat, last_lon, created_at, ngo_user_id, silent, reason, acknowledged_at, acknowledged_by'
+    let pres: any = await supabase.from('panic_events').select(rich)
+      .is('resolved_at', null).is('cancelled_at', null).in('ngo_user_id', orgUserIds).order('created_at', { ascending: false })
+    if (pres.error) {
+      pres = await supabase.from('panic_events').select('id, last_lat, last_lon, created_at, ngo_user_id')
+        .is('resolved_at', null).in('ngo_user_id', orgUserIds).order('created_at', { ascending: false })
+    }
+    panics = (pres.data ?? []).map((p: any) => ({
       id: p.id,
       ngo_user_id: p.ngo_user_id,
       name: userName.get(p.ngo_user_id) ?? 'Field coordinator',
+      phone: userPhone.get(p.ngo_user_id) ?? null,
       lat: p.last_lat,
       lon: p.last_lon,
       created_at: p.created_at,
+      silent: p.silent ?? false,
+      reason: p.reason ?? null,
+      acknowledged_at: p.acknowledged_at ?? null,
+      acknowledged_by_name: p.acknowledged_by ? (userName.get(p.acknowledged_by) ?? 'A responder') : null,
     }))
   }
 

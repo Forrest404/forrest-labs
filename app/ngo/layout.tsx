@@ -17,6 +17,7 @@ export default function NgoLayout({ children }: { children: ReactNode }) {
 
   const [role, setRole] = useState<string | null>(null)
   const [who, setWho] = useState<{ name: string; org: string | null } | null>(null)
+  const [panicCount, setPanicCount] = useState(0)
   // Poll the session for every signed-in NGO page (including the bare field view):
   // if access is revoked mid-session, /api/ngo/auth/check starts returning 401 and
   // we bounce to the login screen (which then refuses the suspended account).
@@ -35,6 +36,22 @@ export default function NgoLayout({ children }: { children: ReactNode }) {
     const id = setInterval(check, 20000)
     return () => { stop = true; clearInterval(id) }
   }, [isAuthPage])
+
+  // Live active-panic count for the nav badge (leaders/admins). Polls fast so a new
+  // duress alert surfaces on every page, not just the board.
+  useEffect(() => {
+    if (isAuthPage || !(role === 'org_admin' || role === 'team_leader')) return
+    let stop = false
+    const poll = async () => {
+      try {
+        const r = await fetch('/api/ngo/safety/panic', { cache: 'no-store' })
+        if (!stop && r.ok) setPanicCount(((await r.json()).panics ?? []).length)
+      } catch { /* offline */ }
+    }
+    poll()
+    const id = setInterval(poll, 12000)
+    return () => { stop = true; clearInterval(id) }
+  }, [isAuthPage, role])
 
   async function logout() {
     try { await fetch('/api/ngo/auth/logout', { method: 'POST' }) } catch { /* clear locally anyway */ }
@@ -77,6 +94,9 @@ export default function NgoLayout({ children }: { children: ReactNode }) {
             <NavLink href="/ngo/board" label="Situation board" active={pathname.startsWith('/ngo/board')} />
           )}
           {(role === 'org_admin' || role === 'team_leader') && (
+            <NavLink href="/ngo/panic" label="Panic" active={pathname.startsWith('/ngo/panic')} badge={panicCount} danger />
+          )}
+          {(role === 'org_admin' || role === 'team_leader') && (
             <NavLink href="/ngo/dispatch" label="Dispatch" active={pathname.startsWith('/ngo/dispatch')} />
           )}
           {(role === 'org_admin' || role === 'team_leader') && (
@@ -113,16 +133,21 @@ export default function NgoLayout({ children }: { children: ReactNode }) {
   )
 }
 
-function NavLink({ href, label, active }: { href: string; label: string; active: boolean }) {
+function NavLink({ href, label, active, badge, danger }: { href: string; label: string; active: boolean; badge?: number; danger?: boolean }) {
+  const hasBadge = !!badge && badge > 0
   return (
     <a
       href={href}
       style={{
-        display: 'block', padding: '8px 12px', borderRadius: 6, fontSize: 13, textDecoration: 'none',
-        color: active ? '#e6edf3' : '#8b949e', background: active ? '#161b22' : 'transparent',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderRadius: 6, fontSize: 13, textDecoration: 'none',
+        color: hasBadge && danger ? '#f85149' : active ? '#e6edf3' : '#8b949e',
+        background: active ? '#161b22' : 'transparent', fontWeight: hasBadge && danger ? 700 : 400,
       }}
     >
-      {label}
+      <span>{label}</span>
+      {hasBadge && (
+        <span style={{ background: '#da3633', color: '#fff', fontSize: 11, fontWeight: 700, borderRadius: 999, minWidth: 18, height: 18, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 5px' }}>{badge}</span>
+      )}
     </a>
   )
 }

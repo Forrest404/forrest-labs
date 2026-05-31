@@ -87,6 +87,8 @@ interface TeamPin {
 }
 interface Panic {
   id: string; ngo_user_id: string; name: string; lat: number | null; lon: number | null; created_at: string
+  phone?: string | null; silent?: boolean; reason?: string | null
+  acknowledged_at?: string | null; acknowledged_by_name?: string | null
 }
 interface RollCall {
   id: string; created_at: string; message: string | null; safe_count: number; total: number
@@ -412,6 +414,15 @@ export default function NgoBoardPage() {
     const res = await fetch(`/api/ngo/safety/panic/${panicId}/resolve`, { method: 'POST' })
     if (res.ok) fetchBoard()
   }
+  async function acknowledgePanic(panicId: string) {
+    const res = await fetch(`/api/ngo/safety/panic/${panicId}/acknowledge`, { method: 'POST' })
+    if (res.ok) fetchBoard()
+  }
+  function locatePanic(p: Panic) {
+    if (p.lat == null || p.lon == null || !map.current) return
+    setPanelOpen(true)
+    map.current.flyTo({ center: [p.lon, p.lat], zoom: 15, essential: true })
+  }
   async function openPanicDispatch(p: Panic) {
     setPanicDispatchFor(p); setPanicTeams([]); setPanicBusy(false)
     try {
@@ -500,6 +511,14 @@ export default function NgoBoardPage() {
     <div style={{ position: 'relative', height: '100vh', width: '100%', overflow: 'hidden' }}>
       <div ref={mapContainer} style={{ position: 'absolute', inset: 0 }} />
 
+      {/* Dismiss-proof panic strip — always on top of the board while any panic is active */}
+      {panics.length > 0 && (
+        <div onClick={() => { setPanelOpen(true); const u = panics.find((p) => !p.acknowledged_at) ?? panics[0]; locatePanic(u) }} style={panicStrip}>
+          🆘 {panics.length} active panic{panics.length === 1 ? '' : 's'}
+          {panics.some((p) => !p.acknowledged_at) ? ` · ${panics.filter((p) => !p.acknowledged_at).length} unacknowledged` : ' · all acknowledged'} — tap to respond
+        </div>
+      )}
+
       {/* Loading / refresh-error chip (top-left) */}
       {!loaded && <div style={statusChip}>Loading…</div>}
       {loaded && loadError && (
@@ -570,12 +589,20 @@ export default function NgoBoardPage() {
             <div style={{ padding: '12px 16px', borderBottom: '1px solid #21262d', background: 'rgba(248,81,73,0.08)' }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: '#f85149' }}>🆘 {panics.length} active panic{panics.length === 1 ? '' : 's'}</div>
               {panics.map((p) => (
-                <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginTop: 6 }}>
+                <div key={p.id} style={{ borderTop: '1px solid rgba(248,81,73,0.2)', paddingTop: 8, marginTop: 8 }}>
                   <div style={{ fontSize: 12, color: '#e6edf3' }}>
                     <strong>{p.name}</strong> · {timeAgo(p.created_at)}
-                    <div style={{ color: '#8b949e' }}>{p.lat != null && p.lon != null ? `${p.lat.toFixed(4)}, ${p.lon.toFixed(4)}` : 'no location'}</div>
+                    {p.silent && <span style={{ fontSize: 10, color: '#8b949e', marginLeft: 6 }}>silent</span>}
+                    {p.reason && <span style={{ fontSize: 10, color: '#d29922', marginLeft: 6 }}>{p.reason}</span>}
+                    <div style={{ color: '#8b949e' }}>{p.lat != null && p.lon != null ? `last known ${p.lat.toFixed(4)}, ${p.lon.toFixed(4)} · ${timeAgo(p.created_at)}` : 'no location'}</div>
+                    {p.acknowledged_at
+                      ? <div style={{ color: '#3fb950' }}>✓ Acknowledged by {p.acknowledged_by_name}</div>
+                      : <div style={{ color: '#d29922' }}>● Not yet acknowledged</div>}
                   </div>
-                  <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+                    {!p.acknowledged_at && <button type="button" onClick={() => acknowledgePanic(p.id)} style={{ ...resolveBtn, color: '#58a6ff', borderColor: 'rgba(88,166,255,0.4)', background: 'rgba(88,166,255,0.1)' }}>Acknowledge</button>}
+                    {p.phone && <a href={`tel:${p.phone}`} style={{ ...resolveBtn, textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>Call</a>}
+                    {p.lat != null && p.lon != null && <button type="button" onClick={() => locatePanic(p)} style={{ ...resolveBtn, color: '#a371f7', borderColor: 'rgba(163,113,247,0.4)', background: 'rgba(163,113,247,0.1)' }}>Locate</button>}
                     <button type="button" onClick={() => openPanicDispatch(p)} style={{ ...resolveBtn, color: '#58a6ff', borderColor: 'rgba(88,166,255,0.4)', background: 'rgba(88,166,255,0.1)' }}>Send team</button>
                     <button type="button" onClick={() => resolvePanic(p.id)} style={resolveBtn}>Resolve</button>
                   </div>
@@ -804,6 +831,12 @@ export default function NgoBoardPage() {
   )
 }
 
+const panicStrip: React.CSSProperties = {
+  position: 'absolute', top: 0, left: 0, right: 0, zIndex: 9,
+  background: '#da3633', color: '#fff', fontSize: 13, fontWeight: 700, textAlign: 'center',
+  padding: '8px 12px', cursor: 'pointer', fontFamily: 'system-ui',
+  boxShadow: '0 2px 10px rgba(0,0,0,0.4)',
+}
 const panel: React.CSSProperties = {
   position: 'absolute', top: 0, right: 0, bottom: 0, width: 328, zIndex: 6,
   background: 'rgba(13,17,23,0.95)', borderLeft: '1px solid #21262d',
