@@ -30,7 +30,7 @@ Nour is a civilian safety reporting tool for conflict and disaster zones, curren
 
 ## Live URLs
 
-- App: `https://forrest-labsorg.vercel.app`
+- App: `https://www.noursystems.org`
 - Health: `/health`, `/api/health`
 - Events GeoJSON: `/api/events`
 - Stats: `/api/stats`
