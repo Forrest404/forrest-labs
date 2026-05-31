@@ -135,6 +135,7 @@ export default function NgoFieldPage() {
   const [holding, setHolding] = useState(false)
   const [flash, setFlash] = useState(false)
   const [checkinQueued, setCheckinQueued] = useState(false)
+  const [pendingStatus, setPendingStatus] = useState<string | null>(null) // optimistic chip highlight
   const holdTimer = useRef<any>(null)
   const audioRef = useRef<any>(null)
   const [dispatch, setDispatch] = useState<any>(null)
@@ -305,10 +306,13 @@ export default function NgoFieldPage() {
   }
 
   async function setStatus(status: string) {
+    setPendingStatus(status) // highlight the chosen chip instantly — confirms even offline
     const sent = await send('/api/ngo/safety/status', { status }, 'status')
-    setMsg(sent ? `${t('status_set')}: ${t(status as LangKey)}` : t('queued_send'))
+    setMsg(sent ? `${t('status_set')}: ${t(status as LangKey)} ✓` : t('queued_send'))
     loadState()
   }
+  // Clear the optimistic highlight once the server confirms the new status.
+  useEffect(() => { if (pendingStatus && state?.team?.status === pendingStatus) setPendingStatus(null) }, [state, pendingStatus])
 
   async function respondRollCall() {
     if (!state?.active_roll_call) return
@@ -453,7 +457,7 @@ export default function NgoFieldPage() {
         <div style={{ fontSize: 13, color: '#8b949e', marginBottom: 6 }}>{t('set_status')}</div>
         <div style={{ display: 'flex', gap: 8 }}>
           {['standby', 'deployed', 'unavailable'].map((s) => (
-            <button key={s} type="button" onClick={() => setStatus(s)} style={statusBtn(state?.team?.status === s)}>{t(s as LangKey)}</button>
+            <button key={s} type="button" onClick={() => setStatus(s)} style={statusBtn((pendingStatus ?? state?.team?.status) === s)}>{t(s as LangKey)}</button>
           ))}
         </div>
       </div>
