@@ -99,3 +99,23 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({ dispatches })
 }
+
+// Clear dispatch history: delete this org's CLOSED dispatches (done / cancelled).
+// Active dispatches (assigned/en_route/on_scene) are never touched. on_scene_reports
+// cascade. Optional ?all=1 (org_admin only) clears active ones too. Org-scoped.
+export async function DELETE(request: NextRequest) {
+  const session = await getNgoSession(request)
+  if (!requireRole(session, ['org_admin', 'team_leader'])) {
+    return NextResponse.json({ error: 'Not authorised' }, { status: 403 })
+  }
+  const all = new URL(request.url).searchParams.get('all') === '1'
+  if (all && session!.role !== 'org_admin') {
+    return NextResponse.json({ error: 'Only an org admin can clear active dispatches' }, { status: 403 })
+  }
+  const supabase = createServiceClient()
+  let q = supabase.from('ngo_dispatches').delete().eq('org_id', session!.orgId)
+  if (!all) q = q.in('status', ['done', 'cancelled'])
+  const { data, error } = await q.select('id')
+  if (error) return NextResponse.json({ error: 'Could not clear history' }, { status: 500 })
+  return NextResponse.json({ success: true, deleted: data?.length ?? 0 })
+}

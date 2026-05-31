@@ -65,6 +65,15 @@ export default function NgoDispatchPage() {
     const res = await fetch(`/api/ngo/dispatch/${reassignFor.id}/reassign`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cluster_id: clusterId, reason }) })
     if (res.ok) { setReassignFor(null); setReason(''); load() }
   }
+  const [clearing, setClearing] = useState(false)
+  async function clearHistory() {
+    if (!window.confirm('Delete all closed dispatches (done & cancelled) and their on-scene reports? Active dispatches are kept. This cannot be undone.')) return
+    setClearing(true)
+    try {
+      const res = await fetch('/api/ngo/dispatch', { method: 'DELETE' })
+      if (res.ok) load()
+    } finally { setClearing(false) }
+  }
 
   const active = dispatches.filter((d) => ['assigned', 'en_route', 'on_scene'].includes(d.status))
   const closed = dispatches.filter((d) => ['done', 'cancelled'].includes(d.status))
@@ -82,7 +91,15 @@ export default function NgoDispatchPage() {
       )}
 
       <Section title={`Active (${active.length})`} rows={active} onRecall={(d) => { setRecallFor(d); setReason('') }} onReassign={setReassignFor} />
-      <Section title={`History (${closed.length})`} rows={closed} onRecall={(d) => { setRecallFor(d); setReason('') }} onReassign={setReassignFor} />
+      <Section
+        title={`History (${closed.length})`}
+        rows={closed}
+        onRecall={(d) => { setRecallFor(d); setReason('') }}
+        onReassign={setReassignFor}
+        action={closed.length > 0
+          ? <button type="button" onClick={clearHistory} disabled={clearing} style={{ height: 28, padding: '0 12px', background: 'rgba(248,81,73,0.08)', border: '1px solid rgba(248,81,73,0.4)', color: '#f85149', borderRadius: 6, fontSize: 12, cursor: 'pointer', fontFamily: 'system-ui', opacity: clearing ? 0.6 : 1 }}>{clearing ? 'Clearing…' : 'Clear history'}</button>
+          : null}
+      />
 
       {reassignFor && (
         <div onClick={() => setReassignFor(null)} style={backdrop}>
@@ -118,10 +135,13 @@ export default function NgoDispatchPage() {
   )
 }
 
-function Section({ title, rows, onRecall, onReassign }: { title: string; rows: Dispatch[]; onRecall: (d: Dispatch) => void; onReassign: (d: Dispatch) => void }) {
+function Section({ title, rows, onRecall, onReassign, action }: { title: string; rows: Dispatch[]; onRecall: (d: Dispatch) => void; onReassign: (d: Dispatch) => void; action?: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 24 }}>
-      <div style={{ fontSize: 13, fontWeight: 600, color: '#8b949e', marginBottom: 8 }}>{title}</div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: '#8b949e' }}>{title}</div>
+        {action}
+      </div>
       {rows.length === 0 && <div style={{ fontSize: 13, color: '#484f58' }}>None.</div>}
       {rows.map((d) => {
         const open = ['assigned', 'en_route', 'on_scene'].includes(d.status)
