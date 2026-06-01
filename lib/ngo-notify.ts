@@ -59,15 +59,33 @@ async function resolveOrgTopic(supabase: any, orgId: string): Promise<string | n
   }
 }
 
-// Public accessor for the per-org push topic + relay base. Used by the topic/test API
-// routes so EVERY role (field coordinators included) can look up the topic to subscribe.
-// Like the internal resolver, this may persist a freshly generated topic on first call —
-// idempotent, and already happens on the first alert.
-export async function getOrgPushTopic(
+// Resolve a per-USER push topic (ngo_users.push_topic), generating + persisting a high-
+// entropy one on first use — the same pattern as resolveOrgTopic but per recipient, so push
+// can be targeted to exactly the right people. Falls back to the ORG topic if the column is
+// missing (pre-migration) or unreachable, so push keeps working (org-wide) until applied —
+// never silently drops an alert.
+async function resolveUserTopic(supabase: any, userId: string, orgId: string): Promise<string | null> {
+  try {
+    const { data, error } = await supabase.from('ngo_users').select('push_topic').eq('id', userId).maybeSingle()
+    if (error) return resolveOrgTopic(supabase, orgId)
+    if (data?.push_topic) return data.push_topic as string
+    const topic = `nour-u-${randomBytes(24).toString('base64url')}` // ~192 bits, URL-safe
+    const { error: upErr } = await supabase.from('ngo_users').update({ push_topic: topic }).eq('id', userId)
+    if (upErr) return resolveOrgTopic(supabase, orgId)
+    return topic
+  } catch {
+    return resolveOrgTopic(supabase, orgId)
+  }
+}
+
+// Public accessor for a single user's push topic + relay base — used by the topic/test API
+// routes so each user subscribes to (and tests) their OWN topic.
+export async function getUserPushTopic(
   supabase: any,
+  userId: string,
   orgId: string,
 ): Promise<{ topic: string | null; baseUrl: string }> {
-  const topic = await resolveOrgTopic(supabase, orgId)
+  const topic = await resolveUserTopic(supabase, userId, orgId)
   return { topic, baseUrl: NTFY_BASE_URL }
 }
 
@@ -131,7 +149,7 @@ export type Urgency = 'critical' | 'high' | 'normal' | 'low'
 const EVENT_URGENCY: Record<string, Urgency> = {
   panic: 'critical', roll_call: 'critical', panic_dispatch: 'critical', panic_escalate: 'critical',
   panic_cancel: 'high', missed_checkin: 'high', dispatch: 'high',
-  new_incident: 'normal', broadcast: 'normal',
+  new_incident: 'normal', broadcast: 'normal', dispatch_update: 'normal',
   invite: 'low', password_reset: 'low', report_ready: 'low',
 }
 export function urgencyOf(event: string): Urgency { return EVENT_URGENCY[event] ?? 'normal' }
@@ -174,8 +192,9 @@ async function orgRouting(supabase: any, orgId: string, event: string): Promise<
   } catch { return builtin }
 }
 
-// The shared core. Push is a single org-topic broadcast (can't be filtered per-user);
-// SMS + email are per-recipient. Critical channels retry. Every attempt is logged.
+// The shared core. Push, SMS and email are all per-recipient (each user has their own push
+// topic), so delivery targets exactly the resolved recipient set. Critical channels retry.
+// Every attempt is logged.
 async function deliver(supabase: any, args: {
   orgId: string; event: string; title: string; body: string; priority?: Priority; tags?: string; recipients: Recipient[]
 }): Promise<void> {
@@ -183,7 +202,6 @@ async function deliver(supabase: any, args: {
   const urgency = urgencyOf(event)
   const guarded = isProtected(urgency)
   const smsText = scrubSensitive(`${title} — ${body}`)
-  const topic = await resolveOrgTopic(supabase, orgId)
 
   // Base channels per urgency.
   const base = urgency === 'critical' || urgency === 'high'
@@ -205,25 +223,29 @@ async function deliver(supabase: any, args: {
     } catch { /* fall to org defaults */ }
   }
 
-  // ── PUSH: one broadcast to the org topic ──
-  const pushOn = base.push && (guarded || (routing ? routing.push : true))
-  if (pushOn) {
-    let ok = false
-    const tries = urgency === 'critical' ? 2 : 1
-    for (let a = 0; a < tries && !ok; a++) ok = (await sendPush(topic, { title, body, priority, tags })).ok
-    await logDelivery(supabase, orgId, null, event, urgency, 'push', ok ? 'sent' : 'failed')
-  }
-
-  // ── Per-recipient SMS + EMAIL ──
-  for (const u of recipients) {
+  // ── Per-recipient delivery: PUSH (per-user topic) + SMS + EMAIL ──
+  // Push now goes to each recipient's OWN topic, so it reaches exactly the people selected by
+  // notifyTeam/notifyUsers/notifyOrgRoles — and, for non-critical events, honours each user's
+  // notif_push / off-duty / quiet-hours / per-event prefs (which a single org broadcast never
+  // could). Recipients fan out in parallel so a large broadcast isn't N sequential sends.
+  await Promise.all(recipients.map(async (u) => {
     // Non-protected gating: off duty, quiet hours, flood. (None of this applies to
     // CRITICAL/HIGH — those always go through.)
     if (!guarded) {
-      if (u.off_duty) continue
-      if (inQuietHours(u.quiet_start, u.quiet_end)) continue
-      if (await floodedFor(supabase, u.id, event)) { await logDelivery(supabase, orgId, u.id, event, urgency, 'sms', 'throttled'); continue }
+      if (u.off_duty) return
+      if (inQuietHours(u.quiet_start, u.quiet_end)) return
+      if (await floodedFor(supabase, u.id, event)) { await logDelivery(supabase, orgId, u.id, event, urgency, 'push', 'throttled'); return }
     }
     const pref = prefMap.get(u.id)
+
+    // PUSH (per-user topic)
+    const pushWanted = guarded ? base.push : (u.notif_push !== false && (pref?.push ?? routing!.push))
+    if (pushWanted) {
+      const uTopic = await resolveUserTopic(supabase, u.id, orgId)
+      let r = await sendPush(uTopic, { title, body, priority, tags })
+      if (!r.ok && urgency === 'critical') r = await sendPush(uTopic, { title, body, priority, tags }) // retry once
+      await logDelivery(supabase, orgId, u.id, event, urgency, 'push', r.stubbed ? 'stubbed' : r.ok ? 'sent' : 'failed')
+    }
 
     // SMS
     const smsWanted = guarded ? base.sms : (u.notif_sms !== false && (pref?.sms ?? routing!.sms))
@@ -239,7 +261,7 @@ async function deliver(supabase: any, args: {
       const r = await sendEmail({ to: u.email, subject: title, html: `<p>${escapeBasic(body)}</p>`, text: `${title} — ${body}` })
       await logDelivery(supabase, orgId, u.id, event, urgency, 'email', r.stubbed ? 'stubbed' : r.ok ? 'sent' : 'failed')
     }
-  }
+  }))
 }
 
 function escapeBasic(s: string): string { return s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c] as string)) }

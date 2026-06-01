@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { getNgoSession } from '@/lib/ngo-auth'
-import { getOrgPushTopic, sendPush } from '@/lib/ngo-notify'
+import { getUserPushTopic, sendPush } from '@/lib/ngo-notify'
 import { rateLimit, tooMany } from '@/lib/rate-limit'
 
 // POST /api/ngo/notify/test — fire a generic test push to the caller's org topic so a user
@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
   })
   if (!rl.ok) return tooMany(rl.retryAfter, 'Too many test alerts. Wait a minute and try again.')
 
-  const { topic } = await getOrgPushTopic(supabase, session.orgId)
+  const { topic } = await getUserPushTopic(supabase, session.userId, session.orgId)
   const res = await sendPush(topic, {
     title: 'NOUR test notification',
     body: 'Push notifications are working. You can close this.',
