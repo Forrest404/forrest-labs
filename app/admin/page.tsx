@@ -46,6 +46,7 @@ interface AdminStats {
     news_verified?: number
     official_verified?: number
   }
+  auto_verified_today?: number
   warnings: { active: number; all_clear: number }
   recent_clusters: RecentCluster[]
   generated_at: string
@@ -226,10 +227,10 @@ export default function AdminDashboard() {
       borderColor: '#21262d',
     },
     {
-      label: 'Uptime',
-      number: '99.9%',
-      numberColor: '#3fb950',
-      sub: 'all systems nominal',
+      label: 'Intel-verified',
+      number: (stats.clusters.news_verified ?? 0) + (stats.clusters.official_verified ?? 0),
+      numberColor: '#a371f7',
+      sub: 'news + official sources',
       borderColor: '#21262d',
     },
   ]
@@ -300,20 +301,20 @@ export default function AdminDashboard() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#a371f7', animation: 'pulse 1.5s ease-in-out infinite', flexShrink: 0 }} />
-            <span style={{ fontSize: 11, color: '#8b949e' }}>Auto-detection</span>
-            <span style={{ fontSize: 11, color: '#a371f7' }}>Active · every 2 min</span>
+            <span style={{ fontSize: 11, color: '#8b949e' }}>Report clustering</span>
+            <span style={{ fontSize: 11, color: '#a371f7' }}>Every 5 min</span>
           </div>
           <span style={{ width: 1, height: 16, background: '#21262d', flexShrink: 0 }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#3fb950', flexShrink: 0 }} />
-            <span style={{ fontSize: 11, color: '#8b949e' }}>News feed</span>
-            <span style={{ fontSize: 11, color: '#3fb950' }}>Every 5 min</span>
+            <span style={{ fontSize: 11, color: '#8b949e' }}>News &amp; strike detection</span>
+            <span style={{ fontSize: 11, color: '#3fb950' }}>Every 15 min</span>
           </div>
           <span style={{ width: 1, height: 16, background: '#21262d', flexShrink: 0 }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ fontSize: 11, color: '#8b949e' }}>Auto-verified today</span>
             <span style={{ fontSize: 13, fontWeight: 600, color: '#e6edf3' }}>
-              {(stats.clusters.news_verified ?? 0) + (stats.clusters.official_verified ?? 0)}
+              {stats.auto_verified_today ?? 0}
             </span>
           </div>
         </div>
@@ -412,7 +413,7 @@ export default function AdminDashboard() {
           const newsOk = newsRecent !== null && newsRecent < 30
 
           return [
-            { dot: aiOk ? '#3fb950' : '#d29922', label: 'AI Analyst', status: aiMinAgo !== null ? (aiOk ? `Last ran ${aiMinAgo}m ago` : 'Check edge function') : 'No data' },
+            { dot: aiOk ? '#3fb950' : '#d29922', label: 'Detection pipeline', status: aiMinAgo !== null ? (aiOk ? `Newest incident ${aiMinAgo}m ago` : `Quiet · newest ${aiMinAgo}m ago`) : 'No data' },
             { dot: reportsOk ? '#3fb950' : '#484f58', label: 'Report pipeline', status: reportsOk ? `${stats.reports.today} reports today` : 'No reports today' },
             { dot: newsOk ? '#3fb950' : '#d29922', label: 'News feed', status: newsRecent !== null ? (newsOk ? `Updated ${newsRecent}m ago` : 'Refresh manually') : 'No articles' },
           ].map((ind) => (
