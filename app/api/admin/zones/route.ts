@@ -2,7 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { getSessionFromRequest } from '@/lib/admin/auth'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  // Defense-in-depth: middleware already gates /api/admin/*, but every other admin route
+  // also verifies the session in-handler. This one didn't — close that gap (important given
+  // the known Next.js middleware-bypass CVE).
+  const session = await getSessionFromRequest(request)
+  if (!session) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
+
   const supabase = createServiceClient()
 
   const { data } = await supabase
