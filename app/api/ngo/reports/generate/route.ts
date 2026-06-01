@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { getNgoSession, requireRole } from '@/lib/ngo-auth'
 import { gatherOrgReportData } from '@/lib/ngo-reports'
+import { notifyUsers } from '@/lib/ngo-notify'
 
 // POST /api/ngo/reports/generate — gather this org's incidents (within its
 // operational area), dispatches, and on-scene reports for a date range, then ask
@@ -109,6 +110,19 @@ export async function POST(request: NextRequest) {
     console.error('ngo report save failed:', insErr)
     return NextResponse.json({ error: 'Could not save the report' }, { status: 500 })
   }
+
+  // LOW-urgency "report ready" notice to the people who'd want it (the generator + org
+  // admins). Best-effort — never fails the generation. Title only; no report content.
+  try {
+    const { data: admins } = await supabase.from('ngo_users').select('id').eq('org_id', orgId).eq('role', 'org_admin').eq('status', 'active')
+    const ids = Array.from(new Set([session!.userId, ...(admins ?? []).map((a: any) => a.id)]))
+    await notifyUsers(supabase, orgId, ids, {
+      event: 'report_ready',
+      title: '📄 Report ready',
+      body: `“${saved.title}” has been generated and is ready to view in NOUR.`,
+      tags: 'page_facing_up',
+    })
+  } catch { /* notification is best-effort */ }
 
   return NextResponse.json({ report: { ...saved, data: gathered }, ai_error: aiError })
 }

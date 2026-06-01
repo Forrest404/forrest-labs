@@ -94,7 +94,7 @@ const LANG = {
     sending_alert: 'Sending alert…', alert_sent_msg: '🆘 Alert sent to your team', alert_queued: 'Queued — alert will send when online',
     signed_out: 'Signed out — will sync when back online', sharing_loc: 'Sharing location…',
     open_chat: 'OPEN GROUP CHAT', actions: 'Actions', map: 'Map',
-    chats: 'Chats', no_chats: 'No group chats shared with you yet.', chats_trust: 'Opens an external app NOUR doesn’t control. Only join groups you trust.', open: 'Open', team_chat: 'Team', org_chat: 'Organisation', account: 'Account',
+    chats: 'Chats', no_chats: 'No group chats shared with you yet.', chats_trust: 'Opens an external app NOUR doesn’t control. Only join groups you trust.', open: 'Open', team_chat: 'Team', org_chat: 'Organisation', account: 'Account', on_duty: 'On duty', off_duty: 'Off duty', off_duty_note: 'Off duty — no dispatches/alerts and no missed-check-in flags. Panic & roll call still reach you.',
     silent_mode: 'Silent', alert_active: 'Alert active', help_seen: 'Help has seen this',
     choose_reason: 'What’s happening? (optional)', cancel_false_alarm: 'Cancel — false alarm',
     locked_note: 'Locked — only a responder can resolve this now', cancelled: 'Alert cancelled',
@@ -116,7 +116,7 @@ const LANG = {
     sending_alert: 'Envoi de l’alerte…', alert_sent_msg: '🆘 Alerte envoyée à votre équipe', alert_queued: 'En attente — alerte envoyée à la reconnexion',
     signed_out: 'Déconnecté — synchro à la reconnexion', sharing_loc: 'Partage de la position…',
     open_chat: 'OUVRIR LE GROUPE', actions: 'Actions', map: 'Carte',
-    chats: 'Groupes', no_chats: 'Aucun groupe partagé pour l’instant.', chats_trust: 'Ouvre une app externe que NOUR ne contrôle pas. Ne rejoignez que des groupes de confiance.', open: 'Ouvrir', team_chat: 'Équipe', org_chat: 'Organisation', account: 'Compte',
+    chats: 'Groupes', no_chats: 'Aucun groupe partagé pour l’instant.', chats_trust: 'Ouvre une app externe que NOUR ne contrôle pas. Ne rejoignez que des groupes de confiance.', open: 'Ouvrir', team_chat: 'Équipe', org_chat: 'Organisation', account: 'Compte', on_duty: 'En service', off_duty: 'Hors service', off_duty_note: 'Hors service — pas d’alertes ni de signalement d’absence de pointage. Les alertes panique et appel restent actives.',
     silent_mode: 'Silencieux', alert_active: 'Alerte active', help_seen: 'Les secours ont vu',
     choose_reason: 'Que se passe-t-il ? (facultatif)', cancel_false_alarm: 'Annuler — fausse alerte',
     locked_note: 'Verrouillé — seul un répondant peut clôturer', cancelled: 'Alerte annulée',
@@ -138,7 +138,7 @@ const LANG = {
     sending_alert: 'جارٍ إرسال الاستغاثة…', alert_sent_msg: '🆘 تم إرسال الاستغاثة إلى فريقك', alert_queued: 'في الانتظار — ستُرسل الاستغاثة عند الاتصال',
     signed_out: 'تم تسجيل الخروج — ستتم المزامنة عند الاتصال', sharing_loc: 'جارٍ مشاركة الموقع…',
     open_chat: 'فتح مجموعة الدردشة', actions: 'الإجراءات', map: 'الخريطة',
-    chats: 'الدردشات', no_chats: 'لا توجد مجموعات دردشة متاحة لك بعد.', chats_trust: 'يفتح تطبيقًا خارجيًا لا تتحكم به نور. انضمّ فقط إلى المجموعات الموثوقة.', open: 'فتح', team_chat: 'الفريق', org_chat: 'المنظمة', account: 'الحساب',
+    chats: 'الدردشات', no_chats: 'لا توجد مجموعات دردشة متاحة لك بعد.', chats_trust: 'يفتح تطبيقًا خارجيًا لا تتحكم به نور. انضمّ فقط إلى المجموعات الموثوقة.', open: 'فتح', team_chat: 'الفريق', org_chat: 'المنظمة', account: 'الحساب', on_duty: 'في الخدمة', off_duty: 'خارج الخدمة', off_duty_note: 'خارج الخدمة — لا تنبيهات ولا تنبيه بفوات التفقد. تنبيهات الاستغاثة والنداء تصلك دائمًا.',
     silent_mode: 'صامت', alert_active: 'الاستغاثة نشطة', help_seen: 'شاهد المنقذون التنبيه',
     choose_reason: 'ماذا يحدث؟ (اختياري)', cancel_false_alarm: 'إلغاء — إنذار خاطئ',
     locked_note: 'مقفل — لا يمكن إنهاؤه إلا من قبل المنقذ', cancelled: 'تم إلغاء الاستغاثة',
@@ -196,8 +196,24 @@ export default function NgoFieldPage() {
   const [tab, setTab] = useState<'actions' | 'map' | 'chats'>('actions')
   const [mapStatus, setMapStatus] = useState<'idle' | 'loading' | 'ready' | 'offline'>('idle')
   const [chatLinks, setChatLinks] = useState<ChatLink[]>([])
+  const [offDuty, setOffDuty] = useState(false)
+  const [offDutyBusy, setOffDutyBusy] = useState(false)
   const mapEl = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<any>(null)
+
+  // Own availability (off-duty). While off duty: no dispatches/alerts, not flagged for
+  // missed check-ins — but panic + roll-call still reach the worker.
+  useEffect(() => {
+    fetch('/api/ngo/me', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).then((d) => { if (d?.account) setOffDuty(!!d.account.off_duty) }).catch(() => {})
+  }, [])
+  const toggleOffDuty = async () => {
+    const next = !offDuty
+    setOffDutyBusy(true); setOffDuty(next)
+    try {
+      const r = await fetch('/api/ngo/me', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ off_duty: next }) })
+      if (!r.ok) setOffDuty(!next) // revert on failure
+    } catch { setOffDuty(!next) } finally { setOffDutyBusy(false) }
+  }
 
   // Group chats the operator can access. Hydrate from the local cache first so they
   // show instantly and offline, then refresh from the server when online.
@@ -588,6 +604,16 @@ export default function NgoFieldPage() {
         {online && refreshError && (
           <div style={{ fontSize: 12, color: '#d29922', marginTop: 6 }}>{t('server_retry')}</div>
         )}
+        {/* Availability — off-duty mutes ops alerts + missed-check-in flags; panic/roll-call still arrive. */}
+        <div style={{ marginTop: 8 }}>
+          <button type="button" onClick={toggleOffDuty} disabled={offDutyBusy} style={{
+            width: '100%', minHeight: 40, borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'system-ui',
+            background: offDuty ? 'rgba(210,153,34,0.15)' : 'rgba(63,185,80,0.12)',
+            border: `1px solid ${offDuty ? 'rgba(210,153,34,0.5)' : 'rgba(63,185,80,0.45)'}`,
+            color: offDuty ? '#d29922' : '#3fb950',
+          }}>{offDuty ? `🌙 ${t('off_duty')} — ${t('on_duty')}?` : `🟢 ${t('on_duty')} — ${t('off_duty')}?`}</button>
+          {offDuty && <div style={{ fontSize: 11, color: '#8b949e', marginTop: 4 }}>{t('off_duty_note')}</div>}
+        </div>
       </div>
 
       {/* Prominent offline banner — offline is the normal state, not an error */}

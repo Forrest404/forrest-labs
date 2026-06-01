@@ -25,7 +25,7 @@ interface Org {
 interface Account {
   full_name: string; email: string; phone: string | null; role: Role
   language: string | null; notif_push: boolean; notif_sms: boolean
-  quiet_start: number | null; quiet_end: number | null
+  quiet_start: number | null; quiet_end: number | null; off_duty: boolean
   has_password: boolean; has_pin: boolean; totp_enabled: boolean
 }
 interface Providers { push: boolean; sms: boolean; email: boolean }
@@ -54,6 +54,7 @@ export default function NgoSettingsPage() {
   const [error, setError] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [log, setLog] = useState<{ entries: any[]; failed_critical: number; available: boolean } | null>(null)
 
   const isAdmin = role === 'org_admin'
 
@@ -78,6 +79,12 @@ export default function NgoSettingsPage() {
   const setO = <K extends keyof Org>(k: K, v: Org[K]) => setOrg((o) => (o ? { ...o, [k]: v } : o))
   const setA = <K extends keyof Account>(k: K, v: Account[K]) => setAccount((a) => (a ? { ...a, [k]: v } : a))
 
+  // Load the delivery log when the Integrations tab opens (org_admin).
+  useEffect(() => {
+    if (tab !== 'integrations' || !isAdmin) return
+    fetch('/api/ngo/notify/log', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).then((d) => d && setLog(d)).catch(() => {})
+  }, [tab, isAdmin])
+
   const visibleTabs = TABS.filter((t) => role && t.roles.includes(role))
   // Keep the active tab valid for the role.
   useEffect(() => { if (role && !visibleTabs.some((t) => t.id === tab)) setTab('account') }, [role]) // eslint-disable-line
@@ -98,7 +105,7 @@ export default function NgoSettingsPage() {
     try {
       const res = await fetch('/api/ngo/me', {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ full_name: account.full_name, phone: account.phone, language: account.language, notif_push: account.notif_push, notif_sms: account.notif_sms, quiet_start: account.quiet_start, quiet_end: account.quiet_end }),
+        body: JSON.stringify({ full_name: account.full_name, phone: account.phone, language: account.language, notif_push: account.notif_push, notif_sms: account.notif_sms, quiet_start: account.quiet_start, quiet_end: account.quiet_end, off_duty: account.off_duty }),
       })
       const d = await res.json().catch(() => ({}))
       if (res.ok) { setMsg('Account saved.'); try { if (account.language) localStorage.setItem('fl_lang', account.language) } catch {} }
@@ -161,6 +168,13 @@ export default function NgoSettingsPage() {
                     {LANGS.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
                   </select>
                 </Field>
+              </Section>
+
+              <Section title="Availability">
+                <Toggle label="Off duty" checked={account.off_duty} onChange={(v) => setA('off_duty', v)} />
+                <div style={{ fontSize: 11, color: '#484f58', marginTop: -4 }}>
+                  When off duty you won’t get dispatches, broadcasts or other alerts, and you won’t be flagged for missed check-ins. <b style={{ color: '#d29922' }}>Panic and roll-call still reach you.</b>
+                </div>
               </Section>
 
               <Section title="Notifications to me">
@@ -268,6 +282,30 @@ export default function NgoSettingsPage() {
                 <ProviderRow label="Push (in-app / ntfy)" ok={providers?.push} />
                 <ProviderRow label="SMS" ok={providers?.sms} note={providers?.sms ? undefined : 'Not configured — SMS alerts are logged only.'} />
                 <ProviderRow label="Email" ok={providers?.email} note={providers?.email ? undefined : 'Not configured — invites/resets won’t send.'} />
+              </Section>
+              <Section title="Delivery log">
+                <div style={{ fontSize: 12, color: '#8b949e' }}>Recent notification sends — so a failed alert is visible. No message contents are stored.</div>
+                {log && log.failed_critical > 0 && <div style={{ ...errorBox, marginBottom: 0 }}>{log.failed_critical} urgent alert(s) failed to send. Check your SMS/push provider.</div>}
+                {!log && <div style={{ fontSize: 12, color: '#8b949e' }}>Loading…</div>}
+                {log && log.entries.length === 0 && <div style={{ fontSize: 12, color: '#484f58' }}>No sends logged yet.</div>}
+                {log && log.entries.length > 0 && (
+                  <div style={{ display: 'grid', gap: 4, maxHeight: 320, overflowY: 'auto' }}>
+                    {log.entries.slice(0, 60).map((e) => {
+                      const failed = e.status === 'failed'
+                      const colour = failed ? '#f85149' : e.status === 'sent' ? '#3fb950' : '#8b949e'
+                      return (
+                        <div key={e.id} style={{ display: 'flex', gap: 8, fontSize: 12, alignItems: 'center', borderBottom: '1px solid #21262d', padding: '4px 0' }}>
+                          <span style={{ width: 8, height: 8, borderRadius: 999, background: colour, flexShrink: 0 }} />
+                          <span style={{ color: '#c9d1d9', minWidth: 110 }}>{e.event_type}</span>
+                          <span style={{ color: '#8b949e', minWidth: 56 }}>{e.urgency}</span>
+                          <span style={{ color: '#8b949e', minWidth: 44 }}>{e.channel}</span>
+                          <span style={{ color: colour, minWidth: 64 }}>{e.status}</span>
+                          <span style={{ color: '#484f58', marginLeft: 'auto' }}>{new Date(e.created_at).toLocaleString()}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </Section>
               <div style={{ fontSize: 12, color: '#484f58' }}>API access for large agencies: planned — not available yet.</div>
             </div>
