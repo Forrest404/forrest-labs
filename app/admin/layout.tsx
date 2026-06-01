@@ -17,6 +17,7 @@ const NAV_ITEMS = [
   { label: 'Export', href: '/admin/export', exact: false, icon: 'export' },
   { label: 'Cases', href: '/admin/cases', exact: false, icon: 'cases' },
   { label: 'Health', href: '/admin/health', exact: false, icon: 'health' },
+  { label: 'Security', href: '/admin/security', exact: false, icon: 'health' },
   { label: 'Demo script', href: '/admin/demo', exact: false, icon: 'play' },
 ] as const
 

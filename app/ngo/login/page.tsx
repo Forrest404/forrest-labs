@@ -16,6 +16,8 @@ export default function NgoLoginPage() {
   const [code, setCode] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [totp, setTotp] = useState('')
+  const [needTotp, setNeedTotp] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -26,7 +28,8 @@ export default function NgoLoginPage() {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
       })
       const data = await res.json()
-      if (res.ok) router.push(data.role === 'field_coordinator' ? '/ngo/field' : '/ngo/board')
+      if (res.ok) { router.push(data.role === 'field_coordinator' ? '/ngo/field' : '/ngo/board'); return }
+      if (data.totp_required) { setNeedTotp(true); setError(payload.totp ? (data.error ?? 'Invalid code') : null) }
       else setError(data.error ?? 'Sign-in failed.')
     } catch {
       setError('Sign-in failed. Please try again.')
@@ -48,7 +51,8 @@ export default function NgoLoginPage() {
       doLogin({ code: code.trim() }, true)
     } else {
       if (!email || !password) { setError('Enter your email and password.'); return }
-      doLogin({ email, password }, false)
+      if (needTotp && !totp.trim()) { setError('Enter your authentication code.'); return }
+      doLogin({ email, password, ...(needTotp ? { totp: totp.trim() } : {}) }, false)
     }
   }
   const onKey = (e: { key: string }) => { if (e.key === 'Enter') submit() }
@@ -87,6 +91,13 @@ export default function NgoLoginPage() {
                 <label style={labelStyle}>Password</label>
                 <input style={field} type="password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={onKey} />
               </div>
+              {needTotp && (
+                <div>
+                  <label style={labelStyle}>Authentication code</label>
+                  <input style={field} inputMode="numeric" autoComplete="one-time-code" value={totp} onChange={(e) => setTotp(e.target.value)} onKeyDown={onKey} placeholder="6-digit or recovery code" autoFocus />
+                  <div style={{ fontSize: 11, color: '#484f58', marginTop: 6 }}>From your authenticator app, or a one-time recovery code.</div>
+                </div>
+              )}
             </>
           )}
         </div>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { verifySecret, createNgoSession, setNgoCookie, ngoSessionTtlSeconds, type NgoRole } from '@/lib/ngo-auth'
+import { getNgoUserSecurity, verifyNgoSecondFactor } from '@/lib/ngo-twofactor'
 
 // Three ways in:
 //  - Field operative: { code }            → single bearer access code (typed or via QR)
@@ -37,7 +38,7 @@ export async function POST(request: NextRequest) {
     attempts.set(ipKey, { count, lockedUntil: count >= MAX_ATTEMPTS ? now + LOCK_MS : 0 })
   }
 
-  let body: { code?: string; email?: string; password?: string; pin?: string }
+  let body: { code?: string; email?: string; password?: string; pin?: string; totp?: string }
   try { body = await request.json() } catch { return NextResponse.json({ error: 'Invalid request' }, { status: 400 }) }
 
   const code = body.code ? String(body.code).trim().toUpperCase() : ''
@@ -91,6 +92,18 @@ export async function POST(request: NextRequest) {
         ? 'Your organisation has been suspended. Contact NOUR.'
         : 'Your organisation is pending approval. You will be notified once approved.'
     return NextResponse.json({ error: msg, status: org?.status ?? 'pending' }, { status: 403 })
+  }
+
+  // Second factor (password accounts that opted into TOTP). Field-coordinator access-code
+  // logins are exempt (the code is their factor). Missing → tell the client to prompt.
+  if (!code) {
+    const sec = await getNgoUserSecurity(supabase, user.id)
+    if (sec.totp_enabled) {
+      const totp = body.totp ? String(body.totp) : ''
+      if (!totp) return NextResponse.json({ error: 'Authentication code required', totp_required: true }, { status: 401 })
+      const ok = await verifyNgoSecondFactor(supabase, user.id, sec, totp)
+      if (!ok) { registerFailure(); return NextResponse.json({ error: 'Invalid authentication code', totp_required: true }, { status: 401 }) }
+    }
   }
 
   // Success — clear this IP's failure count.
