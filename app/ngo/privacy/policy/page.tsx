@@ -72,8 +72,8 @@ export default function NgoPrivacyPolicyPage() {
       </S>
 
       <S id="controller" n={2} t="Who is responsible for your data">
-        <P>The data controller for the NOUR platform is <B>[Your registered organisation
-        legal name]</B>, <B>[registered address]</B> (“the Operator”).</P>
+        <P>The data controller for the NOUR platform is <B>Forrest Labs</B> (“the
+        Operator”).</P>
         <P>For data created inside the NGO Dashboard by an aid organisation about its own
         staff and operations (for example team rosters, check-ins, and incident notes), that
         aid organisation is the controller of its own data and NOUR acts as its processor,
@@ -146,8 +146,9 @@ export default function NgoPrivacyPolicyPage() {
 
       <S id="why" n={7} t="Why we use your data and our legal bases">
         <P>We use personal data only for the following purposes, each with a lawful basis
-        under applicable data-protection law (described using the framework of the EU/UK
-        General Data Protection Regulation, applied as our baseline standard):</P>
+        under applicable data-protection law — principally Lebanon’s Law No. 81 of 10 October
+        2018 (Electronic Transactions and Personal Data), with the EU/UK General Data
+        Protection Regulation applied as our baseline standard:</P>
         <UL items={[
           'To protect people’s lives and safety — verifying hazards, raising panic and duress alerts, accounting for staff, and coordinating response. Legal bases: protection of the vital interests of you or others; substantial public interest; and, where applicable, consent.',
           'To provide the service to aid organisations — operating accounts, teams, dispatch and reporting. Legal basis: performance of a contract with your organisation, and our and your organisation’s legitimate interests in coordinating aid safely.',
@@ -300,14 +301,13 @@ export default function NgoPrivacyPolicyPage() {
       </S>
 
       <S id="contact" n={21} t="Contact and complaints">
-        <P>For privacy questions or to exercise your rights, contact us at <B>[privacy contact
-        email, e.g. privacy@noursystems.org]</B>, or by post at <B>[registered address]</B>.
-        Our data protection contact is <B>[name / role of DPO or privacy contact, if
-        appointed]</B>.</P>
+        <P>For privacy questions or to exercise your rights, contact us at{' '}
+        <B>shadi@forrestlabs.org</B>. We have not appointed a dedicated data protection
+        officer; privacy enquiries are handled by Forrest Labs at that address.</P>
         <P>If you are not satisfied with our response, you have the right to lodge a complaint
-        with the data-protection supervisory authority in your jurisdiction (for example, in
-        the relevant EU/EEA member state, or your local authority under <B>[applicable local
-        data-protection law]</B>).</P>
+        with the competent data-protection supervisory authority in your jurisdiction — in
+        Lebanon, under <B>Law No. 81 of 10 October 2018 (Electronic Transactions and Personal
+        Data)</B>, or, where applicable, with the relevant EU/EEA supervisory authority.</P>
       </S>
 
       <S id="limits" n={22} t="An honest note on the limits of protection">
