@@ -51,35 +51,51 @@ export async function GET(request: NextRequest) {
 
   // FIELD COORDINATOR: only broadcasts addressed to them; mark them delivered (read receipt).
   if (session!.role === 'field_coordinator') {
-    const { data: rows } = await supabase
-      .from('broadcast_recipients')
-      .select('id, delivered_at, acknowledged_at, broadcasts!inner ( id, body, urgency, created_at, sender_id )')
-      .eq('ngo_user_id', session!.userId)
-      .eq('org_id', orgId)
-      .order('created_at', { ascending: false })
-      .limit(50)
+    // withdrawn_at is additive — select it, but fall back to a select without it pre-migration.
+    const recBase = (wd: boolean) => `id, delivered_at, acknowledged_at, broadcasts!inner ( id, body, urgency, created_at, sender_id${wd ? ', withdrawn_at' : ''} )`
+    let rres: any = await supabase
+      .from('broadcast_recipients').select(recBase(true))
+      .eq('ngo_user_id', session!.userId).eq('org_id', orgId)
+      .order('created_at', { ascending: false }).limit(50)
+    if (rres.error && (rres.error.code === '42703' || rres.error.code === 'PGRST204')) {
+      rres = await supabase
+        .from('broadcast_recipients').select(recBase(false))
+        .eq('ngo_user_id', session!.userId).eq('org_id', orgId)
+        .order('created_at', { ascending: false }).limit(50)
+    }
+    // Drop withdrawn broadcasts — a withdrawn message must vanish from the field feed.
+    const rows = (rres.data ?? []).filter((r: any) => {
+      const b = Array.isArray(r.broadcasts) ? r.broadcasts[0] : r.broadcasts
+      return b && !b.withdrawn_at
+    })
 
-    const list = (rows ?? []).map((r: any) => {
+    const list = rows.map((r: any) => {
       const b = Array.isArray(r.broadcasts) ? r.broadcasts[0] : r.broadcasts
       return { recipient_id: r.id, id: b.id, body: b.body, urgency: b.urgency, created_at: b.created_at, sender_id: b.sender_id, delivered_at: r.delivered_at, acknowledged_at: r.acknowledged_at }
     })
-    // Mark unseen as delivered now.
-    const unseen = (rows ?? []).filter((r: any) => !r.delivered_at).map((r: any) => r.id)
+    // Mark unseen (and not withdrawn) as delivered now.
+    const unseen = rows.filter((r: any) => !r.delivered_at).map((r: any) => r.id)
     if (unseen.length) await supabase.from('broadcast_recipients').update({ delivered_at: new Date().toISOString() }).in('id', unseen)
 
     // Attach sender names.
-    const senderIds = Array.from(new Set(list.map((b: any) => b.sender_id).filter(Boolean)))
+    const senderIds = Array.from(new Set(list.map((b: any) => b.sender_id).filter(Boolean))) as string[]
     const names = await senderNames(supabase, senderIds)
     return NextResponse.json({ broadcasts: list.map((b: any) => ({ ...b, sender_name: names[b.sender_id] ?? 'A leader', target_label: '' })), can_send: false }, { headers: { 'Cache-Control': 'no-store' } })
   }
 
   // LEADERS / ADMINS: all org broadcasts + delivery/ack counts + audiences for the composer.
-  const { data: bcasts } = await supabase
-    .from('broadcasts')
-    .select('id, body, target_type, team_id, urgency, created_at, sender_id, ngo_teams ( name )')
-    .eq('org_id', orgId)
-    .order('created_at', { ascending: false })
-    .limit(50)
+  // withdrawn_at / edited_at are additive — select them, fall back without them pre-migration.
+  const bcastBase = 'id, body, target_type, team_id, urgency, created_at, sender_id, ngo_teams ( name )'
+  let bres: any = await supabase
+    .from('broadcasts').select(`${bcastBase}, withdrawn_at, edited_at`)
+    .eq('org_id', orgId).order('created_at', { ascending: false }).limit(50)
+  if (bres.error && (bres.error.code === '42703' || bres.error.code === 'PGRST204')) {
+    bres = await supabase
+      .from('broadcasts').select(bcastBase)
+      .eq('org_id', orgId).order('created_at', { ascending: false }).limit(50)
+  }
+  // Withdrawn broadcasts are hidden from history (kept in the DB for audit).
+  const bcasts = (bres.data ?? []).filter((b: any) => !b.withdrawn_at)
 
   const ids = (bcasts ?? []).map((b: any) => b.id)
   const counts: Record<string, { total: number; delivered: number; acked: number }> = {}
@@ -90,7 +106,7 @@ export async function GET(request: NextRequest) {
       c.total++; if (r.delivered_at) c.delivered++; if (r.acknowledged_at) c.acked++
     }
   }
-  const senderIds = Array.from(new Set((bcasts ?? []).map((b: any) => b.sender_id).filter(Boolean)))
+  const senderIds = Array.from(new Set((bcasts ?? []).map((b: any) => b.sender_id).filter(Boolean))) as string[]
   const names = await senderNames(supabase, senderIds)
 
   const broadcasts = (bcasts ?? []).map((b: any) => {
@@ -98,7 +114,7 @@ export async function GET(request: NextRequest) {
     const c = counts[b.id] ?? { total: 0, delivered: 0, acked: 0 }
     return {
       id: b.id, body: b.body, target_type: b.target_type, team_id: b.team_id, urgency: b.urgency,
-      created_at: b.created_at, sender_name: names[b.sender_id] ?? 'A leader',
+      created_at: b.created_at, edited_at: b.edited_at ?? null, sender_name: names[b.sender_id] ?? 'A leader',
       target_label: targetLabel({ target_type: b.target_type, team_name }),
       recipient_count: c.total, delivered_count: c.delivered, acknowledged_count: c.acked,
     }

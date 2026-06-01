@@ -11,7 +11,7 @@ const MAX = 280
 interface Audiences { field_count: number; leader_count: number; teams: { id: string; name: string; count: number }[] }
 interface Broadcast {
   id: string; body: string; target_type: string; team_id: string | null; urgency: string
-  created_at: string; sender_name: string; target_label: string
+  created_at: string; edited_at: string | null; sender_name: string; target_label: string
   recipient_count: number; delivered_count: number; acknowledged_count: number
 }
 
@@ -29,6 +29,9 @@ export default function BroadcastsPage() {
   const [sending, setSending] = useState(false)
   const [token, setToken] = useState(() => crypto.randomUUID())
   const [roster, setRoster] = useState<{ id: string; recipients: { name: string; delivered: boolean; acknowledged: boolean }[] } | null>(null)
+  const [editing, setEditing] = useState<{ id: string; body: string } | null>(null)
+  const [withdrawing, setWithdrawing] = useState<Broadcast | null>(null)
+  const [actBusy, setActBusy] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -93,6 +96,32 @@ export default function BroadcastsPage() {
     } catch { /* keep empty */ }
   }
 
+  // Correct the in-app body. No new push is fired — the original already went out.
+  const doEdit = async () => {
+    if (!editing || actBusy) return
+    const text = editing.body.trim()
+    if (!text) { setError('Enter a message.'); return }
+    setActBusy(true); setError(null); setMsg(null)
+    try {
+      const r = await fetch(`/api/ngo/broadcasts/${editing.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: text }) })
+      const d = await r.json().catch(() => ({}))
+      if (r.ok) { setMsg('Broadcast updated in the app — no new alert was sent.'); setEditing(null); await load() }
+      else setError(d.error ?? 'Could not update.')
+    } catch { setError('Could not update.') } finally { setActBusy(false) }
+  }
+
+  // Soft-delete: pull it from the feed. Does NOT un-send the push that already went out.
+  const doWithdraw = async () => {
+    if (!withdrawing || actBusy) return
+    setActBusy(true); setError(null); setMsg(null)
+    try {
+      const r = await fetch(`/api/ngo/broadcasts/${withdrawing.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ withdraw: true }) })
+      const d = await r.json().catch(() => ({}))
+      if (r.ok) { setMsg('Broadcast withdrawn — removed from the feed.'); setWithdrawing(null); await load() }
+      else setError(d.error ?? 'Could not withdraw.')
+    } catch { setError('Could not withdraw.') } finally { setActBusy(false) }
+  }
+
   return (
     <div style={wrap}>
       <h1 style={{ fontSize: 20, fontWeight: 600, margin: '0 0 4px' }}>Broadcast</h1>
@@ -144,6 +173,37 @@ export default function BroadcastsPage() {
         </div>
       )}
 
+      {/* Edit broadcast */}
+      {editing && (
+        <div style={overlay} onClick={() => !actBusy && setEditing(null)}>
+          <div style={dialog} onClick={(e) => e.stopPropagation()}>
+            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Edit broadcast</div>
+            <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 8 }}>Corrects the message shown in the app. The original push already went out — editing does <b>not</b> send a new alert.</div>
+            <textarea value={editing.body} onChange={(e) => setEditing({ ...editing, body: e.target.value })} maxLength={MAX} rows={3} style={ta} />
+            <div style={{ fontSize: 11, color: editing.body.length > MAX - 20 ? '#d29922' : '#484f58', textAlign: 'right' }}>{editing.body.length}/{MAX}</div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
+              <button type="button" onClick={() => setEditing(null)} disabled={actBusy} style={ghostBtn}>Cancel</button>
+              <button type="button" onClick={doEdit} disabled={actBusy || !editing.body.trim()} style={{ ...primaryBtn, width: 'auto', opacity: actBusy || !editing.body.trim() ? 0.6 : 1 }}>{actBusy ? 'Saving…' : 'Save'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Withdraw confirmation — honest about what withdraw does and doesn't do. */}
+      {withdrawing && (
+        <div style={overlay} onClick={() => !actBusy && setWithdrawing(null)}>
+          <div style={dialog} onClick={(e) => e.stopPropagation()}>
+            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Withdraw this broadcast?</div>
+            <div style={{ fontSize: 13, color: '#c9d1d9', marginBottom: 4 }}>It will be removed from the in-app feed for everyone. <b style={{ color: '#e6edf3' }}>This does not un-send the original push</b> — recipients may have already seen it. To fix a mistake, withdraw and send a corrected broadcast.</div>
+            <div style={{ background: '#0d1117', border: '1px solid #21262d', borderRadius: 8, padding: 10, fontSize: 13, color: '#c9d1d9', margin: '10px 0', whiteSpace: 'pre-wrap' }}>{withdrawing.body}</div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button type="button" onClick={() => setWithdrawing(null)} disabled={actBusy} style={ghostBtn}>Cancel</button>
+              <button type="button" onClick={doWithdraw} disabled={actBusy} style={{ ...primaryBtn, width: 'auto', background: '#da3633', borderColor: '#f85149', opacity: actBusy ? 0.6 : 1 }}>{actBusy ? 'Withdrawing…' : 'Withdraw'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* History */}
       <div style={{ fontSize: 12, fontWeight: 600, color: '#8b949e', margin: '26px 0 8px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>History</div>
       {!loaded && <div style={{ fontSize: 13, color: '#8b949e' }}>Loading…</div>}
@@ -156,12 +216,16 @@ export default function BroadcastsPage() {
               {b.urgency === 'urgent' && <span style={badge('#f85149')}>URGENT</span>}
             </div>
             <div style={{ fontSize: 11, color: '#8b949e', marginTop: 6 }}>
-              {b.sender_name} · {b.target_label} · {new Date(b.created_at).toLocaleString()}
+              {b.sender_name} · {b.target_label} · {new Date(b.created_at).toLocaleString()}{b.edited_at ? ' · edited' : ''}
             </div>
             <div style={{ fontSize: 12, color: '#8b949e', marginTop: 4 }}>
               Delivered {b.delivered_count}/{b.recipient_count}
               {b.urgency === 'urgent' && <> · Acknowledged {b.acknowledged_count}/{b.recipient_count}
                 {' · '}<button type="button" onClick={() => openRoster(b.id)} style={linkBtn}>{roster?.id === b.id ? 'Hide' : 'Who?'}</button></>}
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+              <button type="button" onClick={() => { setEditing({ id: b.id, body: b.body }); setError(null); setMsg(null) }} style={smallBtn}>Edit</button>
+              <button type="button" onClick={() => { setWithdrawing(b); setError(null); setMsg(null) }} style={{ ...smallBtn, color: '#f85149', borderColor: 'rgba(248,81,73,0.4)' }}>Withdraw</button>
             </div>
             {b.urgency === 'urgent' && roster?.id === b.id && (
               <div style={{ marginTop: 8, borderTop: '1px solid #21262d', paddingTop: 8, display: 'grid', gap: 3 }}>
@@ -203,6 +267,7 @@ const fieldLabel: React.CSSProperties = { fontSize: 12, color: '#8b949e', margin
 const primaryBtn: React.CSSProperties = { minHeight: 42, padding: '0 18px', background: '#238636', border: '1px solid #2ea043', color: '#fff', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'system-ui', width: '100%' }
 const ghostBtn: React.CSSProperties = { minHeight: 38, padding: '0 16px', background: 'transparent', border: '1px solid #30363d', color: '#c9d1d9', borderRadius: 8, fontSize: 14, cursor: 'pointer', fontFamily: 'system-ui' }
 const linkBtn: React.CSSProperties = { background: 'none', border: 'none', color: '#58a6ff', cursor: 'pointer', fontSize: 12, padding: 0, fontFamily: 'system-ui' }
+const smallBtn: React.CSSProperties = { height: 28, padding: '0 10px', background: 'rgba(255,255,255,0.04)', border: '1px solid #21262d', color: '#8b949e', borderRadius: 6, fontSize: 12, cursor: 'pointer', fontFamily: 'system-ui' }
 const ok: React.CSSProperties = { background: 'rgba(63,185,80,0.1)', border: '1px solid rgba(63,185,80,0.3)', color: '#3fb950', borderRadius: 6, padding: '9px 12px', fontSize: 13, marginBottom: 14 }
 const err: React.CSSProperties = { background: 'rgba(248,81,73,0.1)', border: '1px solid rgba(248,81,73,0.3)', color: '#f85149', borderRadius: 6, padding: '9px 12px', fontSize: 13, marginBottom: 14 }
 const overlay: React.CSSProperties = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, zIndex: 50 }
