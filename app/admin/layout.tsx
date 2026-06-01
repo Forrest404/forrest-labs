@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { label: 'Reports', href: '/admin/reports', exact: false, icon: 'doc' },
   { label: 'Audit Log', href: '/admin/audit', exact: false, icon: 'list' },
   { label: 'Intelligence', href: '/admin/intelligence', exact: false, icon: 'brain' },
+  { label: 'Fraud & Abuse', href: '/admin/fraud', exact: false, icon: 'triangle' },
   { label: 'Map', href: '/admin/map', exact: false, icon: 'map' },
   { label: 'Triage', href: '/admin/triage', exact: false, icon: 'queue' },
   { label: 'Command', href: '/admin/command', exact: false, icon: 'command' },

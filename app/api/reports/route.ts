@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { rateLimit, tooMany } from '@/lib/rate-limit'
+import { isBlocked } from '@/lib/abuse'
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -105,6 +106,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   // Hash session_id before storage — never persist raw values
   const session_hash = await sha256hex(session_id)
+
+  // Abuse blocklist (set by an admin in the Fraud & Abuse view): a blocked IP/session
+  // cannot submit. Generic response — don't reveal the block.
+  if (await isBlocked(supabase, ip_hash, session_hash)) {
+    return NextResponse.json({ error: 'This submission could not be accepted.' }, { status: 403 })
+  }
 
   const { data, error } = await supabase
     .from('reports')
