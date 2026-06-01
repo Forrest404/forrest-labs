@@ -2,7 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { verifySecret, createNgoSession, setNgoCookie, ngoSessionTtlSeconds, type NgoRole } from '@/lib/ngo-auth'
 import { getNgoUserSecurity, verifyNgoSecondFactor } from '@/lib/ngo-twofactor'
-import { rateLimit, clientIp, tooMany, AUTH_MAX, AUTH_WINDOW } from '@/lib/rate-limit'
+import { rateLimit, peekRateLimit, resetRateLimit, clientIp, tooMany, AUTH_MAX, AUTH_WINDOW, LOCKOUT_MAX, LOCKOUT_WINDOW } from '@/lib/rate-limit'
+
+// Account lockout bucket: 3 wrong passwords → 10-min wait, keyed by account email.
+const PWD_FAIL_BUCKET = 'auth:ngo-login:pwd-fail'
+const lockoutMessage = (retryAfter: number) => {
+  const mins = Math.max(1, Math.ceil(retryAfter / 60))
+  return `Too many incorrect attempts. Please wait ${mins} minute${mins === 1 ? '' : 's'} before trying again.`
+}
 
 // Three ways in:
 //  - Field operative: { code }            → single bearer access code (typed or via QR)
@@ -32,6 +39,11 @@ export async function POST(request: NextRequest) {
   if (email) {
     const acctLimit = await rateLimit(supabase, { bucket: 'auth:ngo-login:acct', identifier: email, max: AUTH_MAX, windowSec: AUTH_WINDOW })
     if (!acctLimit.ok) return tooMany(acctLimit.retryAfter, 'Too many attempts. Try again in a few minutes.')
+
+    // Lockout: if this account has already failed the password 3 times, make it wait 10 min.
+    // Peek (no consume) so checking the lock doesn't itself count against the account.
+    const lock = await peekRateLimit(supabase, { bucket: PWD_FAIL_BUCKET, identifier: email, max: LOCKOUT_MAX, windowSec: LOCKOUT_WINDOW })
+    if (!lock.ok) return tooMany(lock.retryAfter, lockoutMessage(lock.retryAfter))
   }
 
   const invalid = () => NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
@@ -58,7 +70,14 @@ export async function POST(request: NextRequest) {
     const credentialOk = pin
       ? verifySecret(pin, data.pin_hash as string | null)
       : verifySecret(password, data.password_hash as string | null)
-    if (!credentialOk) return invalid()
+    if (!credentialOk) {
+      // Wrong password/PIN → count it toward the lockout. After LOCKOUT_MAX failures the
+      // peek above will block further attempts for LOCKOUT_WINDOW.
+      await rateLimit(supabase, { bucket: PWD_FAIL_BUCKET, identifier: email, max: LOCKOUT_MAX, windowSec: LOCKOUT_WINDOW })
+      return invalid()
+    }
+    // Correct credential → clear the wrong-password streak so a later typo starts from zero.
+    await resetRateLimit(supabase, PWD_FAIL_BUCKET, email)
     user = { id: data.id, org_id: data.org_id, role: data.role, status: data.status }
   } else {
     return NextResponse.json({ error: 'Enter your access code, or email and password' }, { status: 400 })
