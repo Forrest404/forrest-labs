@@ -83,7 +83,7 @@ const LANG = {
     server_retry: 'Couldn’t reach the server — retrying…', queued: 'queued',
     rollcall: 'ROLL CALL — TAP IF SAFE', marked_safe: 'You’re marked safe ✓',
     check_in: 'CHECK IN', checkin_sub: 'I’m safe · share my location', getting_loc: 'Getting location…',
-    checked: 'Checked in', next_due: 'next due', overdue: 'OVERDUE', queued_send: 'Queued — will send when online',
+    checked: 'Checked in', next_due: 'next due', overdue: 'OVERDUE', due_in: 'due in', never_checked_in: 'Not checked in yet — tap to check in', no_checkin: 'no check-in', queued_send: 'Queued — will send when online',
     set_status: 'Set status', standby: 'Standby', deployed: 'Deployed', unavailable: 'Unavailable', status_set: 'Status set', st_offline: 'Offline',
     dispatch: 'DISPATCH', assigned: 'Assigned', en_route: 'En route', on_scene: 'On scene', done: 'Done', advance_to: 'ADVANCE TO',
     onscene_report: 'On-scene report', people_assisted: 'People assisted', services_delivered: 'Services delivered', new_hazards: 'New hazards',
@@ -105,7 +105,7 @@ const LANG = {
     server_retry: 'Serveur injoignable — nouvelle tentative…', queued: 'en attente',
     rollcall: 'APPEL — TOUCHEZ SI EN SÉCURITÉ', marked_safe: 'Vous êtes en sécurité ✓',
     check_in: 'JE SUIS SAUF', checkin_sub: 'Je suis sauf · partager ma position', getting_loc: 'Localisation…',
-    checked: 'Pointé', next_due: 'prochain', overdue: 'EN RETARD', queued_send: 'En attente — envoi à la reconnexion',
+    checked: 'Pointé', next_due: 'prochain', overdue: 'EN RETARD', due_in: 'dans', never_checked_in: 'Pas encore pointé — appuyez pour pointer', no_checkin: 'aucun pointage', queued_send: 'En attente — envoi à la reconnexion',
     set_status: 'Définir le statut', standby: 'En attente', deployed: 'Déployé', unavailable: 'Indisponible', status_set: 'Statut défini', st_offline: 'Hors ligne',
     dispatch: 'MISSION', assigned: 'Assigné', en_route: 'En route', on_scene: 'Sur place', done: 'Terminé', advance_to: 'PASSER À',
     onscene_report: 'Rapport sur place', people_assisted: 'Personnes aidées', services_delivered: 'Services fournis', new_hazards: 'Nouveaux dangers',
@@ -127,7 +127,7 @@ const LANG = {
     server_retry: 'تعذّر الوصول إلى الخادم — إعادة المحاولة…', queued: 'في الانتظار',
     rollcall: 'نداء التفقّد — اضغط إن كنت بأمان', marked_safe: 'تم تسجيلك بأمان ✓',
     check_in: 'أنا بأمان', checkin_sub: 'أنا بأمان · مشاركة موقعي', getting_loc: 'جارٍ تحديد الموقع…',
-    checked: 'سجّلت', next_due: 'التالي', overdue: 'متأخر', queued_send: 'في الانتظار — سيُرسل عند الاتصال',
+    checked: 'سجّلت', next_due: 'التالي', overdue: 'متأخر', due_in: 'خلال', never_checked_in: 'لم تسجّل بعد — اضغط للتسجيل', no_checkin: 'لا تسجيل', queued_send: 'في الانتظار — سيُرسل عند الاتصال',
     set_status: 'تعيين الحالة', standby: 'جاهز', deployed: 'منتشر', unavailable: 'غير متاح', status_set: 'تم تعيين الحالة', st_offline: 'غير متصل',
     dispatch: 'مهمة', assigned: 'مُكلّف', en_route: 'في الطريق', on_scene: 'في الموقع', done: 'منجز', advance_to: 'الانتقال إلى',
     onscene_report: 'تقرير الموقع', people_assisted: 'عدد المستفيدين', services_delivered: 'الخدمات المقدّمة', new_hazards: 'مخاطر جديدة',
@@ -367,6 +367,13 @@ export default function NgoFieldPage() {
     }
   }, [flushQueue, loadState, loadDispatch, loadWho, refreshQueueCount])
 
+  // 1s tick drives the live check-in countdown. Cheap UI re-render only — no GPS, no network —
+  // and paused while the tab is hidden, so it stays battery-conscious in the field.
+  useEffect(() => {
+    const id = setInterval(() => { if (document.visibilityState === 'visible') setNowTick((n) => n + 1) }, 1000)
+    return () => clearInterval(id)
+  }, [])
+
   async function resolveCoords(): Promise<{ lat: number | null; lon: number | null }> {
     if (manual) {
       const lat = parseFloat(manLat), lon = parseFloat(manLon)
@@ -588,26 +595,35 @@ export default function NgoFieldPage() {
     const h = Math.floor(m / 60)
     return h < 24 ? `${h}h` : `${Math.floor(h / 24)}d`
   }
-  function hhmm(d: Date): string { return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
+  // Time-until-due, ticking. ≥1h: "Hh Mm"; 15–60m: "Xm"; <15m: "M:SS" (seconds, for urgency).
+  function fmtCountdown(ms: number): string {
+    const s = Math.floor(ms / 1000)
+    if (s >= 3600) return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`
+    if (s >= 900) return `${Math.ceil(s / 60)}m`
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+  }
 
-  // The persistent CHECK-IN subtitle + tone, derived from the last check-in + cadence.
-  function checkInInfo(): { sub: string; overdue: boolean } {
-    void nowTick // re-evaluate on the 5s tick
-    if (checkinQueued) return { sub: t('queued_send'), overdue: false }
+  // The persistent CHECK-IN state, derived from the last check-in + cadence. tone drives colour:
+  // neutral (no cadence yet) / ok (plenty of time) / warn (due soon or never checked in) /
+  // overdue (past due). Re-evaluated every second via nowTick so the countdown is live.
+  function checkInInfo(): { sub: string; tone: 'neutral' | 'ok' | 'warn' | 'overdue'; never: boolean } {
+    void nowTick
+    if (checkinQueued) return { sub: t('queued_send'), tone: 'neutral', never: false }
     const last = state?.last_check_in
-    if (!last) return { sub: t('checkin_sub'), overdue: false }
+    if (!last) return { sub: t('never_checked_in'), tone: 'warn', never: true }
     const windowMin = state?.checkin_window_minutes ?? 240
-    const due = new Date(new Date(last).getTime() + windowMin * 60000)
-    const overdue = Date.now() > due.getTime()
-    const sub = overdue
-      ? `✓ ${ago(last)} · ${t('overdue')}`
-      : `✓ ${ago(last)} · ${t('next_due')} ${hhmm(due)}`
-    return { sub, overdue }
+    const remaining = new Date(last).getTime() + windowMin * 60000 - Date.now()
+    if (remaining <= 0) return { sub: `✓ ${ago(last)} · ${t('overdue')}`, tone: 'overdue', never: false }
+    const tone = remaining <= 15 * 60000 ? 'warn' : 'ok'
+    return { sub: `✓ ${ago(last)} · ${t('due_in')} ${fmtCountdown(remaining)}`, tone, never: false }
   }
 
   const rc = state?.active_roll_call
   const showRc = rc && !rc.answered
   const ci = checkInInfo()
+  // Tone → colour. Status bar (dark bg) uses these directly; the green check-in button uses
+  // light tints below for contrast.
+  const toneColor: Record<typeof ci.tone, string> = { neutral: '#8b949e', ok: '#8b949e', warn: '#d29922', overdue: '#f85149' }
   const dispStatusKey = (s: string): LangKey => (['assigned', 'en_route', 'on_scene', 'done'].includes(s) ? (s as LangKey) : 'assigned')
 
   return (
@@ -650,11 +666,10 @@ export default function NgoFieldPage() {
           <span style={{ ...connChip, background: online ? 'rgba(63,185,80,0.15)' : 'rgba(210,153,34,0.18)', color: online ? '#3fb950' : '#d29922', border: `1px solid ${online ? 'rgba(63,185,80,0.4)' : 'rgba(210,153,34,0.5)'}` }}>
             <span style={{ fontSize: 14 }}>●</span> {online ? t('online') : t('offline')}{queued > 0 ? ` · ${queued} ${t('queued')}` : ''}
           </span>
-          {state?.last_check_in && (
-            <span style={{ fontSize: 13, fontWeight: 600, color: ci.overdue ? '#f85149' : '#8b949e' }}>
-              ✓ {ago(state.last_check_in)}
-            </span>
-          )}
+          {/* Always shown — even when never checked in — so the worker always knows their state. */}
+          <span style={{ fontSize: 13, fontWeight: 600, color: toneColor[ci.tone], textAlign: 'right', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {ci.never ? `⚠ ${t('no_checkin')}` : ci.sub}
+          </span>
         </div>
         {online && refreshError && (
           <div style={{ fontSize: 12, color: '#d29922', marginTop: 6 }}>{t('server_retry')}</div>
@@ -744,7 +759,7 @@ export default function NgoFieldPage() {
       {/* CHECK IN — the largest control on the screen */}
       <button type="button" onClick={doCheckIn} disabled={checkingIn} style={checkInBtn}>
         <span style={{ fontSize: 32, fontWeight: 800 }}>{checkingIn ? `${t('getting_loc')}…` : t('check_in')}</span>
-        <span style={{ fontSize: 15, fontWeight: 600, opacity: 0.95, color: ci.overdue ? '#ffd7d5' : '#fff' }}>{checkingIn ? '' : ci.sub}</span>
+        <span style={{ fontSize: 15, fontWeight: 600, opacity: 0.95, color: ci.tone === 'overdue' ? '#ffd7d5' : ci.tone === 'warn' ? '#ffe8b3' : '#fff' }}>{checkingIn ? '' : ci.sub}</span>
       </button>
 
       {/* STATUS */}
