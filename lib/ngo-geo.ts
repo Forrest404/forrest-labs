@@ -20,6 +20,38 @@ export function pointInPolygon(
   return inside
 }
 
+// Validate untrusted GeoJSON for an operational area before it's stored or fed to
+// pointInPolygon. Accepts a Polygon (or the first polygon of a MultiPolygon). Enforces a
+// vertex cap so a malicious payload can't blow up storage or the ray-cast loop, and that
+// every coordinate is a finite [lon,lat] in range. Returns a normalized Polygon or null.
+const MAX_POLYGON_VERTICES = 2000
+export function validatePolygon(input: unknown): { type: 'Polygon'; coordinates: number[][][] } | null {
+  if (!input || typeof input !== 'object') return null
+  const g = input as { type?: unknown; coordinates?: unknown }
+  let rings: unknown
+  if (g.type === 'Polygon') rings = g.coordinates
+  else if (g.type === 'MultiPolygon') rings = Array.isArray(g.coordinates) ? (g.coordinates as unknown[])[0] : undefined
+  else return null
+  if (!Array.isArray(rings) || rings.length === 0) return null
+
+  let total = 0
+  const outRings: number[][][] = []
+  for (const ring of rings) {
+    if (!Array.isArray(ring) || ring.length < 4) return null // a ring needs ≥4 points (closed)
+    const outRing: number[][] = []
+    for (const pt of ring) {
+      if (!Array.isArray(pt) || pt.length < 2) return null
+      const lon = Number(pt[0]); const lat = Number(pt[1])
+      if (!Number.isFinite(lon) || !Number.isFinite(lat)) return null
+      if (lon < -180 || lon > 180 || lat < -90 || lat > 90) return null
+      if (++total > MAX_POLYGON_VERTICES) return null
+      outRing.push([lon, lat])
+    }
+    outRings.push(outRing)
+  }
+  return { type: 'Polygon', coordinates: outRings }
+}
+
 // Coarsen a coordinate to area-level precision (data minimisation). Precise GPS is for
 // in-org RESCUE/OPS only (board pins, dispatch navigation, panic response, a worker's own
 // view). Any AWARENESS surface — above all cross-org sharing (default off; see org

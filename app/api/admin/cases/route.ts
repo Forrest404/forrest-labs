@@ -43,19 +43,24 @@ export async function POST(request: NextRequest) {
 
   const { title, description, cluster_ids, tags } = body
 
-  if (!title) {
+  const cleanTitle = (title ?? '').toString().trim()
+  if (!cleanTitle) {
     return NextResponse.json({ error: 'Title is required' }, { status: 400 })
   }
+  // Cap untrusted text + bound the arrays so an oversized payload can't be persisted.
+  const cleanDescription = description != null ? String(description).slice(0, 20000) : null
+  const cleanClusterIds = Array.isArray(cluster_ids) ? cluster_ids.slice(0, 500) : []
+  const cleanTags = Array.isArray(tags) ? tags.slice(0, 50).map((t) => String(t).slice(0, 80)) : []
 
   const supabase = createServiceClient()
 
   const { data, error } = await supabase
     .from('case_files')
     .insert({
-      title,
-      description: description ?? null,
-      cluster_ids: cluster_ids ?? [],
-      tags: tags ?? [],
+      title: cleanTitle.slice(0, 300),
+      description: cleanDescription,
+      cluster_ids: cleanClusterIds,
+      tags: cleanTags,
       created_by: session.sessionId.slice(0, 8),
       status: 'open',
     })

@@ -33,8 +33,24 @@ function getJwtSecret(): Uint8Array {
   return new TextEncoder().encode(secret)
 }
 
+// Broad body-size backstop: reject an oversized JSON write to any matched API route before
+// it reaches the handler. Dashboard JSON bodies are small; 256 KB is generous (covers
+// GeoJSON operational areas) while stopping memory-abuse. Multipart uploads (/api/media)
+// are not on this matcher and keep their own 50 MB cap.
+const MAX_API_BODY = 256 * 1024
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
+
+  if (
+    pathname.startsWith('/api/') &&
+    (request.method === 'POST' || request.method === 'PUT' || request.method === 'PATCH')
+  ) {
+    const len = Number(request.headers.get('content-length') ?? '')
+    if (Number.isFinite(len) && len > MAX_API_BODY) {
+      return NextResponse.json({ error: 'Request body too large' }, { status: 413 })
+    }
+  }
 
   // Platform-operator console: gated by the SAME admin cookie as /admin (it is a
   // tier above all NGOs; NGO users never hold fl_admin_session). Treated exactly
