@@ -94,7 +94,7 @@ const LANG = {
     sending_alert: 'Sending alert…', alert_sent_msg: '🆘 Alert sent to your team', alert_queued: 'Queued — alert will send when online',
     signed_out: 'Signed out — will sync when back online', sharing_loc: 'Sharing location…',
     open_chat: 'OPEN GROUP CHAT', actions: 'Actions', map: 'Map',
-    chats: 'Chats', no_chats: 'No group chats shared with you yet.', chats_trust: 'Opens an external app NOUR doesn’t control. Only join groups you trust.', open: 'Open', team_chat: 'Team', org_chat: 'Organisation', account: 'Account', on_duty: 'On duty', off_duty: 'Off duty', off_duty_note: 'Off duty — no dispatches/alerts and no missed-check-in flags. Panic & roll call still reach you.',
+    chats: 'Chats', no_chats: 'No group chats shared with you yet.', chats_trust: 'Opens an external app NOUR doesn’t control. Only join groups you trust.', open: 'Open', team_chat: 'Team', org_chat: 'Organisation', account: 'Account', on_duty: 'On duty', off_duty: 'Off duty', off_duty_note: 'Off duty — no dispatches/alerts and no missed-check-in flags. Panic & roll call still reach you.', broadcasts: 'Broadcasts', no_broadcasts: 'No broadcasts yet.', urgent: 'Urgent', acknowledge: 'Acknowledge', acknowledged: 'Acknowledged',
     silent_mode: 'Silent', alert_active: 'Alert active', help_seen: 'Help has seen this',
     choose_reason: 'What’s happening? (optional)', cancel_false_alarm: 'Cancel — false alarm',
     locked_note: 'Locked — only a responder can resolve this now', cancelled: 'Alert cancelled',
@@ -116,7 +116,7 @@ const LANG = {
     sending_alert: 'Envoi de l’alerte…', alert_sent_msg: '🆘 Alerte envoyée à votre équipe', alert_queued: 'En attente — alerte envoyée à la reconnexion',
     signed_out: 'Déconnecté — synchro à la reconnexion', sharing_loc: 'Partage de la position…',
     open_chat: 'OUVRIR LE GROUPE', actions: 'Actions', map: 'Carte',
-    chats: 'Groupes', no_chats: 'Aucun groupe partagé pour l’instant.', chats_trust: 'Ouvre une app externe que NOUR ne contrôle pas. Ne rejoignez que des groupes de confiance.', open: 'Ouvrir', team_chat: 'Équipe', org_chat: 'Organisation', account: 'Compte', on_duty: 'En service', off_duty: 'Hors service', off_duty_note: 'Hors service — pas d’alertes ni de signalement d’absence de pointage. Les alertes panique et appel restent actives.',
+    chats: 'Groupes', no_chats: 'Aucun groupe partagé pour l’instant.', chats_trust: 'Ouvre une app externe que NOUR ne contrôle pas. Ne rejoignez que des groupes de confiance.', open: 'Ouvrir', team_chat: 'Équipe', org_chat: 'Organisation', account: 'Compte', on_duty: 'En service', off_duty: 'Hors service', off_duty_note: 'Hors service — pas d’alertes ni de signalement d’absence de pointage. Les alertes panique et appel restent actives.', broadcasts: 'Annonces', no_broadcasts: 'Aucune annonce pour l’instant.', urgent: 'Urgent', acknowledge: 'Accuser réception', acknowledged: 'Reçu',
     silent_mode: 'Silencieux', alert_active: 'Alerte active', help_seen: 'Les secours ont vu',
     choose_reason: 'Que se passe-t-il ? (facultatif)', cancel_false_alarm: 'Annuler — fausse alerte',
     locked_note: 'Verrouillé — seul un répondant peut clôturer', cancelled: 'Alerte annulée',
@@ -138,7 +138,7 @@ const LANG = {
     sending_alert: 'جارٍ إرسال الاستغاثة…', alert_sent_msg: '🆘 تم إرسال الاستغاثة إلى فريقك', alert_queued: 'في الانتظار — ستُرسل الاستغاثة عند الاتصال',
     signed_out: 'تم تسجيل الخروج — ستتم المزامنة عند الاتصال', sharing_loc: 'جارٍ مشاركة الموقع…',
     open_chat: 'فتح مجموعة الدردشة', actions: 'الإجراءات', map: 'الخريطة',
-    chats: 'الدردشات', no_chats: 'لا توجد مجموعات دردشة متاحة لك بعد.', chats_trust: 'يفتح تطبيقًا خارجيًا لا تتحكم به نور. انضمّ فقط إلى المجموعات الموثوقة.', open: 'فتح', team_chat: 'الفريق', org_chat: 'المنظمة', account: 'الحساب', on_duty: 'في الخدمة', off_duty: 'خارج الخدمة', off_duty_note: 'خارج الخدمة — لا تنبيهات ولا تنبيه بفوات التفقد. تنبيهات الاستغاثة والنداء تصلك دائمًا.',
+    chats: 'الدردشات', no_chats: 'لا توجد مجموعات دردشة متاحة لك بعد.', chats_trust: 'يفتح تطبيقًا خارجيًا لا تتحكم به نور. انضمّ فقط إلى المجموعات الموثوقة.', open: 'فتح', team_chat: 'الفريق', org_chat: 'المنظمة', account: 'الحساب', on_duty: 'في الخدمة', off_duty: 'خارج الخدمة', off_duty_note: 'خارج الخدمة — لا تنبيهات ولا تنبيه بفوات التفقد. تنبيهات الاستغاثة والنداء تصلك دائمًا.', broadcasts: 'الإعلانات', no_broadcasts: 'لا توجد إعلانات بعد.', urgent: 'عاجل', acknowledge: 'تأكيد الاستلام', acknowledged: 'تم الاستلام',
     silent_mode: 'صامت', alert_active: 'الاستغاثة نشطة', help_seen: 'شاهد المنقذون التنبيه',
     choose_reason: 'ماذا يحدث؟ (اختياري)', cancel_false_alarm: 'إلغاء — إنذار خاطئ',
     locked_note: 'مقفل — لا يمكن إنهاؤه إلا من قبل المنقذ', cancelled: 'تم إلغاء الاستغاثة',
@@ -193,13 +193,34 @@ export default function NgoFieldPage() {
   const [refreshError, setRefreshError] = useState(false)
   const [who, setWho] = useState<{ name: string; org: string | null } | null>(null)
   const [nowTick, setNowTick] = useState(0) // forces the "next due" line to refresh
-  const [tab, setTab] = useState<'actions' | 'map' | 'chats'>('actions')
+  const [tab, setTab] = useState<'actions' | 'map' | 'chats' | 'broadcasts'>('actions')
   const [mapStatus, setMapStatus] = useState<'idle' | 'loading' | 'ready' | 'offline'>('idle')
   const [chatLinks, setChatLinks] = useState<ChatLink[]>([])
   const [offDuty, setOffDuty] = useState(false)
   const [offDutyBusy, setOffDutyBusy] = useState(false)
+  const [broadcasts, setBroadcasts] = useState<{ id: string; body: string; urgency: string; created_at: string; sender_name: string; acknowledged_at: string | null }[]>([])
+  const [ackBusy, setAckBusy] = useState<string | null>(null)
   const mapEl = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<any>(null)
+
+  // Broadcasts addressed to this worker (read-only; can acknowledge urgent ones). Fetching
+  // marks them delivered server-side. Refresh on mount and whenever the tab is opened.
+  const loadBroadcasts = useCallback(async () => {
+    try {
+      const r = await fetch('/api/ngo/broadcasts', { cache: 'no-store' })
+      if (r.ok) { const d = await r.json(); setBroadcasts(d.broadcasts ?? []) }
+    } catch { /* offline — keep what we have */ }
+  }, [])
+  useEffect(() => { loadBroadcasts() }, [loadBroadcasts])
+  useEffect(() => { if (tab === 'broadcasts') loadBroadcasts() }, [tab, loadBroadcasts])
+  const acknowledge = async (id: string) => {
+    setAckBusy(id)
+    try {
+      const r = await fetch(`/api/ngo/broadcasts/${id}/acknowledge`, { method: 'POST' })
+      if (r.ok) setBroadcasts((bs) => bs.map((b) => (b.id === id ? { ...b, acknowledged_at: new Date().toISOString() } : b)))
+    } catch { /* ignore */ } finally { setAckBusy(null) }
+  }
+  const unackedUrgent = broadcasts.filter((b) => b.urgency === 'urgent' && !b.acknowledged_at).length
 
   // Own availability (off-duty). While off duty: no dispatches/alerts, not flagged for
   // missed check-ins — but panic + roll-call still reach the worker.
@@ -625,6 +646,7 @@ export default function NgoFieldPage() {
         <button type="button" onClick={() => setTab('actions')} style={tabBtn(tab === 'actions')}>{t('actions')}</button>
         <button type="button" onClick={() => setTab('map')} style={tabBtn(tab === 'map')}>🗺 {t('map')}</button>
         <button type="button" onClick={() => setTab('chats')} style={tabBtn(tab === 'chats')}>💬 {t('chats')}{chatLinks.length > 0 ? ` (${chatLinks.length})` : ''}</button>
+        <button type="button" onClick={() => setTab('broadcasts')} style={tabBtn(tab === 'broadcasts')}>📢 {t('broadcasts')}{unackedUrgent > 0 ? ` (${unackedUrgent})` : ''}</button>
       </div>
 
       {tab === 'actions' && (<>
@@ -783,6 +805,29 @@ export default function NgoFieldPage() {
               <a href={l.url} target="_blank" rel="noreferrer noopener" style={{ ...groupChatBtn, minHeight: 52 }}>💬 {t('open')} ↗</a>
             </div>
           ))}
+        </div>
+      )}
+
+      {tab === 'broadcasts' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {broadcasts.length === 0 && <div style={{ fontSize: 14, color: '#8b949e', textAlign: 'center', padding: '24px 0' }}>{t('no_broadcasts')}</div>}
+          {broadcasts.map((b) => {
+            const urgent = b.urgency === 'urgent'
+            return (
+              <div key={b.id} style={{ background: '#161b22', border: `1px solid ${urgent ? 'rgba(248,81,73,0.5)' : '#21262d'}`, borderRadius: 12, padding: 14 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' }}>
+                  <div style={{ fontSize: 16, color: '#e6edf3', whiteSpace: 'pre-wrap', flex: 1 }}>{b.body}</div>
+                  {urgent && <span style={{ fontSize: 10, fontWeight: 700, color: '#f85149', border: '1px solid #f85149', borderRadius: 4, padding: '1px 6px', flexShrink: 0 }}>{t('urgent')}</span>}
+                </div>
+                <div style={{ fontSize: 12, color: '#8b949e', marginTop: 6 }}>{b.sender_name} · {new Date(b.created_at).toLocaleString()}</div>
+                {urgent && (
+                  b.acknowledged_at
+                    ? <div style={{ marginTop: 10, fontSize: 14, fontWeight: 600, color: '#3fb950' }}>✓ {t('acknowledged')}</div>
+                    : <button type="button" onClick={() => acknowledge(b.id)} disabled={ackBusy === b.id} style={{ marginTop: 10, width: '100%', minHeight: 48, borderRadius: 10, fontSize: 16, fontWeight: 700, cursor: 'pointer', fontFamily: 'system-ui', background: 'rgba(63,185,80,0.15)', border: '1px solid #3fb950', color: '#3fb950', opacity: ackBusy === b.id ? 0.6 : 1 }}>✓ {t('acknowledge')}</button>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
 
