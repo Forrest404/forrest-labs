@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { getNgoSession, requireRole } from '@/lib/ngo-auth'
+import { rateLimit, tooMany, MUTATION_MAX, MUTATION_WINDOW } from '@/lib/rate-limit'
 
 const FIELDS = 'id, name, organisation, role, phone, notes, created_at, updated_at'
 
@@ -33,6 +34,7 @@ export async function POST(request: NextRequest) {
   if (!requireRole(session, ['org_admin', 'team_leader'])) {
     return NextResponse.json({ error: 'Not authorised' }, { status: 403 })
   }
+  { const l = await rateLimit(createServiceClient(), { bucket: 'mut:contacts', identifier: session!.userId, max: MUTATION_MAX, windowSec: MUTATION_WINDOW }); if (!l.ok) return tooMany(l.retryAfter) }
   let body: any
   try { body = await request.json() } catch { return NextResponse.json({ error: 'Invalid request body' }, { status: 400 }) }
 

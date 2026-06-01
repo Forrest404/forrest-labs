@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { getNgoSession, requireRole, verifySecret, hashSecret, isValidPin } from '@/lib/ngo-auth'
+import { rateLimit, tooMany, AUTH_MAX, AUTH_WINDOW } from '@/lib/rate-limit'
 
 // Change your OWN password (leaders/admins) or PIN (field coordinators). Requires the
 // current credential, then bumps token_version so other devices are signed out. Scoped
@@ -10,10 +11,14 @@ export async function POST(request: NextRequest) {
   if (!requireRole(session, ['org_admin', 'team_leader', 'field_coordinator'])) {
     return NextResponse.json({ error: 'Not authorised' }, { status: 403 })
   }
+  const supabase = createServiceClient()
+
+  // Cap current-credential guessing: 5 / 15 min per user.
+  const limit = await rateLimit(supabase, { bucket: 'auth:me-password', identifier: session!.userId, max: AUTH_MAX, windowSec: AUTH_WINDOW })
+  if (!limit.ok) return tooMany(limit.retryAfter)
+
   let body: { current?: string; new_password?: string; new_pin?: string } = {}
   try { body = await request.json() } catch { return NextResponse.json({ error: 'Invalid request' }, { status: 400 }) }
-
-  const supabase = createServiceClient()
   const { data: user } = await supabase
     .from('ngo_users').select('password_hash, pin_hash, token_version').eq('id', session!.userId).maybeSingle()
   if (!user) return NextResponse.json({ error: 'Account not found' }, { status: 404 })

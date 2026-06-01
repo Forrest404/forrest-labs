@@ -2,11 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { hashSecret, isValidPin, type NgoRole } from '@/lib/ngo-auth'
 import { consumeAuthToken } from '@/lib/ngo-tokens'
+import { rateLimitByIp, tooMany, AUTH_MAX, AUTH_WINDOW } from '@/lib/rate-limit'
 
 // POST /api/ngo/auth/invite/accept — PUBLIC (token-gated). The invitee sets their own
 // name + credential. Consuming the token is single-use; a reused/expired token is
 // rejected. Field coordinators set a 6-digit PIN; leaders/admins set a password.
 export async function POST(request: NextRequest) {
+  const supabase = createServiceClient()
+  const ipLimit = await rateLimitByIp(supabase, request, 'auth:ngo-invite-accept', AUTH_MAX, AUTH_WINDOW)
+  if (!ipLimit.ok) return tooMany(ipLimit.retryAfter)
+
   let body: { token?: string; full_name?: string; password?: string; pin?: string } = {}
   try { body = await request.json() } catch { return NextResponse.json({ error: 'Invalid request' }, { status: 400 }) }
 
@@ -14,7 +19,6 @@ export async function POST(request: NextRequest) {
   const fullName = String(body.full_name ?? '').trim()
   if (!fullName) return NextResponse.json({ error: 'Please enter your name.' }, { status: 400 })
 
-  const supabase = createServiceClient()
   const token = await consumeAuthToken(supabase, 'invite', raw)
   if (!token || !token.email) {
     return NextResponse.json({ error: 'This invite link is invalid or has expired. Ask for a new one.' }, { status: 400 })

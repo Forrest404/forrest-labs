@@ -3,6 +3,7 @@ import { getNgoSession, requireRole } from '@/lib/ngo-auth'
 import { createServiceClient } from '@/lib/supabase/service'
 import { getNgoUserSecurity, verifyNgoSecondFactor } from '@/lib/ngo-twofactor'
 import { generateTotpSecret, totpKeyUri, verifyTotp } from '@/lib/totp'
+import { rateLimit, tooMany, AUTH_MAX, AUTH_WINDOW } from '@/lib/rate-limit'
 import { generateRecoveryCodes } from '@/lib/ngo-tokens'
 import { sendEmail, logEmail, securityNoticeEmail } from '@/lib/email'
 
@@ -24,9 +25,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Not authorised' }, { status: 403 })
   }
   const userId = session!.userId
+  const supabase = createServiceClient()
+
+  // Cap 2FA code-verification attempts: 5 / 15 min per user.
+  const limit = await rateLimit(supabase, { bucket: 'auth:ngo-2fa', identifier: userId, max: AUTH_MAX, windowSec: AUTH_WINDOW })
+  if (!limit.ok) return tooMany(limit.retryAfter)
+
   let body: { action?: string; code?: string } = {}
   try { body = await request.json() } catch { return NextResponse.json({ error: 'Invalid request' }, { status: 400 }) }
-  const supabase = createServiceClient()
 
   if (body.action === 'setup') {
     const secret = generateTotpSecret()

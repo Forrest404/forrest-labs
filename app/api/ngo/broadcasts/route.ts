@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { getNgoSession, requireRole } from '@/lib/ngo-auth'
 import { notifyOrgRoles } from '@/lib/ngo-notify'
+import { rateLimit, tooMany, MUTATION_MAX, MUTATION_WINDOW } from '@/lib/rate-limit'
 
 // GET — recent broadcasts for this org (managers).
 export async function GET(request: NextRequest) {
@@ -27,13 +28,18 @@ export async function POST(request: NextRequest) {
   if (!requireRole(session, ['org_admin', 'team_leader'])) {
     return NextResponse.json({ error: 'Not authorised' }, { status: 403 })
   }
+  const supabase = createServiceClient()
+
+  // Cap org-wide broadcast fan-out per sender (20 / 5 min).
+  const limit = await rateLimit(supabase, { bucket: 'mut:broadcast', identifier: session!.userId, max: MUTATION_MAX, windowSec: MUTATION_WINDOW })
+  if (!limit.ok) return tooMany(limit.retryAfter)
+
   let body: { message?: string } = {}
   try { body = await request.json() } catch { return NextResponse.json({ error: 'Invalid request' }, { status: 400 }) }
   const message = String(body.message ?? '').trim()
   if (!message) return NextResponse.json({ error: 'A message is required.' }, { status: 400 })
   if (message.length > 600) return NextResponse.json({ error: 'Message is too long (max 600 characters).' }, { status: 400 })
 
-  const supabase = createServiceClient()
   const { error } = await supabase.from('broadcasts').insert({ org_id: session!.orgId, sender_id: session!.userId, body: message })
   if (error) return NextResponse.json({ error: 'Could not save the broadcast.' }, { status: 500 })
 

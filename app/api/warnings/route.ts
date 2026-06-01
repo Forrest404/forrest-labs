@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
+import { rateLimit, tooMany } from '@/lib/rate-limit'
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -21,10 +22,8 @@ function clientIp(req: NextRequest): string {
 
 // ── rate limiting ─────────────────────────────────────────────────────────────
 
-const warningRateLimitStore = new Map<string, { count: number; resetAt: number }>()
-
 const RATE_LIMIT = 1
-const RATE_WINDOW_MS = 10 * 60 * 1000 // 10 minutes
+const RATE_WINDOW_SEC = 10 * 60 // 10 minutes
 
 // ── validation ────────────────────────────────────────────────────────────────
 
@@ -53,25 +52,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // Hash IP immediately — never use or store raw IP address
   const ip_hash = await sha256hex(clientIp(req))
 
-  // Rate limit check (uses hashed IP, not raw)
-  const now = Date.now()
-  const existing = warningRateLimitStore.get(ip_hash)
-
-  if (existing) {
-    if (now < existing.resetAt) {
-      if (existing.count >= RATE_LIMIT) {
-        return NextResponse.json(
-          { error: 'Too many warnings. Please wait before submitting again.' },
-          { status: 429 },
-        )
-      }
-      existing.count++
-    } else {
-      warningRateLimitStore.set(ip_hash, { count: 1, resetAt: now + RATE_WINDOW_MS })
-    }
-  } else {
-    warningRateLimitStore.set(ip_hash, { count: 1, resetAt: now + RATE_WINDOW_MS })
-  }
+  // Durable rate limit (uses hashed IP, not raw). 1 warning / 10 min.
+  const supabase = createServiceClient()
+  const limit = await rateLimit(supabase, { bucket: 'public:warning', identifier: ip_hash, max: RATE_LIMIT, windowSec: RATE_WINDOW_SEC })
+  if (!limit.ok) return tooMany(limit.retryAfter, 'Too many warnings. Please wait before submitting again.')
 
   let body: unknown
   try {
@@ -109,7 +93,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // Hash session_id before storage — never persist raw values
   const session_hash = await sha256hex(session_id)
 
-  const supabase = createServiceClient()
   const { data, error } = await supabase
     .from('warnings')
     .insert({

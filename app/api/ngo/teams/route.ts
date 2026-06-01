@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { getNgoSession, requireRole } from '@/lib/ngo-auth'
+import { rateLimit, tooMany, MUTATION_MAX, MUTATION_WINDOW } from '@/lib/rate-limit'
 
 // Teams for the caller's organisation. All access scoped to session.orgId.
 // ngo_teams.type is CHECK-constrained to this set.
@@ -46,6 +47,7 @@ export async function POST(request: NextRequest) {
   if (!requireRole(session, ['org_admin', 'team_leader'])) {
     return NextResponse.json({ error: 'Not authorised' }, { status: 403 })
   }
+  { const l = await rateLimit(createServiceClient(), { bucket: 'mut:teams', identifier: session!.userId, max: MUTATION_MAX, windowSec: MUTATION_WINDOW }); if (!l.ok) return tooMany(l.retryAfter) }
 
   let body: { name?: string; type?: string; capacity?: unknown }
   try {

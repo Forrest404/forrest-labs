@@ -2,41 +2,23 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { verifySecret, createNgoSession, setNgoCookie, ngoSessionTtlSeconds, type NgoRole } from '@/lib/ngo-auth'
 import { getNgoUserSecurity, verifyNgoSecondFactor } from '@/lib/ngo-twofactor'
+import { rateLimit, clientIp, tooMany, AUTH_MAX, AUTH_WINDOW } from '@/lib/rate-limit'
 
 // Three ways in:
 //  - Field operative: { code }            → single bearer access code (typed or via QR)
 //  - Desktop:         { email, password }  → org admins / team leaders
 //  - Legacy fallback: { email, pin }       → pre-access-code field coordinators
 
-// ── Brute-force throttle (security H1) ─────────────────────────────────────────
-// Login had NO rate limiting: a 6-digit PIN (now enforced) or an access code could be
-// guessed online without limit. Throttle by client IP — NOT by account, so an attacker
-// can never lock a field worker out of their own account in an emergency. In-memory and
-// therefore per-instance (matches the admin login pattern); a shared store would harden
-// this further in a multi-instance deployment.
-const MAX_ATTEMPTS = 8
-const LOCK_MS = 15 * 60 * 1000
-const attempts = new Map<string, { count: number; lockedUntil: number }>()
-
-function clientIp(request: NextRequest): string {
-  const fwd = request.headers.get('x-forwarded-for') ?? request.headers.get('x-real-ip') ?? 'unknown'
-  return fwd.split(',')[0].trim()
-}
+// Brute-force throttle (security H1): DURABLE rate limit (5 attempts / 15 min), keyed by
+// client IP — and, on the email path, additionally by account so a distributed attack on
+// one worker's credentials is also capped. IP-based so an attacker can't lock a worker out
+// of their own account; durable so it survives cold starts and spans Vercel instances.
 
 export async function POST(request: NextRequest) {
-  const ipKey = clientIp(request)
-  const now = Date.now()
-  const rec = attempts.get(ipKey)
-  if (rec && rec.lockedUntil > now) {
-    return NextResponse.json({ error: 'Too many attempts. Try again in a few minutes.' }, { status: 429 })
-  }
-
-  // Record a failed credential attempt for this IP; lock once the ceiling is hit.
-  const registerFailure = () => {
-    const prev = attempts.get(ipKey)
-    const count = (prev?.count ?? 0) + 1
-    attempts.set(ipKey, { count, lockedUntil: count >= MAX_ATTEMPTS ? now + LOCK_MS : 0 })
-  }
+  const supabase = createServiceClient()
+  const ip = clientIp(request)
+  const ipLimit = await rateLimit(supabase, { bucket: 'auth:ngo-login', identifier: ip, max: AUTH_MAX, windowSec: AUTH_WINDOW })
+  if (!ipLimit.ok) return tooMany(ipLimit.retryAfter, 'Too many attempts. Try again in a few minutes.')
 
   let body: { code?: string; email?: string; password?: string; pin?: string; totp?: string }
   try { body = await request.json() } catch { return NextResponse.json({ error: 'Invalid request' }, { status: 400 }) }
@@ -46,11 +28,13 @@ export async function POST(request: NextRequest) {
   const password = body.password ? String(body.password) : ''
   const pin = body.pin ? String(body.pin) : ''
 
-  const supabase = createServiceClient()
-  const invalid = () => {
-    registerFailure()
-    return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
+  // Per-account cap on the email path (in addition to the IP cap above).
+  if (email) {
+    const acctLimit = await rateLimit(supabase, { bucket: 'auth:ngo-login:acct', identifier: email, max: AUTH_MAX, windowSec: AUTH_WINDOW })
+    if (!acctLimit.ok) return tooMany(acctLimit.retryAfter, 'Too many attempts. Try again in a few minutes.')
   }
+
+  const invalid = () => NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
 
   // Resolve the user + verify the credential.
   let user: { id: string; org_id: string; role: string; status: string } | null = null
@@ -102,12 +86,9 @@ export async function POST(request: NextRequest) {
       const totp = body.totp ? String(body.totp) : ''
       if (!totp) return NextResponse.json({ error: 'Authentication code required', totp_required: true }, { status: 401 })
       const ok = await verifyNgoSecondFactor(supabase, user.id, sec, totp)
-      if (!ok) { registerFailure(); return NextResponse.json({ error: 'Invalid authentication code', totp_required: true }, { status: 401 }) }
+      if (!ok) return NextResponse.json({ error: 'Invalid authentication code', totp_required: true }, { status: 401 })
     }
   }
-
-  // Success — clear this IP's failure count.
-  attempts.delete(ipKey)
 
   // Embed the user's current revocation epoch so a later admin "sign out all devices"
   // invalidates this token. Tolerant of a not-yet-applied column (defaults to 1).

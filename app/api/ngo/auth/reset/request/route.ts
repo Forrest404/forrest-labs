@@ -2,21 +2,24 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { createAuthToken } from '@/lib/ngo-tokens'
 import { sendEmail, logEmail, emailRateOk, resetEmail } from '@/lib/email'
+import { rateLimitByIp, tooMany, AUTH_MAX, AUTH_WINDOW } from '@/lib/rate-limit'
 
 const RESET_TTL_MIN = 60 // 1 hour
 
 // POST /api/ngo/auth/reset/request — PUBLIC. Sends a single-use reset link IF the email
 // belongs to a password/PIN account. ALWAYS returns the same generic 200 — never reveals
-// whether an account exists. Rate-limited per email to prevent enumeration/flooding.
+// whether an account exists. Rate-limited per email (existing) AND per IP (durable).
 export async function POST(request: NextRequest) {
+  const supabase = createServiceClient()
+  const ipLimit = await rateLimitByIp(supabase, request, 'auth:ngo-reset', AUTH_MAX, AUTH_WINDOW)
+  if (!ipLimit.ok) return tooMany(ipLimit.retryAfter)
+
   let body: { email?: string } = {}
   try { body = await request.json() } catch { /* fall through to generic */ }
   const email = String(body.email ?? '').trim().toLowerCase()
 
   const generic = NextResponse.json({ success: true, note: 'If that email has an account, a reset link is on its way.' })
   if (!email.includes('@')) return generic
-
-  const supabase = createServiceClient()
 
   // Rate-limit regardless of whether the account exists (don't leak via timing of limits).
   if (!(await emailRateOk(supabase, 'password_reset', email, 3, 60))) {

@@ -5,6 +5,7 @@ import { getAdminSecurity, verifyAdminSecondFactor } from '@/lib/admin/twofactor
 import { generateTotpSecret, totpKeyUri, verifyTotp } from '@/lib/totp'
 import { generateRecoveryCodes } from '@/lib/ngo-tokens'
 import { sendEmail, securityNoticeEmail } from '@/lib/email'
+import { rateLimitByIp, tooMany, AUTH_MAX, AUTH_WINDOW } from '@/lib/rate-limit'
 
 async function adminNotice(action: 'enabled' | 'reset') {
   const to = process.env.ADMIN_EMAIL
@@ -26,9 +27,13 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const admin = await getSessionFromRequest(request)
   if (!admin) return NextResponse.json({ error: 'Not authorised' }, { status: 401 })
+
+  const supabase = createServiceClient()
+  const limit = await rateLimitByIp(supabase, request, 'auth:admin-2fa', AUTH_MAX, AUTH_WINDOW)
+  if (!limit.ok) return tooMany(limit.retryAfter)
+
   let body: { action?: string; code?: string } = {}
   try { body = await request.json() } catch { return NextResponse.json({ error: 'Invalid request' }, { status: 400 }) }
-  const supabase = createServiceClient()
 
   if (body.action === 'setup') {
     const secret = generateTotpSecret()

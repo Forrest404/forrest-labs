@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { getNgoSession, requireRole } from '@/lib/ngo-auth'
+import { rateLimit, tooMany, MUTATION_MAX, MUTATION_WINDOW } from '@/lib/rate-limit'
 
 // NGO custom incidents (911-style). Org-scoped; org_admin + team_leader manage them.
 export const SEVERITIES = ['low', 'medium', 'high', 'critical']
@@ -26,6 +27,7 @@ export async function POST(request: NextRequest) {
   if (!requireRole(session, ['org_admin', 'team_leader'])) {
     return NextResponse.json({ error: 'Not authorised' }, { status: 403 })
   }
+  { const l = await rateLimit(createServiceClient(), { bucket: 'mut:incidents', identifier: session!.userId, max: MUTATION_MAX, windowSec: MUTATION_WINDOW }); if (!l.ok) return tooMany(l.retryAfter) }
   let body: { title?: string; category?: string; severity?: string; description?: string; address?: string; lat?: unknown; lon?: unknown }
   try { body = await request.json() } catch { return NextResponse.json({ error: 'Invalid request' }, { status: 400 }) }
 

@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { hashSecret } from '@/lib/ngo-auth'
+import { rateLimitByIp, tooMany, AUTH_MAX, AUTH_WINDOW } from '@/lib/rate-limit'
 
 const ORG_TYPES = ['ingo', 'lngo', 'un_agency', 'crescent_cross', 'community', 'other']
 
 export async function POST(request: NextRequest) {
+  const supabase = createServiceClient()
+
+  // Durable throttle: cap org sign-ups per IP (5 / 15 min) to stop mass account creation.
+  const limit = await rateLimitByIp(supabase, request, 'auth:ngo-signup', AUTH_MAX, AUTH_WINDOW)
+  if (!limit.ok) return tooMany(limit.retryAfter, 'Too many sign-up attempts. Please try again later.')
+
   let body: Record<string, unknown>
   try {
     body = await request.json()
@@ -30,8 +37,6 @@ export async function POST(request: NextRequest) {
   if (password.length < 8) {
     return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 })
   }
-
-  const supabase = createServiceClient()
 
   // Reject duplicate email up front for a friendly message (unique constraint backs it up).
   const { data: existing } = await supabase

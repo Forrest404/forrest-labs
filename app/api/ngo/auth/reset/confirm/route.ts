@@ -2,16 +2,20 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { hashSecret, isValidPin } from '@/lib/ngo-auth'
 import { consumeAuthToken } from '@/lib/ngo-tokens'
+import { rateLimitByIp, tooMany, AUTH_MAX, AUTH_WINDOW } from '@/lib/rate-limit'
 
 // POST /api/ngo/auth/reset/confirm — PUBLIC (token-gated). Sets a new password OR PIN and
 // bumps token_version so any other live session for this user is invalidated. Single-use:
-// a reused/expired token is rejected.
+// a reused/expired token is rejected. Durable IP throttle caps token-guessing.
 export async function POST(request: NextRequest) {
+  const supabase = createServiceClient()
+  const ipLimit = await rateLimitByIp(supabase, request, 'auth:ngo-reset-confirm', AUTH_MAX, AUTH_WINDOW)
+  if (!ipLimit.ok) return tooMany(ipLimit.retryAfter)
+
   let body: { token?: string; password?: string; pin?: string } = {}
   try { body = await request.json() } catch { return NextResponse.json({ error: 'Invalid request' }, { status: 400 }) }
 
   const raw = String(body.token ?? '')
-  const supabase = createServiceClient()
   const token = await consumeAuthToken(supabase, 'password_reset', raw)
   if (!token || !token.ngo_user_id) {
     return NextResponse.json({ error: 'This reset link is invalid or has expired. Request a new one.' }, { status: 400 })

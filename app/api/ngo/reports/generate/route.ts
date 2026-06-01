@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { getNgoSession, requireRole } from '@/lib/ngo-auth'
+import { rateLimit, tooMany } from '@/lib/rate-limit'
 import { gatherOrgReportData } from '@/lib/ngo-reports'
 import { notifyUsers } from '@/lib/ngo-notify'
 
@@ -35,6 +36,10 @@ export async function POST(request: NextRequest) {
 
   const supabase = createServiceClient()
   const orgId = session!.orgId
+
+  // AI report generation is expensive — cap it tightly per user (8 / 10 min).
+  const limit = await rateLimit(supabase, { bucket: 'mut:report-generate', identifier: session!.userId, max: 8, windowSec: 600 })
+  if (!limit.ok) return tooMany(limit.retryAfter)
 
   // Org name for the prompt context (not strictly needed, but grounds the draft).
   const { data: org } = await supabase.from('ngo_organisations').select('name').eq('id', orgId).single()

@@ -4,33 +4,15 @@ import { verifyPassword, createSession, setCookieOnResponse } from '@/lib/admin/
 import { writeAuditLog } from '@/lib/admin/audit'
 import { createServiceClient } from '@/lib/supabase/service'
 import { getAdminSecurity, verifyAdminSecondFactor } from '@/lib/admin/twofactor'
-
-const rateLimitStore = new Map<string, { attempts: number; lockedUntil: number }>()
+import { rateLimit, clientIp, tooMany, AUTH_MAX, AUTH_WINDOW } from '@/lib/rate-limit'
 
 export async function POST(request: NextRequest) {
-  const ip = request.headers.get('x-forwarded-for') ?? request.headers.get('x-real-ip') ?? 'unknown'
-  const ipKey = ip.split(',')[0].trim()
-  const now = Date.now()
-  const existing = rateLimitStore.get(ipKey)
+  const ipKey = clientIp(request)
+  const supabase = createServiceClient()
 
-  if (existing) {
-    if (existing.lockedUntil > now) {
-      return NextResponse.json(
-        { error: 'Too many attempts. Try again in 15 minutes.' },
-        { status: 429 },
-      )
-    }
-    if (existing.attempts >= 5) {
-      rateLimitStore.set(ipKey, {
-        attempts: existing.attempts,
-        lockedUntil: now + 15 * 60 * 1000,
-      })
-      return NextResponse.json(
-        { error: 'Too many attempts. Locked for 15 minutes.' },
-        { status: 429 },
-      )
-    }
-  }
+  // Durable brute-force throttle: 5 attempts / 15 min by IP (survives cold starts).
+  const limit = await rateLimit(supabase, { bucket: 'auth:admin-login', identifier: ipKey, max: AUTH_MAX, windowSec: AUTH_WINDOW })
+  if (!limit.ok) return tooMany(limit.retryAfter, 'Too many attempts. Try again in 15 minutes.')
 
   let body: { password?: string; code?: string }
   try {
@@ -48,12 +30,6 @@ export async function POST(request: NextRequest) {
   const isValid = verifyPassword(password)
 
   if (!isValid) {
-    const prev = rateLimitStore.get(ipKey)
-    rateLimitStore.set(ipKey, {
-      attempts: (prev?.attempts ?? 0) + 1,
-      lockedUntil: prev?.lockedUntil ?? 0,
-    })
-
     await writeAuditLog({
       action: 'admin_login_failed',
       entityType: 'auth',
@@ -67,7 +43,6 @@ export async function POST(request: NextRequest) {
 
   // Second factor (if admin TOTP is enabled). Password was correct; now require a valid
   // authenticator code or a one-time recovery code. Missing → tell the client to prompt.
-  const supabase = createServiceClient()
   const sec = await getAdminSecurity(supabase)
   if (sec.totp_enabled) {
     if (!code) {
@@ -75,14 +50,10 @@ export async function POST(request: NextRequest) {
     }
     const ok = await verifyAdminSecondFactor(supabase, sec, String(code))
     if (!ok) {
-      const prev = rateLimitStore.get(ipKey)
-      rateLimitStore.set(ipKey, { attempts: (prev?.attempts ?? 0) + 1, lockedUntil: prev?.lockedUntil ?? 0 })
       await writeAuditLog({ action: 'admin_login_failed', entityType: 'auth', sessionId: 'none', ipAddress: ipKey, notes: 'Invalid 2FA code' })
       return NextResponse.json({ error: 'Invalid authentication code', totp_required: true }, { status: 401 })
     }
   }
-
-  rateLimitStore.delete(ipKey)
 
   const sessionId = randomUUID()
   const token = await createSession(sessionId)
