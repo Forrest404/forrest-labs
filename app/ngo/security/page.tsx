@@ -82,6 +82,7 @@ export default function NgoSecurityPage() {
         <div style={card}>
           <div style={{ fontSize: 14, marginBottom: 12 }}>2FA is <b style={{ color: '#d29922' }}>off</b>.</div>
           <button type="button" onClick={startSetup} disabled={busy} style={primaryBtn}>{busy ? '…' : 'Set up 2FA'}</button>
+          <AuthApps />
         </div>
       )}
 
@@ -89,6 +90,7 @@ export default function NgoSecurityPage() {
         <div style={card}>
           <div style={{ fontWeight: 600, marginBottom: 10 }}>Scan with your authenticator</div>
           {qr ? <img src={qr} alt="2FA QR code" width={200} height={200} style={{ background: '#fff', borderRadius: 8, padding: 6 }} /> : <div style={{ color: '#8b949e', fontSize: 13 }}>Generating QR…</div>}
+          <AuthApps />
           <div style={{ fontSize: 12, color: '#8b949e', margin: '12px 0 4px' }}>Or enter this key manually:</div>
           <code style={{ display: 'block', background: '#0d1117', border: '1px solid #21262d', borderRadius: 6, padding: '8px 10px', fontSize: 13, wordBreak: 'break-all' }}>{setup.secret}</code>
           <label style={{ ...lbl, marginTop: 14 }}>Enter the 6-digit code to confirm</label>
@@ -96,6 +98,19 @@ export default function NgoSecurityPage() {
           <button type="button" onClick={enable} disabled={busy || code.trim().length < 6} style={{ ...primaryBtn, marginTop: 12, opacity: busy || code.trim().length < 6 ? 0.6 : 1 }}>{busy ? '…' : 'Verify & enable'}</button>
         </div>
       )}
+    </div>
+  )
+}
+
+// Download prompt for users who don't have an authenticator app yet.
+function AuthApps() {
+  return (
+    <div style={{ fontSize: 12, color: '#8b949e', marginTop: 12 }}>
+      Need an authenticator app? Get Google Authenticator —{' '}
+      <a href="https://apps.apple.com/app/google-authenticator/id388497605" target="_blank" rel="noreferrer noopener" style={{ color: '#58a6ff', textDecoration: 'none' }}>iPhone</a>
+      {' · '}
+      <a href="https://play.google.com/store/apps/details?id=com.google.android.apps.authenticator2" target="_blank" rel="noreferrer noopener" style={{ color: '#58a6ff', textDecoration: 'none' }}>Android</a>
+      <span style={{ color: '#484f58' }}> (Authy or Microsoft Authenticator also work).</span>
     </div>
   )
 }
