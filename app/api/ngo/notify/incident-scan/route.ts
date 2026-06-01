@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { timingSafeEqual } from 'crypto'
 import { createServiceClient } from '@/lib/supabase/service'
 import { getNgoSession } from '@/lib/ngo-auth'
 import { notifyOrgRoles } from '@/lib/ngo-notify'
 import { pointInPolygon } from '@/lib/ngo-geo'
+import { cronAuthOk } from '@/lib/cron-auth'
 
 // New-incident-in-area scan. NGO-side only — reads the civilian `clusters` table (never
 // writes it). Designed to be hit by a scheduler (Vercel cron or pg_cron net.http_post)
@@ -15,19 +15,10 @@ import { pointInPolygon } from '@/lib/ngo-geo'
 
 const ALERT_STATUSES = ['confirmed', 'official_verified', 'news_verified'] // high-confidence/official
 
-function secretOk(request: NextRequest): boolean {
-  const key = new URL(request.url).searchParams.get('key')
-  const secret = process.env.REVIEW_SECRET_KEY
-  if (!key || !secret) return false
-  const a = Buffer.from(key), b = Buffer.from(secret)
-  if (a.length !== b.length) return false
-  try { return timingSafeEqual(a, b) } catch { return false }
-}
-
 export async function POST(request: NextRequest) {
   const session = await getNgoSession(request)
   const isAdmin = session?.role === 'org_admin'
-  if (!secretOk(request) && !isAdmin) {
+  if (!cronAuthOk(request) && !isAdmin) {
     return NextResponse.json({ error: 'Not authorised' }, { status: 403 })
   }
 

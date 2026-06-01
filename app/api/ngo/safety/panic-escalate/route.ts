@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { timingSafeEqual } from 'crypto'
 import { createServiceClient } from '@/lib/supabase/service'
 import { getNgoSession } from '@/lib/ngo-auth'
 import { notifyOrgRoles } from '@/lib/ngo-notify'
+import { cronAuthOk } from '@/lib/cron-auth'
 
 // Automatic panic escalation. Hit by a scheduler (pg_cron net.http_post or a Vercel
 // cron) with ?key=<REVIEW_SECRET_KEY>, or run by an org_admin (scoped to their org).
@@ -13,19 +13,10 @@ import { notifyOrgRoles } from '@/lib/ngo-notify'
 //
 // Window is per-org (ngo_organisations.panic_escalation_minutes, default 5). The
 // escalation_level column dedupes so each level fires once. Acknowledging stops it.
-function secretOk(request: NextRequest): boolean {
-  const key = new URL(request.url).searchParams.get('key')
-  const secret = process.env.REVIEW_SECRET_KEY
-  if (!key || !secret) return false
-  const a = Buffer.from(key), b = Buffer.from(secret)
-  if (a.length !== b.length) return false
-  try { return timingSafeEqual(a, b) } catch { return false }
-}
-
 export async function POST(request: NextRequest) {
   const session = await getNgoSession(request)
   const isAdmin = session?.role === 'org_admin'
-  if (!secretOk(request) && !isAdmin) {
+  if (!cronAuthOk(request) && !isAdmin) {
     return NextResponse.json({ error: 'Not authorised' }, { status: 403 })
   }
   const supabase = createServiceClient()
