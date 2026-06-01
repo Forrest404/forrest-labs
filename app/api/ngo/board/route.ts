@@ -181,22 +181,38 @@ export async function GET(request: NextRequest) {
   if (rc) {
     const { data: roster } = await supabase
       .from('ngo_users')
-      .select('id, full_name')
+      .select('id, full_name, off_duty')
       .eq('org_id', orgId)
       .eq('role', 'field_coordinator')
       .eq('status', 'active')
     const { data: responses } = await supabase
       .from('roll_call_responses')
-      .select('ngo_user_id')
+      .select('ngo_user_id, safe')
       .eq('roll_call_id', rc.id)
-    const respondedIds = new Set((responses ?? []).map((r) => r.ngo_user_id))
-    const members = (roster ?? []).map((u) => ({ id: u.id, name: u.full_name, safe: respondedIds.has(u.id) }))
+    // Map each responder to their answer. A row means they answered; safe=false = explicitly
+    // unsafe, anything else (true/null) = safe. Absence of a row = awaiting.
+    const answer = new Map((responses ?? []).map((r) => [r.ngo_user_id, r.safe !== false]))
+    // Per-member state. OFF DUTY is exempt — an off-duty worker who hasn't tapped must NEVER
+    // read as missing (false missing-person signal). awaiting (on-duty, no answer) is distinct
+    // from unsafe (answered safe=false).
+    const members = (roster ?? []).map((u) => {
+      const state = (u as any).off_duty
+        ? 'off_duty'
+        : answer.has(u.id)
+          ? (answer.get(u.id) ? 'safe' : 'unsafe')
+          : 'awaiting'
+      return { id: u.id, name: u.full_name, state, safe: state === 'safe' }
+    })
+    const accountable = members.filter((m) => m.state !== 'off_duty')
     rollCall = {
       id: rc.id,
       created_at: rc.created_at,
       message: rc.message,
-      safe_count: members.filter((m) => m.safe).length,
-      total: members.length,
+      total: accountable.length, // Y in "X of Y safe" — excludes off-duty (exempt)
+      safe_count: accountable.filter((m) => m.state === 'safe').length,
+      unsafe_count: accountable.filter((m) => m.state === 'unsafe').length,
+      awaiting_count: accountable.filter((m) => m.state === 'awaiting').length,
+      off_duty_count: members.length - accountable.length,
       members,
     }
   }

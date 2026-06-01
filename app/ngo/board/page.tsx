@@ -97,9 +97,11 @@ interface Panic {
   phone?: string | null; silent?: boolean; reason?: string | null
   acknowledged_at?: string | null; acknowledged_by_name?: string | null
 }
+type RollState = 'safe' | 'unsafe' | 'awaiting' | 'off_duty'
 interface RollCall {
-  id: string; created_at: string; message: string | null; safe_count: number; total: number
-  members: { id: string; name: string; safe: boolean }[]
+  id: string; created_at: string; message: string | null
+  safe_count: number; total: number; unsafe_count: number; awaiting_count: number; off_duty_count: number
+  members: { id: string; name: string; state: RollState; safe: boolean }[]
 }
 interface Dispatch {
   id: string; cluster_id: string | null; ngo_incident_id?: string | null; team_id: string; team_name: string | null; status: string; response_minutes: number | null
@@ -676,17 +678,38 @@ export default function NgoBoardPage() {
             </div>
             {rollCall ? (
               <>
-                <div style={{ fontSize: 12, color: '#8b949e', margin: '8px 0' }}>
-                  <span style={{ color: '#3fb950' }}>{rollCall.safe_count} safe</span> / {rollCall.total} · {timeAgo(rollCall.created_at)}
+                {/* Headcount: X of Y safe (Y excludes off-duty exempt). Off-duty workers are
+                    NEVER counted as missing. awaiting (on-duty, no answer) ≠ unsafe. */}
+                <div style={{ fontSize: 12, color: '#8b949e', margin: '8px 0 4px' }}>
+                  <span style={{ color: '#3fb950', fontWeight: 600 }}>{rollCall.safe_count} of {rollCall.total} safe</span>
+                  {rollCall.awaiting_count > 0 && <span style={{ color: '#8b949e' }}> · {rollCall.awaiting_count} awaiting</span>}
+                  {rollCall.unsafe_count > 0 && <span style={{ color: '#f85149' }}> · {rollCall.unsafe_count} unsafe</span>}
+                  {' · '}{timeAgo(rollCall.created_at)}
                 </div>
+                {rollCall.total > 0 && (
+                  <div style={{ height: 6, borderRadius: 999, background: '#21262d', overflow: 'hidden', marginBottom: 8 }}>
+                    <div style={{ height: '100%', width: `${Math.round((rollCall.safe_count / rollCall.total) * 100)}%`, background: '#3fb950', transition: 'width 0.3s' }} />
+                  </div>
+                )}
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {rollCall.members.map((m) => (
-                    <span key={m.id} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 999, background: m.safe ? 'rgba(63,185,80,0.15)' : 'rgba(248,81,73,0.15)', color: m.safe ? '#3fb950' : '#f85149' }}>
-                      {m.safe ? '✓' : '○'} {m.name}
-                    </span>
-                  ))}
+                  {rollCall.members.filter((m) => m.state !== 'off_duty').map((m) => {
+                    const c = m.state === 'safe' ? '#3fb950' : m.state === 'unsafe' ? '#f85149' : '#8b949e'
+                    const icon = m.state === 'safe' ? '✓' : m.state === 'unsafe' ? '⚠' : '○'
+                    return (
+                      <span key={m.id} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 999, background: `${c}26`, color: c }}>
+                        {icon} {m.name}{m.state === 'awaiting' ? ' · awaiting' : ''}
+                      </span>
+                    )
+                  })}
+                  {rollCall.total === 0 && rollCall.off_duty_count > 0 && <span style={{ fontSize: 11, color: '#8b949e' }}>All field coordinators off duty.</span>}
                   {rollCall.members.length === 0 && <span style={{ fontSize: 11, color: '#8b949e' }}>No field coordinators.</span>}
                 </div>
+                {/* Off-duty = exempt, shown separately so they're never mistaken for missing. */}
+                {rollCall.off_duty_count > 0 && (
+                  <div style={{ fontSize: 11, color: '#a371f7', marginTop: 8 }}>
+                    🌙 Off duty (exempt): {rollCall.members.filter((m) => m.state === 'off_duty').map((m) => m.name).join(', ')}
+                  </div>
+                )}
               </>
             ) : (
               <div style={{ fontSize: 12, color: '#8b949e', marginTop: 6 }}>No active roll call.</div>
