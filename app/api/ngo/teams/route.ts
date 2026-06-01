@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { getNgoSession, requireRole } from '@/lib/ngo-auth'
 import { rateLimit, tooMany, MUTATION_MAX, MUTATION_WINDOW } from '@/lib/rate-limit'
+import { notifiableCountsByTeam } from '@/lib/ngo-safety'
 
 // Teams for the caller's organisation. All access scoped to session.orgId.
 // ngo_teams.type is CHECK-constrained to this set.
@@ -25,6 +26,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Could not load teams' }, { status: 500 })
   }
 
+  // Members linked to an active account per team — so callers can warn about teams that
+  // can't actually be alerted (roster is name-only / unlinked).
+  const notifiable = await notifiableCountsByTeam(supabase, (res.data ?? []).map((t: any) => t.id))
+
   const shaped = (res.data ?? []).map((t: any) => {
     const status = Array.isArray(t.team_status) ? t.team_status[0] : t.team_status
     return {
@@ -37,6 +42,7 @@ export async function GET(request: NextRequest) {
       last_lon: status?.last_lon ?? null,
       last_seen_at: status?.last_seen_at ?? null,
       group_chat_url: t.group_chat_url ?? null,
+      notifiable_count: notifiable[t.id] ?? 0,
     }
   })
   return NextResponse.json({ teams: shaped })

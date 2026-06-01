@@ -105,7 +105,7 @@ interface Dispatch {
   id: string; cluster_id: string | null; ngo_incident_id?: string | null; team_id: string; team_name: string | null; status: string; response_minutes: number | null
 }
 interface RankedTeam {
-  id: string; name: string; type: string; status: string; type_match: boolean; distance_km: number | null; busy: boolean
+  id: string; name: string; type: string; status: string; type_match: boolean; distance_km: number | null; busy: boolean; notifiable_count?: number
 }
 const ACTIVE_DISPATCH = ['assigned', 'en_route', 'on_scene']
 const DISPATCH_LABEL: Record<string, string> = { assigned: 'Assigned', en_route: 'En route', on_scene: 'On scene', done: 'Done', cancelled: 'Cancelled' }
@@ -177,7 +177,7 @@ export default function NgoBoardPage() {
   const [panicDispatchFor, setPanicDispatchFor] = useState<Panic | null>(null)
   const [resolvePanicFor, setResolvePanicFor] = useState<Panic | null>(null)
   const [panicNote, setPanicNote] = useState('')
-  const [panicTeams, setPanicTeams] = useState<{ id: string; name: string; type: string; status: string }[]>([])
+  const [panicTeams, setPanicTeams] = useState<{ id: string; name: string; type: string; status: string; notifiable_count?: number }[]>([])
   const [panicBusy, setPanicBusy] = useState(false)
   // Handled (dismissed/completed) incidents — collapsible reopen list.
   const [handledIncidents, setHandledIncidents] = useState<Incident[]>([])
@@ -195,7 +195,7 @@ export default function NgoBoardPage() {
   const [addr, setAddr] = useState('')
   const [incBusy, setIncBusy] = useState(false)
   const [assignIncFor, setAssignIncFor] = useState<CustomIncident | null>(null)
-  const [incTeams, setIncTeams] = useState<{ id: string; name: string; type: string; status: string }[]>([])
+  const [incTeams, setIncTeams] = useState<{ id: string; name: string; type: string; status: string; notifiable_count?: number }[]>([])
 
   function changeMapStyle(id: string) {
     const s = MAP_STYLES.find((x) => x.id === id)
@@ -812,6 +812,7 @@ export default function NgoBoardPage() {
                 <button key={t.id} type="button" disabled={incBusy} onClick={() => assignIncidentTeam(t.id)} style={teamRow}>
                   <span style={{ fontWeight: 600 }}>{t.name}</span>
                   <span style={{ fontSize: 11, color: '#8b949e', marginLeft: 8 }}>{t.type} · {t.status}</span>
+                  {t.notifiable_count === 0 && <span style={{ fontSize: 11, color: '#d29922', marginLeft: 8 }}>⚠ no app access</span>}
                 </button>
               ))}
             </div>
@@ -834,6 +835,7 @@ export default function NgoBoardPage() {
                 <button key={t.id} type="button" disabled={panicBusy} onClick={() => sendPanicTeam(t.id)} style={teamRow}>
                   <span style={{ fontWeight: 600 }}>{t.name}</span>
                   <span style={{ fontSize: 11, color: '#8b949e', marginLeft: 8 }}>{t.type} · {t.status}</span>
+                  {t.notifiable_count === 0 && <span style={{ fontSize: 11, color: '#d29922', marginLeft: 8 }}>⚠ no app access</span>}
                 </button>
               ))}
             </div>
@@ -892,6 +894,7 @@ export default function NgoBoardPage() {
                   <div style={{ fontSize: 11, color: '#8b949e', marginTop: 2 }}>
                     {t.type} · {t.status}{t.busy && <span style={{ color: '#d29922' }}> · busy</span>}
                   </div>
+                  {t.notifiable_count === 0 && <div style={{ fontSize: 11, color: '#d29922', marginTop: 2 }}>⚠ No members with app access — they won’t be notified</div>}
                 </button>
               ))}
             </div>

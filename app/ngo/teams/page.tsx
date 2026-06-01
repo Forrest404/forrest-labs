@@ -168,13 +168,21 @@ export default function NgoTeamsPage() {
             <div style={card}>
               <div style={{ fontWeight: 600, marginBottom: 12 }}>{selectedTeam.name} — members</div>
 
+              {members.some((m) => !m.ngo_user_id) && (
+                <div style={{ background: 'rgba(210,153,34,0.1)', border: '1px solid rgba(210,153,34,0.4)', color: '#d29922', borderRadius: 6, padding: '8px 10px', fontSize: 12, marginBottom: 12 }}>
+                  {members.filter((m) => !m.ngo_user_id).length} member(s) aren’t linked to a login account, so they won’t receive dispatches, broadcasts or safety alerts. {isAdmin ? 'Use Invite to give them app access.' : 'Ask an org admin to invite them.'}
+                </div>
+              )}
+
               {members.length === 0 && <div style={{ fontSize: 13, color: '#8b949e', marginBottom: 12 }}>No members yet.</div>}
               {members.map((m) => (
                 <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #21262d' }}>
                   <div>
                     <div style={{ fontSize: 14 }}>
                       {m.name}
-                      {m.ngo_user_id && <span style={{ fontSize: 11, color: '#3fb950', marginLeft: 8 }}>App access ✓</span>}
+                      {m.ngo_user_id
+                        ? <span style={{ fontSize: 11, color: '#3fb950', marginLeft: 8 }}>App access ✓</span>
+                        : <span style={{ fontSize: 11, color: '#d29922', marginLeft: 8 }}>⚠ No app access — won’t get alerts</span>}
                     </div>
                     <div style={{ fontSize: 12, color: '#8b949e' }}>
                       {[m.role, m.phone].filter(Boolean).join(' · ') || '—'}

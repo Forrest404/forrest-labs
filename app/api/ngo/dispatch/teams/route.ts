@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { getNgoSession, requireRole } from '@/lib/ngo-auth'
 import { ACTIVE_DISPATCH, distanceKm, hazardOf, preferredTeamTypes } from '@/lib/ngo-dispatch'
+import { notifiableCountsByTeam } from '@/lib/ngo-safety'
 
 // Teams ranked for assigning to a given incident: type match first, then
 // proximity (team last-known location → incident), standby ahead of busy.
@@ -30,6 +31,10 @@ export async function GET(request: NextRequest) {
     .from('ngo_dispatches').select('team_id').eq('org_id', session!.orgId).in('status', ACTIVE_DISPATCH)
   const busy = new Set((active ?? []).map((d) => d.team_id).filter(Boolean))
 
+  // How many members of each team can actually receive an alert (linked to an active
+  // account) — so the dispatch UI can warn about teams that would be notified to no one.
+  const notifiable = await notifiableCountsByTeam(supabase, (teams ?? []).map((t: any) => t.id))
+
   const ranked = (teams ?? []).map((t: any) => {
     const s = Array.isArray(t.team_status) ? t.team_status[0] : t.team_status
     const hasLoc = s?.last_lat != null && s?.last_lon != null
@@ -41,6 +46,7 @@ export async function GET(request: NextRequest) {
       type_match: preferred.includes(t.type),
       distance_km: hasLoc ? distanceKm(cluster.centroid_lat, cluster.centroid_lon, s.last_lat, s.last_lon) : null,
       busy: busy.has(t.id),
+      notifiable_count: notifiable[t.id] ?? 0,
     }
   }).sort((a, b) => {
     if (a.type_match !== b.type_match) return a.type_match ? -1 : 1      // matching type first
