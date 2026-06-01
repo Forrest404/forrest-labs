@@ -103,6 +103,10 @@ export default function NgoLoginPage() {
           {mode === 'code' ? 'Admin / team leader sign-in' : 'Use an access code instead'}
         </button>
 
+        {mode === 'password' && (
+          <a href="/ngo/reset" style={{ ...textBtn, display: 'block', textDecoration: 'none', marginTop: 4 }}>Forgot password?</a>
+        )}
+
         <div style={{ textAlign: 'center', marginTop: 16, fontSize: 13, color: '#8b949e' }}>
           New organisation? <a href="/ngo/signup" style={{ color: '#58a6ff', textDecoration: 'none' }}>Register</a>
         </div>

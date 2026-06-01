@@ -24,6 +24,8 @@ export default function NgoUsersPage() {
   const [edit, setEdit] = useState<EditForm | null>(null)
   const [share, setShare] = useState<{ name: string; code: string } | null>(null)
   const [qr, setQr] = useState<string | null>(null)
+  const [invite, setInvite] = useState<{ email: string; role: string; team_id: string } | null>(null)
+  const [teams, setTeams] = useState<{ id: string; name: string }[]>([])
 
   const linkFor = (code: string) => `${typeof window !== 'undefined' ? window.location.origin : ''}/ngo/login?code=${code}`
 
@@ -116,6 +118,32 @@ export default function NgoUsersPage() {
     else setError(data.error ?? 'Could not remove user.')
   }
 
+  // Load teams for the invite modal's optional team picker.
+  useEffect(() => {
+    if (!invite) return
+    fetch('/api/ngo/teams', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : { teams: [] }))
+      .then((d) => setTeams(d.teams ?? [])).catch(() => {})
+  }, [invite])
+
+  async function sendInvite() {
+    if (!invite) return
+    setBusy(true); setMsg(null); setError(null)
+    try {
+      const res = await fetch('/api/ngo/users/invite', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: invite.email.trim(), role: invite.role, team_id: invite.team_id || undefined }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        setInvite(null)
+        setMsg(data.email_status === 'sent' ? 'Invite sent.'
+          : data.email_status === 'stubbed' ? 'Invite created — email isn’t configured yet, so nothing was sent.'
+          : 'Invite created, but the email failed to send (check email/domain setup).')
+      } else setError(data.error ?? 'Could not send the invite.')
+    } catch { setError('Could not send the invite. Please try again.') }
+    finally { setBusy(false) }
+  }
+
   function copy(text: string) { navigator.clipboard?.writeText(text).then(() => setMsg('Copied.')).catch(() => {}) }
 
   return (
@@ -125,7 +153,10 @@ export default function NgoUsersPage() {
           <h1 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>Users</h1>
           <div style={{ fontSize: 13, color: '#8b949e', marginTop: 2 }}>People who can sign in to your organisation.</div>
         </div>
-        <button type="button" onClick={() => setAdd({ full_name: '', email: '', phone: '', role: 'team_leader', password: '' })} style={primaryBtn}>+ Add user</button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button type="button" onClick={() => { setInvite({ email: '', role: 'team_leader', team_id: '' }); setError(null); setMsg(null) }} style={ghostBtn}>✉ Invite by email</button>
+          <button type="button" onClick={() => setAdd({ full_name: '', email: '', phone: '', role: 'team_leader', password: '' })} style={primaryBtn}>+ Add user</button>
+        </div>
       </div>
 
       {msg && <div style={okBox}>{msg}</div>}
@@ -178,6 +209,25 @@ export default function NgoUsersPage() {
             ? <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 10 }}>A unique access code is generated automatically — you’ll get a code + QR to share after adding.</div>
             : <L label="Password (min 8 chars)"><input style={field} type="password" value={add.password} onChange={(e) => setAdd({ ...add, password: e.target.value })} /></L>}
           <button type="button" onClick={createUser} disabled={busy} style={{ ...primaryBtn, marginTop: 4, opacity: busy ? 0.6 : 1 }}>{busy ? 'Adding…' : 'Add user'}</button>
+        </Modal>
+      )}
+
+      {invite && (
+        <Modal title="Invite by email" onClose={() => setInvite(null)}>
+          <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 12 }}>They’ll get a single-use link to set their own name and password/PIN and join your organisation.</div>
+          <L label="Email"><input style={field} type="email" value={invite.email} onChange={(e) => setInvite({ ...invite, email: e.target.value })} /></L>
+          <L label="Role">
+            <select style={field} value={invite.role} onChange={(e) => setInvite({ ...invite, role: e.target.value })}>
+              {ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+            </select>
+          </L>
+          <L label="Team (optional)">
+            <select style={field} value={invite.team_id} onChange={(e) => setInvite({ ...invite, team_id: e.target.value })}>
+              <option value="">No team</option>
+              {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          </L>
+          <button type="button" onClick={sendInvite} disabled={busy || !invite.email.includes('@')} style={{ ...primaryBtn, marginTop: 4, opacity: busy || !invite.email.includes('@') ? 0.6 : 1 }}>{busy ? 'Sending…' : 'Send invite'}</button>
         </Modal>
       )}
 
@@ -244,6 +294,7 @@ const card: React.CSSProperties = { background: '#161b22', border: '1px solid #2
 const field: React.CSSProperties = { width: '100%', height: 38, padding: '0 10px', boxSizing: 'border-box', background: '#0d1117', border: '1px solid #21262d', borderRadius: 6, color: '#e6edf3', fontSize: 13, fontFamily: 'system-ui', outline: 'none' }
 const labelStyle: React.CSSProperties = { fontSize: 12, color: '#8b949e', marginBottom: 6, display: 'block' }
 const primaryBtn: React.CSSProperties = { height: 38, padding: '0 16px', background: '#238636', border: '1px solid #2ea043', color: '#fff', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'system-ui' }
+const ghostBtn: React.CSSProperties = { height: 38, padding: '0 14px', background: 'rgba(255,255,255,0.04)', border: '1px solid #21262d', color: '#c9d1d9', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'system-ui' }
 const miniBtn: React.CSSProperties = { height: 30, padding: '0 10px', background: 'rgba(255,255,255,0.04)', border: '1px solid #21262d', color: '#8b949e', borderRadius: 6, fontSize: 12, cursor: 'pointer', fontFamily: 'system-ui' }
 const linkBtn: React.CSSProperties = { background: 'none', border: 'none', color: '#58a6ff', fontSize: 12, cursor: 'pointer', padding: 0, fontFamily: 'system-ui' }
 const codeChip: React.CSSProperties = { background: '#0d1117', border: '1px solid #21262d', borderRadius: 6, padding: '2px 8px', color: '#e6edf3', fontFamily: 'ui-monospace, monospace', fontWeight: 600 }

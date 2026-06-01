@@ -65,6 +65,11 @@ const SCOPE_EXEMPT = new Set([
   'app/api/ngo/safety/escalate/route.ts',        // cron: secret-gated, iterates all orgs
   'app/api/ngo/safety/panic-escalate/route.ts',  // cron: secret-gated, iterates all orgs
   'app/api/ngo/incidents/geocode/route.ts',      // auth-gated geocode helper; touches NO org data (no DB query)
+  // Public, single-use-TOKEN-gated (the token IS the credential; org is bound INTO the
+  // token row, not derived from a session). Same category as auth/login.
+  'app/api/ngo/auth/invite/accept/route.ts',
+  'app/api/ngo/auth/reset/request/route.ts',
+  'app/api/ngo/auth/reset/confirm/route.ts',
 ])
 const SCOPE_MARKERS = ["eq('org_id'", 'eq("org_id"', 'resolveTeamId', 'ngo_user_id', 'session!.orgId', 'session.orgId', 'session!.userId', 'session.userId', 'p_org']
 

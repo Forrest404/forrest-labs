@@ -7,6 +7,12 @@ const PUBLIC_PATHS = ['/admin/login', '/api/admin/auth/login']
 const NGO_PUBLIC_PATHS = [
   '/ngo/login',
   '/ngo/signup',
+  // Token-gated public pages + endpoints (invite accept, password reset). The token is
+  // the credential; the SEND endpoint (/api/ngo/users/invite) stays session-gated.
+  '/ngo/invite',
+  '/ngo/reset',
+  '/api/ngo/auth/invite',
+  '/api/ngo/auth/reset',
   '/api/ngo/auth/login',
   '/api/ngo/auth/signup',
   // Scheduler-invoked; gated by their own ?key=REVIEW_SECRET_KEY check, so they must

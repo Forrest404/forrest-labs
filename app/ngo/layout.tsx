@@ -34,8 +34,8 @@ const SECTION_ORDER = ['Operations', 'Coordination', 'Admin']
 // it carries its own on-screen controls and needs no sidebar/drawer.
 export default function NgoLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname()
-  const isBare = pathname === '/ngo/login' || pathname === '/ngo/signup' || pathname.startsWith('/ngo/field')
-  const isAuthPage = pathname === '/ngo/login' || pathname === '/ngo/signup'
+  const isBare = pathname === '/ngo/login' || pathname === '/ngo/signup' || pathname === '/ngo/invite' || pathname === '/ngo/reset' || pathname.startsWith('/ngo/field')
+  const isAuthPage = pathname === '/ngo/login' || pathname === '/ngo/signup' || pathname === '/ngo/invite' || pathname === '/ngo/reset'
 
   const [role, setRole] = useState<NgoRole | null>(null)
   const [who, setWho] = useState<{ name: string; org: string | null } | null>(null)
