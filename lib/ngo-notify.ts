@@ -240,10 +240,11 @@ async function deliver(supabase: any, args: {
   // could). Recipients fan out in parallel so a large broadcast isn't N sequential sends.
   await Promise.all(recipients.map(async (u) => {
     // Non-protected gating: off duty, quiet hours, flood. (None of this applies to
-    // CRITICAL/HIGH — those always go through.)
+    // CRITICAL/HIGH — those always go through.) Suppression is LOGGED as 'skipped' so a muted
+    // NORMAL/LOW alert is visible in the delivery log rather than silently absent.
     if (!guarded) {
-      if (u.off_duty) return
-      if (inQuietHours(u.quiet_start, u.quiet_end)) return
+      if (u.off_duty) { await logDelivery(supabase, orgId, u.id, event, urgency, 'push', 'skipped'); return }
+      if (inQuietHours(u.quiet_start, u.quiet_end)) { await logDelivery(supabase, orgId, u.id, event, urgency, 'push', 'skipped'); return }
       if (await floodedFor(supabase, u.id, event)) { await logDelivery(supabase, orgId, u.id, event, urgency, 'push', 'throttled'); return }
     }
     const pref = prefMap.get(u.id)
@@ -255,6 +256,11 @@ async function deliver(supabase: any, args: {
       let r = await sendPush(uTopic, { title, body, priority, tags })
       if (!r.ok && urgency === 'critical') r = await sendPush(uTopic, { title, body, priority, tags }) // retry once
       await logDelivery(supabase, orgId, u.id, event, urgency, 'push', r.stubbed ? 'stubbed' : r.ok ? 'sent' : 'failed')
+    } else if (base.push) {
+      // base wanted push but the user muted it (notif_push / per-event pref) — log so the
+      // suppression is visible rather than silent. (base.push is false for LOW events, where
+      // no push is expected, so those aren't logged here.)
+      await logDelivery(supabase, orgId, u.id, event, urgency, 'push', 'skipped')
     }
 
     // SMS

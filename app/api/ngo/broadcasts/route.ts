@@ -194,13 +194,13 @@ export async function POST(request: NextRequest) {
   }
 
   // ── Send the PUSH via the existing engine (push channel only). ──
-  // Push uses the org's SHARED ntfy topic, so a narrowly-targeted message body must not be
-  // placed on it: only an org-wide ('all') broadcast carries the body; team/leaders targets
-  // send a generic notice and the body is read in-app (correctly scoped to recipients).
+  // Push is now per-USER (each recipient has their own ntfy topic), so the message reaches
+  // ONLY the resolved audience — the body is no longer placed on a shared org topic. It is
+  // therefore safe to carry the real message for every target. scrubSensitive (in the engine)
+  // still strips any coordinate-shaped tokens as a backstop.
   const urgent = urgency === 'urgent'
   const title = urgent ? '🚨 Urgent broadcast' : '📢 Broadcast'
-  const pushBody = target === 'all' ? message : 'New broadcast — open NOUR to read.'
-  const msg = { event: 'broadcast', title, body: pushBody, priority: (urgent ? 'urgent' : 'default') as 'urgent' | 'default', tags: urgent ? 'rotating_light' : 'loudspeaker' }
+  const msg = { event: 'broadcast', title, body: message, priority: (urgent ? 'urgent' : 'default') as 'urgent' | 'default', tags: urgent ? 'rotating_light' : 'loudspeaker' }
   if (target === 'team') await notifyTeam(supabase, teamId!, msg)
   else if (target === 'leaders') await notifyOrgRoles(supabase, orgId, ['org_admin', 'team_leader'], msg)
   else await notifyOrgRoles(supabase, orgId, ['field_coordinator'], msg)
