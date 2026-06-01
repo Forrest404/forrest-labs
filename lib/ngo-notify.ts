@@ -285,18 +285,41 @@ export async function notifyOrgRoles(
   await deliver(supabase, { orgId, event: msg.event, title: msg.title, body: msg.body, priority: msg.priority, tags: msg.tags, recipients: (users ?? []) as Recipient[] })
 }
 
+// Team-targeted events whose delivery is safety-critical: if the team turns out to have NO
+// members reachable in-app, the alert must not vanish — it falls back to org leaders (F4).
+// (Broadcasts are deliberately excluded: a routine team broadcast shouldn't escalate.)
+const SAFETY_TEAM_EVENTS = new Set(['dispatch', 'panic_dispatch'])
+
 // Notify the active members of a specific team.
 export async function notifyTeam(
   supabase: any, teamId: string,
   msg: { event: string; title: string; body: string; priority?: Priority; tags?: string },
 ): Promise<void> {
-  const { data: team } = await supabase.from('ngo_teams').select('org_id').eq('id', teamId).maybeSingle()
+  const { data: team } = await supabase.from('ngo_teams').select('org_id, name').eq('id', teamId).maybeSingle()
   if (!team?.org_id) return
   const { data: members } = await supabase.from('team_members')
     .select(`ngo_users ( ${RECIPIENT_COLS}, status )`).eq('team_id', teamId).not('ngo_user_id', 'is', null)
   const recipients = (members ?? [])
     .map((m: any) => (Array.isArray(m.ngo_users) ? m.ngo_users[0] : m.ngo_users))
     .filter((u: any) => u && u.status === 'active') as Recipient[]
+
+  // SAFETY FALLBACK (F4): a dispatch / panic-response sent to a team with no reachable
+  // members (roster not linked to active accounts) must never reach no one — escalate to the
+  // org's leaders so they can act, keeping the original urgency. (Note: we can detect linked +
+  // active here, but not whether each member has subscribed to push — that's surfaced by the
+  // roster/dispatch warnings instead.)
+  if (recipients.length === 0) {
+    if (!SAFETY_TEAM_EVENTS.has(msg.event)) return
+    const teamName = team.name ?? 'the assigned team'
+    await notifyOrgRoles(supabase, team.org_id, ['org_admin', 'team_leader'], {
+      event: msg.event, // keep urgency: dispatch=high, panic_dispatch=critical
+      title: `⚠ ${teamName} unreachable`,
+      body: `${msg.title}: ${teamName} has no members reachable in the app. Contact them directly.`,
+      priority: msg.priority,
+      tags: msg.tags,
+    })
+    return
+  }
   await deliver(supabase, { orgId: team.org_id, event: msg.event, title: msg.title, body: msg.body, priority: msg.priority, tags: msg.tags, recipients })
 }
 
