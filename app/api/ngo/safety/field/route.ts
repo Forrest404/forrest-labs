@@ -38,6 +38,15 @@ export async function GET(request: NextRequest) {
     if (data) {
       const s = Array.isArray(data.team_status) ? data.team_status[0] : data.team_status
       team = { id: data.id, name: data.name, type: data.type, status: s?.status ?? 'offline', last_seen_at: s?.last_seen_at ?? null, group_chat_url: data.group_chat_url ?? null }
+      // The team's leader, for the field worker's read-only "my team" view: a member of this
+      // team whose linked account is an active team_leader / org_admin (first by appearance).
+      const { data: lm } = await supabase
+        .from('team_members').select('ngo_users!inner ( full_name, role, status )')
+        .eq('team_id', teamId).not('ngo_user_id', 'is', null)
+      const lead = (lm ?? [])
+        .map((m: any) => (Array.isArray(m.ngo_users) ? m.ngo_users[0] : m.ngo_users))
+        .find((u: any) => u && u.status === 'active' && (u.role === 'team_leader' || u.role === 'org_admin'))
+      team.leader_name = lead?.full_name ?? null
     }
   }
 
