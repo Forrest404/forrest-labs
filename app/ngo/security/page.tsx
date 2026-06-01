@@ -15,6 +15,7 @@ export default function NgoSecurityPage() {
   const [msg, setMsg] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -45,6 +46,34 @@ export default function NgoSecurityPage() {
     finally { setBusy(false) }
   }
 
+  // Recovery codes are shown once. Let the user keep a copy by clipboard or a .txt download.
+  const codesText = useCallback(
+    () => `NOUR for NGOs — two-factor recovery codes\nEach code works once. Keep them somewhere safe and private.\n\n${(recoveryCodes ?? []).join('\n')}\n`,
+    [recoveryCodes],
+  )
+  const copyCodes = useCallback(async () => {
+    const text = (recoveryCodes ?? []).join('\n')
+    try {
+      if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(text)
+      else {
+        const ta = document.createElement('textarea')
+        ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0'
+        document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta)
+      }
+      setCopied(true); window.setTimeout(() => setCopied(false), 2000)
+    } catch { setError('Could not copy. Select the codes and copy them manually.') }
+  }, [recoveryCodes])
+  const downloadCodes = useCallback(() => {
+    try {
+      const blob = new Blob([codesText()], { type: 'text/plain;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url; a.download = 'nour-recovery-codes.txt'
+      document.body.appendChild(a); a.click(); document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch { setError('Could not download. Copy the codes instead.') }
+  }, [codesText])
+
   const startSetup = async () => { const d = await act('setup'); if (d) { setSetup({ secret: d.secret, uri: d.uri }); setRecoveryCodes(null) } }
   const enable = async () => { const d = await act('enable', { code: code.trim() }); if (d) { setRecoveryCodes(d.recovery_codes ?? []); setSetup(null); setCode(''); setMsg('Two-factor authentication is on.'); load() } }
   const disable = async () => { if (!window.confirm('Disable two-factor authentication on your account?')) return; const d = await act('disable', { code: code.trim() }); if (d) { setCode(''); setMsg('Two-factor authentication disabled.'); load() } }
@@ -64,6 +93,10 @@ export default function NgoSecurityPage() {
           <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 12 }}>Each works once if you lose your authenticator. Store them safely — they won’t be shown again.</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontFamily: 'monospace', fontSize: 14 }}>
             {recoveryCodes.map((c) => <div key={c} style={{ background: '#0d1117', border: '1px solid #21262d', borderRadius: 6, padding: '8px 10px', textAlign: 'center' }}>{c}</div>)}
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+            <button type="button" onClick={copyCodes} style={neutralBtn}>{copied ? '✓ Copied' : 'Copy codes'}</button>
+            <button type="button" onClick={downloadCodes} style={neutralBtn}>Download .txt</button>
           </div>
         </div>
       )}
@@ -120,5 +153,6 @@ const lbl: React.CSSProperties = { display: 'block', fontSize: 12, color: '#8b94
 const field: React.CSSProperties = { width: '100%', maxWidth: 260, height: 44, padding: '0 12px', boxSizing: 'border-box', background: '#0d1117', border: '1px solid #21262d', borderRadius: 6, color: '#e6edf3', fontSize: 16, fontFamily: 'system-ui', outline: 'none', letterSpacing: '0.1em' }
 const primaryBtn: React.CSSProperties = { height: 42, padding: '0 18px', background: '#238636', border: '1px solid #2ea043', color: '#fff', borderRadius: 6, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'system-ui' }
 const dangerBtn: React.CSSProperties = { height: 40, padding: '0 16px', background: 'rgba(248,81,73,0.1)', border: '1px solid rgba(248,81,73,0.4)', color: '#f85149', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'system-ui' }
+const neutralBtn: React.CSSProperties = { height: 38, padding: '0 14px', background: '#21262d', border: '1px solid #30363d', color: '#e6edf3', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'system-ui' }
 const ok: React.CSSProperties = { background: 'rgba(63,185,80,0.1)', border: '1px solid rgba(63,185,80,0.3)', color: '#3fb950', borderRadius: 6, padding: '9px 12px', fontSize: 13, marginBottom: 14 }
 const err: React.CSSProperties = { background: 'rgba(248,81,73,0.1)', border: '1px solid rgba(248,81,73,0.3)', color: '#f85149', borderRadius: 6, padding: '9px 12px', fontSize: 13, marginBottom: 14 }
