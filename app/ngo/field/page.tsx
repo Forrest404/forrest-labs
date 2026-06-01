@@ -94,7 +94,7 @@ const LANG = {
     sending_alert: 'Sending alert…', alert_sent_msg: '🆘 Alert sent to your team', alert_queued: 'Queued — alert will send when online',
     signed_out: 'Signed out — will sync when back online', sharing_loc: 'Sharing location…',
     open_chat: 'OPEN GROUP CHAT', actions: 'Actions', map: 'Map',
-    chats: 'Chats', no_chats: 'No group chats shared with you yet.', chats_trust: 'Opens an external app NOUR doesn’t control. Only join groups you trust.', open: 'Open', team_chat: 'Team', org_chat: 'Organisation', account: 'Account', on_duty: 'On duty', off_duty: 'Off duty', off_duty_note: 'Off duty — no dispatches/alerts and no missed-check-in flags. Panic & roll call still reach you.', broadcasts: 'Broadcasts', no_broadcasts: 'No broadcasts yet.', urgent: 'Urgent', acknowledge: 'Acknowledge', acknowledged: 'Acknowledged',
+    chats: 'Chats', no_chats: 'No group chats shared with you yet.', chats_trust: 'Opens an external app NOUR doesn’t control. Only join groups you trust.', open: 'Open', team_chat: 'Team', org_chat: 'Organisation', account: 'Account', setup_alerts: 'Set up alerts', setup_alerts_sub: 'Get panic & dispatch notifications on your phone', on_duty: 'On duty', off_duty: 'Off duty', off_duty_note: 'Off duty — no dispatches/alerts and no missed-check-in flags. Panic & roll call still reach you.', broadcasts: 'Broadcasts', no_broadcasts: 'No broadcasts yet.', urgent: 'Urgent', acknowledge: 'Acknowledge', acknowledged: 'Acknowledged',
     silent_mode: 'Silent', alert_active: 'Alert active', help_seen: 'Help has seen this',
     choose_reason: 'What’s happening? (optional)', cancel_false_alarm: 'Cancel — false alarm',
     locked_note: 'Locked — only a responder can resolve this now', cancelled: 'Alert cancelled',
@@ -116,7 +116,7 @@ const LANG = {
     sending_alert: 'Envoi de l’alerte…', alert_sent_msg: '🆘 Alerte envoyée à votre équipe', alert_queued: 'En attente — alerte envoyée à la reconnexion',
     signed_out: 'Déconnecté — synchro à la reconnexion', sharing_loc: 'Partage de la position…',
     open_chat: 'OUVRIR LE GROUPE', actions: 'Actions', map: 'Carte',
-    chats: 'Groupes', no_chats: 'Aucun groupe partagé pour l’instant.', chats_trust: 'Ouvre une app externe que NOUR ne contrôle pas. Ne rejoignez que des groupes de confiance.', open: 'Ouvrir', team_chat: 'Équipe', org_chat: 'Organisation', account: 'Compte', on_duty: 'En service', off_duty: 'Hors service', off_duty_note: 'Hors service — pas d’alertes ni de signalement d’absence de pointage. Les alertes panique et appel restent actives.', broadcasts: 'Annonces', no_broadcasts: 'Aucune annonce pour l’instant.', urgent: 'Urgent', acknowledge: 'Accuser réception', acknowledged: 'Reçu',
+    chats: 'Groupes', no_chats: 'Aucun groupe partagé pour l’instant.', chats_trust: 'Ouvre une app externe que NOUR ne contrôle pas. Ne rejoignez que des groupes de confiance.', open: 'Ouvrir', team_chat: 'Équipe', org_chat: 'Organisation', account: 'Compte', setup_alerts: 'Configurer les alertes', setup_alerts_sub: 'Recevoir les alertes panique et missions sur votre téléphone', on_duty: 'En service', off_duty: 'Hors service', off_duty_note: 'Hors service — pas d’alertes ni de signalement d’absence de pointage. Les alertes panique et appel restent actives.', broadcasts: 'Annonces', no_broadcasts: 'Aucune annonce pour l’instant.', urgent: 'Urgent', acknowledge: 'Accuser réception', acknowledged: 'Reçu',
     silent_mode: 'Silencieux', alert_active: 'Alerte active', help_seen: 'Les secours ont vu',
     choose_reason: 'Que se passe-t-il ? (facultatif)', cancel_false_alarm: 'Annuler — fausse alerte',
     locked_note: 'Verrouillé — seul un répondant peut clôturer', cancelled: 'Alerte annulée',
@@ -138,7 +138,7 @@ const LANG = {
     sending_alert: 'جارٍ إرسال الاستغاثة…', alert_sent_msg: '🆘 تم إرسال الاستغاثة إلى فريقك', alert_queued: 'في الانتظار — ستُرسل الاستغاثة عند الاتصال',
     signed_out: 'تم تسجيل الخروج — ستتم المزامنة عند الاتصال', sharing_loc: 'جارٍ مشاركة الموقع…',
     open_chat: 'فتح مجموعة الدردشة', actions: 'الإجراءات', map: 'الخريطة',
-    chats: 'الدردشات', no_chats: 'لا توجد مجموعات دردشة متاحة لك بعد.', chats_trust: 'يفتح تطبيقًا خارجيًا لا تتحكم به نور. انضمّ فقط إلى المجموعات الموثوقة.', open: 'فتح', team_chat: 'الفريق', org_chat: 'المنظمة', account: 'الحساب', on_duty: 'في الخدمة', off_duty: 'خارج الخدمة', off_duty_note: 'خارج الخدمة — لا تنبيهات ولا تنبيه بفوات التفقد. تنبيهات الاستغاثة والنداء تصلك دائمًا.', broadcasts: 'الإعلانات', no_broadcasts: 'لا توجد إعلانات بعد.', urgent: 'عاجل', acknowledge: 'تأكيد الاستلام', acknowledged: 'تم الاستلام',
+    chats: 'الدردشات', no_chats: 'لا توجد مجموعات دردشة متاحة لك بعد.', chats_trust: 'يفتح تطبيقًا خارجيًا لا تتحكم به نور. انضمّ فقط إلى المجموعات الموثوقة.', open: 'فتح', team_chat: 'الفريق', org_chat: 'المنظمة', account: 'الحساب', setup_alerts: 'إعداد التنبيهات', setup_alerts_sub: 'استلام تنبيهات الاستغاثة والمهام على هاتفك', on_duty: 'في الخدمة', off_duty: 'خارج الخدمة', off_duty_note: 'خارج الخدمة — لا تنبيهات ولا تنبيه بفوات التفقد. تنبيهات الاستغاثة والنداء تصلك دائمًا.', broadcasts: 'الإعلانات', no_broadcasts: 'لا توجد إعلانات بعد.', urgent: 'عاجل', acknowledge: 'تأكيد الاستلام', acknowledged: 'تم الاستلام',
     silent_mode: 'صامت', alert_active: 'الاستغاثة نشطة', help_seen: 'شاهد المنقذون التنبيه',
     choose_reason: 'ماذا يحدث؟ (اختياري)', cancel_false_alarm: 'إلغاء — إنذار خاطئ',
     locked_note: 'مقفل — لا يمكن إنهاؤه إلا من قبل المنقذ', cancelled: 'تم إلغاء الاستغاثة',
@@ -650,6 +650,13 @@ export default function NgoFieldPage() {
       </div>
 
       {tab === 'actions' && (<>
+      {/* One-time nudge to set up push alerts (ntfy) — field coordinators are the most
+          important recipients, so make the path to setup obvious. Links to /ngo/settings
+          (allowed for this role by middleware), where the download + tutorial live. */}
+      <a href="/ngo/settings" style={{ display: 'block', textDecoration: 'none', background: '#161b22', border: '1px solid #21262d', borderRadius: 10, padding: '10px 12px' }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: '#58a6ff' }}>🔔 {t('setup_alerts')} →</div>
+        <div style={{ fontSize: 12, color: '#8b949e', marginTop: 2 }}>{t('setup_alerts_sub')}</div>
+      </a>
       {/* Active-panic panel — appears after a panic fires (driven by polled state, so it
           survives reloads + offline→online sync). Reason chips, the false-alarm cancel
           window, and "help has seen this". Subdued in silent mode. */}

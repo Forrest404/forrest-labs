@@ -805,7 +805,7 @@ export default function NgoBoardPage() {
         <div onClick={() => setAssignIncFor(null)} style={modalBackdrop}>
           <div onClick={(e) => e.stopPropagation()} style={{ ...modalBox, width: 360 }}>
             <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Assign a team — {assignIncFor.title}</div>
-            <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 12 }}>{assignIncFor.address || `${assignIncFor.lat.toFixed(4)}, ${assignIncFor.lon.toFixed(4)}`} · team alerted by push + SMS</div>
+            <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 12 }}>{assignIncFor.address || `${assignIncFor.lat.toFixed(4)}, ${assignIncFor.lon.toFixed(4)}`} · team alerted by push</div>
             <div style={{ maxHeight: 280, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
               {incTeams.length === 0 && <div style={{ fontSize: 13, color: '#8b949e' }}>No teams.</div>}
               {incTeams.map((t) => (
@@ -826,7 +826,7 @@ export default function NgoBoardPage() {
           <div onClick={(e) => e.stopPropagation()} style={{ ...modalBox, width: 360 }}>
             <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Send a team to {panicDispatchFor.name}</div>
             <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 12 }}>
-              {panicDispatchFor.lat != null && panicDispatchFor.lon != null ? `Last seen ${panicDispatchFor.lat.toFixed(4)}, ${panicDispatchFor.lon.toFixed(4)}` : 'No location reported'} · the team is alerted by push + SMS.
+              {panicDispatchFor.lat != null && panicDispatchFor.lon != null ? `Last seen ${panicDispatchFor.lat.toFixed(4)}, ${panicDispatchFor.lon.toFixed(4)}` : 'No location reported'} · the team is alerted by push.
             </div>
             <div style={{ maxHeight: 280, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
               {panicTeams.length === 0 && <div style={{ fontSize: 13, color: '#8b949e' }}>No teams.</div>}

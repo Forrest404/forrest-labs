@@ -96,7 +96,7 @@ export default function BroadcastsPage() {
   return (
     <div style={wrap}>
       <h1 style={{ fontSize: 20, fontWeight: 600, margin: '0 0 4px' }}>Broadcast</h1>
-      <p style={{ fontSize: 13, color: '#8b949e', margin: '0 0 18px' }}>One-way urgent notices to your field staff. Reaches them by push (and, for urgent, by SMS once that’s enabled). For back-and-forth, use your linked Signal/WhatsApp group.</p>
+      <p style={{ fontSize: 13, color: '#8b949e', margin: '0 0 18px' }}>One-way urgent notices to your field staff. Reaches them by push. For back-and-forth, use your linked Signal/WhatsApp group.</p>
 
       {msg && <div style={ok}>{msg}</div>}
       {error && <div style={err}>{error}</div>}

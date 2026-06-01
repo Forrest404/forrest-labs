@@ -105,7 +105,7 @@ export default function NgoSettingsPage() {
     try {
       const res = await fetch('/api/ngo/me', {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ full_name: account.full_name, phone: account.phone, language: account.language, notif_push: account.notif_push, notif_sms: account.notif_sms, quiet_start: account.quiet_start, quiet_end: account.quiet_end, off_duty: account.off_duty }),
+        body: JSON.stringify({ full_name: account.full_name, phone: account.phone, language: account.language, notif_push: account.notif_push, quiet_start: account.quiet_start, quiet_end: account.quiet_end, off_duty: account.off_duty }),
       })
       const d = await res.json().catch(() => ({}))
       if (res.ok) { setMsg('Account saved.'); try { if (account.language) localStorage.setItem('fl_lang', account.language) } catch {} }
@@ -180,15 +180,19 @@ export default function NgoSettingsPage() {
               <Section title="Notifications to me">
                 <div style={{ fontSize: 11, color: '#d29922', marginBottom: 8 }}>Panic, roll-call and missed-check-in alerts always reach you — these preferences apply only to non-urgent notices.</div>
                 <Toggle label="Push notifications" checked={account.notif_push} onChange={(v) => setA('notif_push', v)} />
-                <Toggle label="SMS notifications" checked={account.notif_sms} onChange={(v) => setA('notif_sms', v)} />
                 <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
                   <Field label="Quiet hours from"><input type="time" style={field} value={minToTime(account.quiet_start)} onChange={(e) => setA('quiet_start', timeToMin(e.target.value))} /></Field>
                   <Field label="to"><input type="time" style={field} value={minToTime(account.quiet_end)} onChange={(e) => setA('quiet_end', timeToMin(e.target.value))} /></Field>
                 </div>
-                <div style={{ fontSize: 11, color: '#484f58' }}>Quiet hours mute non-urgent SMS only (evaluated in UTC). Leave blank for none.</div>
+                <div style={{ fontSize: 11, color: '#484f58' }}>Quiet hours mute non-urgent notifications only (evaluated in UTC). Leave blank for none.</div>
                 <div style={{ height: 1, background: '#21262d' }} />
                 <div style={{ fontSize: 12, color: '#8b949e' }}>Which non-urgent events reach me, and how:</div>
                 <EventPrefs scope="user" />
+              </Section>
+
+              <Section title="Push notifications (ntfy)">
+                <div style={{ fontSize: 12, color: '#8b949e' }}>NOUR sends alerts through the free <b>ntfy</b> app. Install it and subscribe to your organisation’s channel once — then panic, roll-call, dispatch and broadcast alerts reach your phone.</div>
+                <PushSetup />
               </Section>
 
               <button type="button" onClick={saveAccount} disabled={busy || !account.full_name?.trim()} style={{ ...primaryBtn, opacity: busy || !account.full_name?.trim() ? 0.6 : 1 }}>{busy ? 'Saving…' : 'Save account'}</button>
@@ -278,7 +282,7 @@ export default function NgoSettingsPage() {
                 <EventPrefs scope="org" />
               </Section>
               <div style={{ fontSize: 11, color: '#d29922' }}>
-                Safety-critical alerts — <b>panic, roll call, missed check-in, and dispatch</b> — are always delivered to the responder chain by push and SMS. They can’t be turned off here or by personal preferences.
+                Safety-critical alerts — <b>panic, roll call, missed check-in, and dispatch</b> — are always delivered to the responder chain by push. They can’t be turned off here or by personal preferences.
               </div>
             </div>
           )}
@@ -289,12 +293,11 @@ export default function NgoSettingsPage() {
               <LinkCard href="/ngo/chat" title="External chat groups" desc="Manage links to your Signal / WhatsApp / Telegram groups." />
               <Section title="Delivery providers">
                 <ProviderRow label="Push (in-app / ntfy)" ok={providers?.push} />
-                <ProviderRow label="SMS" ok={providers?.sms} note={providers?.sms ? undefined : 'Not configured — SMS alerts are logged only.'} />
                 <ProviderRow label="Email" ok={providers?.email} note={providers?.email ? undefined : 'Not configured — invites/resets won’t send.'} />
               </Section>
               <Section title="Delivery log">
                 <div style={{ fontSize: 12, color: '#8b949e' }}>Recent notification sends — so a failed alert is visible. No message contents are stored.</div>
-                {log && log.failed_critical > 0 && <div style={{ ...errorBox, marginBottom: 0 }}>{log.failed_critical} urgent alert(s) failed to send. Check your SMS/push provider.</div>}
+                {log && log.failed_critical > 0 && <div style={{ ...errorBox, marginBottom: 0 }}>{log.failed_critical} urgent alert(s) failed to send. Check your push provider.</div>}
                 {!log && <div style={{ fontSize: 12, color: '#8b949e' }}>Loading…</div>}
                 {log && log.entries.length === 0 && <div style={{ fontSize: 12, color: '#484f58' }}>No sends logged yet.</div>}
                 {log && log.entries.length > 0 && (
@@ -380,7 +383,6 @@ function EventPrefs({ scope }: { scope: 'user' | 'org' }) {
             <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 12, color: '#8b949e' }}>
               {scope === 'org' && <Mini label="enabled" checked={v.enabled} onChange={(c) => set(e, { enabled: c })} />}
               <Mini label="push" checked={v.push} onChange={(c) => set(e, { push: c })} />
-              <Mini label="SMS" checked={v.sms} onChange={(c) => set(e, { sms: c })} />
               <Mini label="email" checked={v.email} onChange={(c) => set(e, { email: c })} />
             </div>
           </div>
@@ -400,6 +402,86 @@ function ProviderRow({ label, ok, note }: { label: string; ok?: boolean; note?: 
       <span style={{ color: '#e6edf3' }}>{label}</span>
       <span style={{ color: ok ? '#3fb950' : '#8b949e' }}>{ok ? 'configured' : 'not configured'}</span>
       {note && <span style={{ color: '#484f58', fontSize: 11 }}>· {note}</span>}
+    </div>
+  )
+}
+
+// Self-contained ntfy push setup: download links, the org's subscribe topic (+ QR and
+// one-tap links), a short tutorial, and a test-push button. Visible to every role (it lives
+// in the My-account tab) so field coordinators get it too. Fetches its own data.
+function PushSetup() {
+  const [info, setInfo] = useState<{ topic: string; subscribeUrl: string; deepLink: string } | null>(null)
+  const [qr, setQr] = useState<string | null>(null)
+  const [err, setErr] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [testMsg, setTestMsg] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch('/api/ngo/notify/topic', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d?.topic) setInfo(d); else setErr('Your push channel isn’t ready yet — try again shortly.') })
+      .catch(() => setErr('Could not load your push channel.'))
+  }, [])
+
+  // QR of the subscribe URL — generated client-side, same dynamic-import pattern as 2FA.
+  useEffect(() => {
+    if (!info) return
+    let off = false
+    import('qrcode').then((QR) => QR.toDataURL(info.subscribeUrl, { width: 200, margin: 1 }))
+      .then((u) => { if (!off) setQr(u) }).catch(() => {})
+    return () => { off = true }
+  }, [info])
+
+  async function sendTest() {
+    setBusy(true); setTestMsg(null)
+    try {
+      const res = await fetch('/api/ngo/notify/test', { method: 'POST' })
+      const d = await res.json().catch(() => ({}))
+      if (res.status === 429) setTestMsg('Too many tests — wait a minute and try again.')
+      else if (d.stubbed) setTestMsg('Sent — but no live push relay is configured, so nothing will arrive yet.')
+      else if (d.ok) setTestMsg('Test sent. Check the ntfy app on your phone.')
+      else setTestMsg('Could not send the test. Try again shortly.')
+    } catch { setTestMsg('Could not send the test.') }
+    finally { setBusy(false) }
+  }
+
+  if (err) return <div style={{ fontSize: 12, color: '#8b949e' }}>{err}</div>
+  if (!info) return <div style={{ fontSize: 12, color: '#8b949e' }}>Loading…</div>
+  return (
+    <div style={{ display: 'grid', gap: 12 }}>
+      <div>
+        <div style={{ fontSize: 13, color: '#e6edf3', marginBottom: 4 }}>1. Install the free <b>ntfy</b> app:</div>
+        <div style={{ fontSize: 12, color: '#8b949e' }}>
+          <a href="https://apps.apple.com/app/ntfy/id1625396347" target="_blank" rel="noreferrer noopener" style={link}>iPhone (App Store)</a>{' · '}
+          <a href="https://play.google.com/store/apps/details?id=io.heckel.ntfy" target="_blank" rel="noreferrer noopener" style={link}>Android (Play Store)</a>{' · '}
+          <a href="https://f-droid.org/packages/io.heckel.ntfy/" target="_blank" rel="noreferrer noopener" style={link}>Android (F-Droid)</a>{' · '}
+          <a href="https://ntfy.sh/app" target="_blank" rel="noreferrer noopener" style={link}>Web app</a>
+        </div>
+      </div>
+
+      <div>
+        <div style={{ fontSize: 13, color: '#e6edf3', marginBottom: 4 }}>2. Subscribe to your organisation’s alert channel:</div>
+        <code style={{ display: 'block', background: '#0d1117', border: '1px solid #21262d', borderRadius: 6, padding: '8px 10px', fontSize: 13, wordBreak: 'break-all', color: '#e6edf3' }}>{info.topic}</code>
+        <div style={{ fontSize: 12, color: '#8b949e', marginTop: 6 }}>
+          <a href={info.subscribeUrl} target="_blank" rel="noreferrer noopener" style={link}>Open in browser</a>{' · '}
+          <a href={info.deepLink} style={link}>Open in ntfy app</a>
+        </div>
+        {qr
+          ? <img src={qr} alt="Subscribe QR code" width={180} height={180} style={{ background: '#fff', borderRadius: 8, padding: 6, marginTop: 8 }} />
+          : <div style={{ fontSize: 12, color: '#8b949e', marginTop: 8 }}>Generating QR…</div>}
+        <div style={{ fontSize: 11, color: '#484f58', marginTop: 6 }}>Scan the QR from another phone, or type the channel name into the app.</div>
+      </div>
+
+      <ol style={{ fontSize: 12, color: '#8b949e', paddingLeft: 18, margin: 0, display: 'grid', gap: 4 }}>
+        <li>Open the ntfy app and tap “+” / “Subscribe to topic”.</li>
+        <li>Scan the QR above, or type the channel name exactly.</li>
+        <li>Leave the server as the default (ntfy.sh). Tap Subscribe.</li>
+        <li>Allow notifications when the app asks.</li>
+        <li>Tap “Send test notification” below to confirm it works.</li>
+      </ol>
+
+      <button type="button" onClick={sendTest} disabled={busy} style={{ ...primaryBtn, opacity: busy ? 0.6 : 1 }}>{busy ? 'Sending…' : 'Send test notification'}</button>
+      {testMsg && <div style={{ fontSize: 12, color: '#8b949e' }}>{testMsg}</div>}
     </div>
   )
 }

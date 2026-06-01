@@ -139,7 +139,7 @@ export default function NgoPanicPage() {
         <div onClick={() => setSendFor(null)} style={backdrop}>
           <div onClick={(e) => e.stopPropagation()} style={modal}>
             <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Send a team to {sendFor.name}</div>
-            <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 12 }}>Nearest first · the team is alerted by push + SMS with a map link.</div>
+            <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 12 }}>Nearest first · the team is alerted by push with a map link.</div>
             <div style={{ maxHeight: 300, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
               {rankedTeams(sendFor).length === 0 && <div style={{ fontSize: 13, color: '#8b949e' }}>No teams.</div>}
               {rankedTeams(sendFor).map((t) => (

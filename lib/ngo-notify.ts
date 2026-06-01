@@ -22,6 +22,12 @@ import { sendEmail } from '@/lib/email'
 
 type Priority = 'low' | 'default' | 'high' | 'urgent'
 
+// Single source of truth for the ntfy relay base. Defaults to the public ntfy.sh, so
+// behaviour is unchanged when NTFY_BASE_URL is unset; setting it (e.g. a self-hosted
+// server with auth) is then a one-var change. Trailing slashes trimmed so `${base}/${topic}`
+// is always well-formed.
+const NTFY_BASE_URL = (process.env.NTFY_BASE_URL ?? 'https://ntfy.sh').replace(/\/+$/, '')
+
 // Strip decimal coordinate pairs / lone high-precision decimals (lat,lon) and bare
 // map links as a defence-in-depth backstop. Bodies should already be generic; this
 // guarantees nothing coordinate-shaped reaches the relay if a call site regresses.
@@ -53,6 +59,18 @@ async function resolveOrgTopic(supabase: any, orgId: string): Promise<string | n
   }
 }
 
+// Public accessor for the per-org push topic + relay base. Used by the topic/test API
+// routes so EVERY role (field coordinators included) can look up the topic to subscribe.
+// Like the internal resolver, this may persist a freshly generated topic on first call —
+// idempotent, and already happens on the first alert.
+export async function getOrgPushTopic(
+  supabase: any,
+  orgId: string,
+): Promise<{ topic: string | null; baseUrl: string }> {
+  const topic = await resolveOrgTopic(supabase, orgId)
+  return { topic, baseUrl: NTFY_BASE_URL }
+}
+
 export async function sendPush(topic: string | null, opts: {
   title: string
   body: string
@@ -65,7 +83,7 @@ export async function sendPush(topic: string | null, opts: {
     return { ok: false, stubbed: true }
   }
   try {
-    const res = await fetch(`https://ntfy.sh/${channel}`, {
+    const res = await fetch(`${NTFY_BASE_URL}/${channel}`, {
       method: 'POST',
       headers: {
         Title: scrubSensitive(opts.title),

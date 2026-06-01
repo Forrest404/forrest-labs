@@ -200,7 +200,7 @@ export default function NgoPrivacyPolicyPage() {
           ['ntfy', 'Delivery of push notifications.'],
           ['Resend', 'Delivery of transactional email (invitations, password resets, security notices).'],
           ['Mapbox', 'Map display in your browser or app.'],
-          ['An SMS gateway', 'Delivery of SMS alerts where configured (not active by default).'],
+          ['An SMS gateway', 'Not currently used — SMS alerting is disabled in this version.'],
         ]} />
         <P>We may also disclose data where required by law, to establish or defend legal
         claims, or to protect the vital interests of any person.</P>
