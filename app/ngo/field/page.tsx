@@ -182,6 +182,13 @@ export default function NgoFieldPage() {
   const [holding, setHolding] = useState(false)
   const [flash, setFlash] = useState(false)
   const [checkinQueued, setCheckinQueued] = useState(false)
+  // Per-action busy flags — every async action disables its button + shows a visual change
+  // the instant it's tapped, so on a slow/2G link nobody thinks "nothing happened" and taps
+  // again (which had let people double-advance a dispatch).
+  const [checkingIn, setCheckingIn] = useState(false)
+  const [advancing, setAdvancing] = useState(false)
+  const [rollBusy, setRollBusy] = useState(false)
+  const [reportBusy, setReportBusy] = useState(false)
   const [pendingStatus, setPendingStatus] = useState<string | null>(null) // optimistic chip highlight
   const [silent, setSilent] = useState(false) // pre-arm silent mode (no sound/flash/feedback)
   const holdTimer = useRef<any>(null)
@@ -415,12 +422,16 @@ export default function NgoFieldPage() {
   useEffect(() => () => { if (mapRef.current) { mapRef.current.remove(); mapRef.current = null } }, [])
 
   async function doCheckIn() {
+    if (checkingIn) return
+    setCheckingIn(true)
     setMsg(t('getting_loc'))
-    const { lat, lon } = await resolveCoords()
-    const sent = await send('/api/ngo/safety/check-in', { lat, lon }, 'check-in')
-    setCheckinQueued(!sent)
-    setMsg(sent ? `${t('checked')} ✓` : t('queued_send'))
-    loadState()
+    try {
+      const { lat, lon } = await resolveCoords()
+      const sent = await send('/api/ngo/safety/check-in', { lat, lon }, 'check-in')
+      setCheckinQueued(!sent)
+      setMsg(sent ? `${t('checked')} ✓` : t('queued_send'))
+      await loadState()
+    } finally { setCheckingIn(false) }
   }
 
   // Short two-tone alarm via Web Audio (no asset needed). Triggered by the user's
@@ -504,33 +515,46 @@ export default function NgoFieldPage() {
   useEffect(() => { if (pendingStatus && state?.team?.status === pendingStatus) setPendingStatus(null) }, [state, pendingStatus])
 
   async function respondRollCall() {
-    if (!state?.active_roll_call) return
+    if (!state?.active_roll_call || rollBusy) return
+    setRollBusy(true)
     setMsg(t('sharing_loc'))
-    const { lat, lon } = await resolveCoords()
-    const sent = await send('/api/ngo/safety/roll-call/respond', { roll_call_id: state.active_roll_call.id, lat, lon }, 'roll-call')
-    setMsg(sent ? t('marked_safe') : t('queued_send'))
-    loadState()
+    try {
+      const { lat, lon } = await resolveCoords()
+      const sent = await send('/api/ngo/safety/roll-call/respond', { roll_call_id: state.active_roll_call.id, lat, lon }, 'roll-call')
+      setMsg(sent ? t('marked_safe') : t('queued_send'))
+      await loadState()
+    } finally { setRollBusy(false) }
   }
 
   const NEXT_STATUS: Record<string, string> = { assigned: 'en_route', en_route: 'on_scene', on_scene: 'done' }
 
   async function advanceDispatch() {
-    if (!dispatch) return
+    if (!dispatch || advancing) return
     const next = NEXT_STATUS[dispatch.status]
-    const sent = await send(`/api/ngo/dispatch/${dispatch.id}/advance`, {}, 'advance')
-    setMsg(sent ? `${t(next as LangKey)}` : t('queued_send'))
-    loadDispatch()
+    if (!next) return
+    setAdvancing(true)
+    // Optimistic: flip the status locally NOW so the card + button visibly move a step the
+    // instant it's tapped (works offline too). Reconciled by loadDispatch below.
+    setDispatch((d: any) => (d ? { ...d, status: next } : d))
+    try {
+      const sent = await send(`/api/ngo/dispatch/${dispatch.id}/advance`, {}, 'advance')
+      setMsg(sent ? `${t(next as LangKey)}` : t('queued_send'))
+      await loadDispatch()
+    } finally { setAdvancing(false) }
   }
   async function submitReport() {
-    if (!dispatch) return
-    // PUT updates the single report (creates it if none) so edits don't duplicate.
-    const sent = await sendPut(`/api/ngo/dispatch/${dispatch.id}/report`, {
-      people_assisted: report.people === '' ? null : Number(report.people),
-      services: report.services || null,
-      new_hazards: report.hazards || null,
-    }, 'report')
-    setReportSent(true); setEditingReport(false)
-    setMsg(sent ? t('report_saved') : t('queued_send'))
+    if (!dispatch || reportBusy) return
+    setReportBusy(true)
+    try {
+      // PUT updates the single report (creates it if none) so edits don't duplicate.
+      const sent = await sendPut(`/api/ngo/dispatch/${dispatch.id}/report`, {
+        people_assisted: report.people === '' ? null : Number(report.people),
+        services: report.services || null,
+        new_hazards: report.hazards || null,
+      }, 'report')
+      setReportSent(true); setEditingReport(false)
+      setMsg(sent ? t('report_saved') : t('queued_send'))
+    } finally { setReportBusy(false) }
   }
   function startEditReport() {
     const r = dispatch?.report
@@ -578,7 +602,7 @@ export default function NgoFieldPage() {
 
   return (
     <div dir={isRtl ? 'rtl' : 'ltr'} style={{ ...wrap, paddingBottom: 'calc(196px + env(safe-area-inset-bottom))' }}>
-      <style>{`@keyframes nourHoldFill{from{width:0}to{width:100%}}@keyframes nourFlash{0%,100%{background:rgba(248,81,73,0.92)}50%{background:rgba(248,81,73,0.55)}}`}</style>
+      <style>{`@keyframes nourHoldFill{from{width:0}to{width:100%}}@keyframes nourFlash{0%,100%{background:rgba(248,81,73,0.92)}50%{background:rgba(248,81,73,0.55)}}button:active:not(:disabled){transform:scale(0.97);filter:brightness(1.08)}button:disabled{opacity:0.6}`}</style>
 
       {/* Full-screen confirmation flash after a panic is sent */}
       {flash && (
@@ -684,17 +708,17 @@ export default function NgoFieldPage() {
 
       {/* Roll-call prompt */}
       {showRc && (
-        <button type="button" onClick={respondRollCall} style={rollCallBtn}>
-          🟢 {t('rollcall')}
+        <button type="button" onClick={respondRollCall} disabled={rollBusy} style={rollCallBtn}>
+          🟢 {rollBusy ? `${t('sharing_loc')}…` : t('rollcall')}
           {rc?.message ? <div style={{ fontSize: 14, fontWeight: 400, marginTop: 6 }}>{rc.message}</div> : null}
         </button>
       )}
       {rc && rc.answered && <div style={{ textAlign: 'center', color: '#3fb950', fontSize: 15, fontWeight: 600 }}>{t('marked_safe')}</div>}
 
       {/* CHECK IN — the largest control on the screen */}
-      <button type="button" onClick={doCheckIn} style={checkInBtn}>
-        <span style={{ fontSize: 32, fontWeight: 800 }}>{t('check_in')}</span>
-        <span style={{ fontSize: 15, fontWeight: 600, opacity: 0.95, color: ci.overdue ? '#ffd7d5' : '#fff' }}>{ci.sub}</span>
+      <button type="button" onClick={doCheckIn} disabled={checkingIn} style={checkInBtn}>
+        <span style={{ fontSize: 32, fontWeight: 800 }}>{checkingIn ? `${t('getting_loc')}…` : t('check_in')}</span>
+        <span style={{ fontSize: 15, fontWeight: 600, opacity: 0.95, color: ci.overdue ? '#ffd7d5' : '#fff' }}>{checkingIn ? '' : ci.sub}</span>
       </button>
 
       {/* STATUS */}
@@ -721,8 +745,8 @@ export default function NgoFieldPage() {
           {dispatch.note && <div style={{ fontSize: 13, color: '#8b949e', marginTop: 4 }}>{dispatch.note}</div>}
           {dispatch.map_link && <a href={dispatch.map_link} target="_blank" rel="noreferrer" style={{ fontSize: 14, color: '#58a6ff', display: 'inline-block', marginTop: 6 }}>{t('map')} ↗</a>}
           {NEXT_STATUS[dispatch.status] && (
-            <button type="button" onClick={advanceDispatch} style={{ ...checkInBtn, height: 64, background: '#1f6feb', borderColor: '#58a6ff', marginTop: 10 }}>
-              <span style={{ fontSize: 18, fontWeight: 800 }}>{t('advance_to')} {t(NEXT_STATUS[dispatch.status] as LangKey).toUpperCase()}</span>
+            <button type="button" onClick={advanceDispatch} disabled={advancing} style={{ ...checkInBtn, height: 64, background: '#1f6feb', borderColor: '#58a6ff', marginTop: 10 }}>
+              <span style={{ fontSize: 18, fontWeight: 800 }}>{advancing ? '…' : `${t('advance_to')} ${t(NEXT_STATUS[dispatch.status] as LangKey).toUpperCase()}`}</span>
             </button>
           )}
           {/* On-scene report (3 fields) — fileable/editable once on scene or done */}
@@ -732,7 +756,7 @@ export default function NgoFieldPage() {
               <input style={field} inputMode="numeric" placeholder={t('people_assisted')} value={report.people} onChange={(e) => setReport({ ...report, people: e.target.value })} />
               <input style={field} placeholder={t('services_delivered')} value={report.services} onChange={(e) => setReport({ ...report, services: e.target.value })} />
               <input style={field} placeholder={t('new_hazards')} value={report.hazards} onChange={(e) => setReport({ ...report, hazards: e.target.value })} />
-              <button type="button" onClick={submitReport} style={{ ...statusBtn(false), height: 48 }}>{editingReport ? t('save_changes') : t('submit_report')}</button>
+              <button type="button" onClick={submitReport} disabled={reportBusy} style={{ ...statusBtn(false), height: 48 }}>{reportBusy ? '…' : (editingReport ? t('save_changes') : t('submit_report'))}</button>
             </div>
           )}
           {reportSent && !editingReport && (
