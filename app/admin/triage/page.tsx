@@ -111,6 +111,36 @@ export default function TriagePage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router])
 
+  // Live refresh: pull newly-arrived pending clusters every 25s and APPEND them, without
+  // disrupting the card currently being triaged. (Polling, not realtime: the clusters read
+  // policy only exposes confirmed rows to the anon key, so a browser subscription can't see
+  // pending_review.)
+  useEffect(() => {
+    const id = setInterval(async () => {
+      try {
+        const res = await fetch('/api/admin/incidents?filter=pending_review&limit=100')
+        if (!res.ok) return
+        const data = (await res.json()) as { clusters?: TriageCluster[] }
+        const incoming = data.clusters ?? []
+        setQueue((prev) => {
+          const known = new Set(prev.map((c) => c.id))
+          const fresh = incoming.filter((c) => !known.has(c.id))
+          return fresh.length ? [...prev, ...fresh] : prev
+        })
+      } catch { /* keep current queue */ }
+    }, 25000)
+    return () => clearInterval(id)
+  }, [])
+
+  // If new pending clusters arrive after the queue was emptied, resume triage on the first.
+  useEffect(() => {
+    if (done && index + 1 < queue.length) {
+      const next = index + 1
+      setIndex(next); setDone(false); loadCluster(queue[next])
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queue.length])
+
   async function loadCluster(cluster: TriageCluster) {
     setCurrent(cluster)
     setCurrentReports([])

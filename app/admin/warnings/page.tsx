@@ -75,16 +75,20 @@ export default function WarningsPage() {
   const [filter, setFilter] = useState('all')
 
   useEffect(() => {
+    let active = true
     async function fetchWarnings() {
       try {
         const res = await fetch('/api/admin/warnings-list')
         if (res.status === 401) { router.push('/admin/login'); return }
         const data = (await res.json()) as { warnings: WarningCluster[]; total: number }
-        setWarnings(data.warnings ?? [])
+        if (active) setWarnings(data.warnings ?? [])
       } catch { /* ignore */ }
-      setLoading(false)
+      if (active) setLoading(false)
     }
     fetchWarnings()
+    // Live refresh every 30s (warnings escalate/expire on their own).
+    const id = setInterval(fetchWarnings, 30000)
+    return () => { active = false; clearInterval(id) }
   }, [router])
 
   const filtered =

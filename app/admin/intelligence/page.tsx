@@ -115,6 +115,21 @@ export default function IntelligencePage() {
 
   useEffect(() => { fetchArticles() }, [fetchArticles])
 
+  // Live refresh: silently re-poll the article feed every 60s (intel arrives on a 15-min
+  // cron; 60s keeps the feed current without a manual refresh).
+  useEffect(() => {
+    const id = setInterval(async () => {
+      try {
+        const url = '/api/admin/news' + (filter !== 'all' ? '?status=' + filter : '')
+        const res = await fetch(url)
+        if (!res.ok) return
+        const data = (await res.json()) as { articles?: NewsArticle[] }
+        setArticles(data.articles ?? [])
+      } catch { /* keep current */ }
+    }, 60000)
+    return () => clearInterval(id)
+  }, [filter])
+
   // Fetch data context for query panel
   useEffect(() => {
     fetch('/api/admin/stats')

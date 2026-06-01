@@ -131,16 +131,19 @@ export default function AdminDashboard() {
         setLoading(false)
       }
     }
-    fetchStats()
-    const interval = setInterval(fetchStats, 30000)
+    const fetchNews = () =>
+      fetch('/api/admin/news?limit=10')
+        .then((r) => r.json())
+        .then((d: { articles?: NewsArticle[] }) => {
+          setNews(d.articles ?? [])
+          setNewsLoading(false)
+        })
+        .catch(() => setNewsLoading(false))
 
-    fetch('/api/admin/news?limit=10')
-      .then((r) => r.json())
-      .then((d: { articles?: NewsArticle[] }) => {
-        setNews(d.articles ?? [])
-        setNewsLoading(false)
-      })
-      .catch(() => setNewsLoading(false))
+    fetchStats()
+    fetchNews()
+    // Stats + intel feed both refresh live every 30s (no manual refresh needed).
+    const interval = setInterval(() => { fetchStats(); fetchNews() }, 30000)
 
     return () => clearInterval(interval)
   }, [router])

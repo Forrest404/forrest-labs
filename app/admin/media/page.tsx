@@ -81,6 +81,20 @@ export default function MediaPage() {
 
   useEffect(() => { fetchMedia() }, [fetchMedia])
 
+  // Live refresh: silently re-poll the current filter every 30s so new media for review
+  // appears without a manual reload.
+  useEffect(() => {
+    const id = setInterval(async () => {
+      try {
+        const r = await fetch('/api/admin/media?status=' + filter)
+        if (!r.ok) return
+        const d = await r.json()
+        if (d) { setReports(d.reports ?? []); setCounts({ pending: d.pending_count ?? 0, approved: d.approved_count ?? 0 }) }
+      } catch { /* keep current */ }
+    }, 30000)
+    return () => clearInterval(id)
+  }, [filter])
+
   const handleApprove = (id: string) => {
     fetch('/api/admin/media/' + id + '/approve', {
       method: 'POST',
