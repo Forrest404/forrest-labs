@@ -20,6 +20,7 @@ const NAV: NavItem[] = [
   // Coordination (Reports/Chat/Facilities are scaffolds — see their pages)
   { href: '/ngo/reports', label: 'Reports', roles: ['org_admin', 'team_leader'], section: 'Coordination' },
   { href: '/ngo/chat', label: 'Group chats', roles: ['org_admin', 'team_leader'], section: 'Coordination' },
+  { href: '/ngo/broadcasts', label: 'Broadcast', roles: ['org_admin', 'team_leader'], section: 'Coordination' },
   { href: '/ngo/facilities', label: 'Facilities & contacts', roles: ['org_admin', 'team_leader'], section: 'Coordination' },
   // Admin
   { href: '/ngo/setup', label: 'Operational area', roles: ['org_admin'], section: 'Admin' },

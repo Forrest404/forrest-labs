@@ -21,6 +21,7 @@ const NGO_PUBLIC_PATHS = [
   // duress alerts never auto-widened (finding M1).
   '/api/ngo/safety/escalate',
   '/api/ngo/safety/panic-escalate',
+  '/api/ngo/notify/incident-scan',
 ]
 
 function getJwtSecret(): Uint8Array {
