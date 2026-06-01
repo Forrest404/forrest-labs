@@ -206,6 +206,13 @@ export default function NgoSettingsPage() {
                   <div style={{ fontSize: 11, color: '#484f58', marginTop: 6 }}>Signs you out everywhere, including this device — useful for a lost or shared phone. (Individual devices can’t be listed — sessions are anonymous.)</div>
                 </div>
               </Section>
+
+              <Section title="Privacy & data">
+                <div style={{ fontSize: 13, display: 'grid', gap: 8 }}>
+                  <a href="/ngo/privacy" style={link}>How NOUR handles your data (summary) →</a>
+                  <a href="/ngo/privacy/policy" style={link}>Privacy Policy (full legal version) →</a>
+                </div>
+              </Section>
             </div>
           )}
 

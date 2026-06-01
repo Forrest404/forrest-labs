@@ -134,7 +134,8 @@ export async function middleware(request: NextRequest) {
       payload.role === 'field_coordinator' &&
       pathname.startsWith('/ngo/') &&
       !pathname.startsWith('/ngo/field') &&
-      !pathname.startsWith('/ngo/settings')
+      !pathname.startsWith('/ngo/settings') &&
+      !pathname.startsWith('/ngo/privacy')
     ) {
       return NextResponse.redirect(new URL('/ngo/field', request.url))
     }

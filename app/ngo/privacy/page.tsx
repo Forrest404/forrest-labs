@@ -84,6 +84,15 @@ export default function NgoPrivacyPage() {
         </p>
       </Section>
 
+      <Section title="The full legal policy">
+        <p style={p}>
+          This page is a plain-language summary. For the complete, formal terms — including
+          legal bases, your rights, our service providers, international transfers, and
+          retention — read the{' '}
+          <a href="/ngo/privacy/policy" style={link}>full Privacy Policy →</a>
+        </p>
+      </Section>
+
       <div style={{ marginTop: 24 }}>
         <a href="/ngo/settings" style={link}>← Back to settings</a>
       </div>
