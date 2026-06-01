@@ -110,11 +110,14 @@ export async function middleware(request: NextRequest) {
     const { payload } = await jwtVerify(ngoToken, getJwtSecret())
     if (payload.type !== 'ngo') throw new Error('wrong token type')
 
-    // Role routing: field coordinators are limited to their mobile surface.
+    // Role routing: field coordinators are limited to their mobile surface, PLUS their
+    // own account page (/ngo/settings renders only "My account" for them — own data only,
+    // no org map/other teams, so it stays within the device-capture threat model).
     if (
       payload.role === 'field_coordinator' &&
       pathname.startsWith('/ngo/') &&
-      !pathname.startsWith('/ngo/field')
+      !pathname.startsWith('/ngo/field') &&
+      !pathname.startsWith('/ngo/settings')
     ) {
       return NextResponse.redirect(new URL('/ngo/field', request.url))
     }

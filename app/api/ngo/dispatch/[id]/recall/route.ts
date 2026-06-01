@@ -31,7 +31,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     title: '↩️ Recalled',
     body: `Stand down — your dispatch has been recalled${reason ? `: ${reason}` : ''}.`,
     priority: 'urgent', tags: 'leftwards_arrow_with_hook',
-  })
+  }, { respectPrefs: true })
 
   return NextResponse.json({ success: true })
 }

@@ -47,7 +47,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     title: '🔄 Reassigned',
     body: 'You have been reassigned to a new incident. Open NOUR for the location.',
     priority: 'urgent', tags: 'arrows_counterclockwise',
-  })
+  }, { respectPrefs: true })
 
   return NextResponse.json({ success: true })
 }

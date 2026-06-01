@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
     body: `${team.name}: new dispatch assigned. Open NOUR for the location.`,
     priority: 'urgent',
     tags: 'ambulance',
-  })
+  }, { respectPrefs: true })
 
   return NextResponse.json({ success: true, dispatch_id: dispatch.id })
 }

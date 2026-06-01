@@ -24,7 +24,7 @@ const NAV: NavItem[] = [
   // Admin
   { href: '/ngo/setup', label: 'Operational area', roles: ['org_admin'], section: 'Admin' },
   { href: '/ngo/users', label: 'Users', roles: ['org_admin'], section: 'Admin' },
-  { href: '/ngo/settings', label: 'Settings', roles: ['org_admin'], section: 'Admin' },
+  { href: '/ngo/settings', label: 'Settings', roles: ['org_admin', 'team_leader'], section: 'Admin' },
   { href: '/ngo/security', label: 'Security (2FA)', roles: ['org_admin', 'team_leader'], section: 'Admin' },
 ]
 const SECTION_ORDER = ['Operations', 'Coordination', 'Admin']

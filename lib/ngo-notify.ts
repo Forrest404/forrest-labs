@@ -96,6 +96,29 @@ export async function sendSms(phone: string, body: string): Promise<{ ok: boolea
   }
 }
 
+// Notification options. respectPrefs=true means this is a NON-critical/informational
+// alert (e.g. a dispatch assignment): honour each recipient's SMS preference + quiet
+// hours. The DEFAULT (omitted/false) is "deliver to everyone" — so a SAFETY-CRITICAL
+// alert (panic, roll-call, missed-check-in escalation) can NEVER be silenced by a
+// preference. Forgetting the flag fails safe (everyone is notified).
+export interface NotifyOpts { respectPrefs?: boolean }
+
+// Quiet hours are minutes-of-day (0–1439). Evaluated in UTC (no per-user timezone is
+// stored) — best-effort noise reduction for non-critical SMS only.
+function inQuietHours(start: number | null | undefined, end: number | null | undefined): boolean {
+  if (start == null || end == null) return false
+  const now = new Date()
+  const m = now.getUTCHours() * 60 + now.getUTCMinutes()
+  return start <= end ? (m >= start && m < end) : (m >= start || m < end)
+}
+
+// True if this user should receive a NON-critical SMS right now (pref on + not quiet).
+function smsAllowed(u: any): boolean {
+  if (u?.notif_sms === false) return false
+  if (inQuietHours(u?.quiet_start, u?.quiet_end)) return false
+  return true
+}
+
 // Push (one broadcast to the org's own topic) + SMS (per recipient phone) to everyone
 // in `roles` for an org. Bodies must already be generic (no names/coords/map links).
 export async function notifyOrgRoles(
@@ -103,10 +126,11 @@ export async function notifyOrgRoles(
   orgId: string,
   roles: string[],
   msg: { title: string; body: string; priority?: Priority; tags?: string },
+  opts: NotifyOpts = {},
 ): Promise<{ pushed: boolean; smsCount: number }> {
   const { data: users } = await supabase
     .from('ngo_users')
-    .select('phone')
+    .select('phone, notif_sms, quiet_start, quiet_end')
     .eq('org_id', orgId)
     .in('role', roles)
     .eq('status', 'active')
@@ -115,7 +139,9 @@ export async function notifyOrgRoles(
   await sendPush(topic, msg)
 
   const body = scrubSensitive(`${msg.title} — ${msg.body}`)
-  const phones = (users ?? []).map((u: any) => u.phone).filter(Boolean) as string[]
+  // Non-critical: honour SMS pref + quiet hours. Critical (default): notify everyone.
+  const recipients = opts.respectPrefs ? (users ?? []).filter(smsAllowed) : (users ?? [])
+  const phones = recipients.map((u: any) => u.phone).filter(Boolean) as string[]
   await Promise.all(phones.map((p) => sendSms(p, body)))
   return { pushed: true, smsCount: phones.length }
 }
@@ -126,6 +152,7 @@ export async function notifyTeam(
   supabase: any,
   teamId: string,
   msg: { title: string; body: string; priority?: Priority; tags?: string },
+  opts: NotifyOpts = {},
 ): Promise<{ pushed: boolean; smsCount: number }> {
   // Resolve the team's org so the push lands on that org's own topic.
   const { data: team } = await supabase
@@ -133,10 +160,10 @@ export async function notifyTeam(
   const topic = team?.org_id ? await resolveOrgTopic(supabase, team.org_id) : (process.env.NTFY_CHANNEL ?? null)
   await sendPush(topic, msg)
 
-  // Recipient phones (same query shape as before — field members on this team).
+  // Recipient phones (field members on this team).
   const { data: members } = await supabase
     .from('team_members')
-    .select('ngo_users ( phone, status )')
+    .select('ngo_users ( phone, status, notif_sms, quiet_start, quiet_end )')
     .eq('team_id', teamId)
     .not('ngo_user_id', 'is', null)
 
@@ -144,6 +171,8 @@ export async function notifyTeam(
   const phones = (members ?? [])
     .map((m: any) => (Array.isArray(m.ngo_users) ? m.ngo_users[0] : m.ngo_users))
     .filter((u: any) => u && u.status === 'active' && u.phone)
+    // Non-critical: honour SMS pref + quiet hours. Critical (default): notify everyone.
+    .filter((u: any) => (opts.respectPrefs ? smsAllowed(u) : true))
     .map((u: any) => u.phone) as string[]
   await Promise.all(phones.map((p) => sendSms(p, body)))
   return { pushed: true, smsCount: phones.length }
