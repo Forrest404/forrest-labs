@@ -91,7 +91,7 @@ const LANG = {
     manual_loc: 'Enter location manually (no GPS)', lat: 'lat', lon: 'lon',
     panic: 'PANIC', hold: 'HOLD…', panic_sub: 'press and hold 2 seconds', keep_holding: 'keep holding to send',
     alert_sent_full: 'ALERT SENT', team_notified: 'Your team has been notified.', tap_dismiss: 'tap to dismiss',
-    sending_alert: 'Sending alert…', alert_sent_msg: '🆘 Alert sent to your team', alert_queued: 'Queued — alert will send when online',
+    sending_alert: 'Sending alert…', alert_sent_msg: '🆘 Alert sent to your team', alert_sent_silent: '✓ Alert sent (silent)', alert_queued: 'Queued — alert will send when online',
     signed_out: 'Signed out — will sync when back online', sharing_loc: 'Sharing location…',
     open_chat: 'OPEN GROUP CHAT', actions: 'Actions', map: 'Map',
     chats: 'Chats', no_chats: 'No group chats shared with you yet.', chats_trust: 'Opens an external app NOUR doesn’t control. Only join groups you trust.', open: 'Open', team_chat: 'Team', org_chat: 'Organisation', account: 'Account', setup_alerts: 'Set up alerts', setup_alerts_sub: 'Get panic & dispatch notifications on your phone', already_setup: 'Already set up — hide', on_duty: 'On duty', off_duty: 'Off duty', off_duty_note: 'Off duty — you get no notifications at all (not even panic or roll call) until you go back on duty. Your own panic button still alerts your team.', off_duty_banner: '🌙 YOU ARE OFF DUTY — no alerts reach you, not even panic or roll call. Your panic button still alerts your team.', broadcasts: 'Broadcasts', no_broadcasts: 'No broadcasts yet.', urgent: 'Urgent', acknowledge: 'Acknowledge', acknowledged: 'Acknowledged',
@@ -113,7 +113,7 @@ const LANG = {
     manual_loc: 'Saisir la position manuellement (sans GPS)', lat: 'lat', lon: 'lon',
     panic: 'ALERTE', hold: 'MAINTENEZ…', panic_sub: 'maintenez 2 secondes', keep_holding: 'continuez à maintenir',
     alert_sent_full: 'ALERTE ENVOYÉE', team_notified: 'Votre équipe a été alertée.', tap_dismiss: 'touchez pour fermer',
-    sending_alert: 'Envoi de l’alerte…', alert_sent_msg: '🆘 Alerte envoyée à votre équipe', alert_queued: 'En attente — alerte envoyée à la reconnexion',
+    sending_alert: 'Envoi de l’alerte…', alert_sent_msg: '🆘 Alerte envoyée à votre équipe', alert_sent_silent: '✓ Alerte envoyée (silencieux)', alert_queued: 'En attente — alerte envoyée à la reconnexion',
     signed_out: 'Déconnecté — synchro à la reconnexion', sharing_loc: 'Partage de la position…',
     open_chat: 'OUVRIR LE GROUPE', actions: 'Actions', map: 'Carte',
     chats: 'Groupes', no_chats: 'Aucun groupe partagé pour l’instant.', chats_trust: 'Ouvre une app externe que NOUR ne contrôle pas. Ne rejoignez que des groupes de confiance.', open: 'Ouvrir', team_chat: 'Équipe', org_chat: 'Organisation', account: 'Compte', setup_alerts: 'Configurer les alertes', setup_alerts_sub: 'Recevoir les alertes panique et missions sur votre téléphone', already_setup: 'Déjà configuré — masquer', on_duty: 'En service', off_duty: 'Hors service', off_duty_note: 'Hors service — vous ne recevez aucune notification (ni panique ni appel) jusqu’à votre retour en service. Votre propre bouton panique alerte toujours votre équipe.', off_duty_banner: '🌙 VOUS ÊTES HORS SERVICE — aucune alerte ne vous parvient, ni panique ni appel. Votre bouton panique alerte toujours votre équipe.', broadcasts: 'Annonces', no_broadcasts: 'Aucune annonce pour l’instant.', urgent: 'Urgent', acknowledge: 'Accuser réception', acknowledged: 'Reçu',
@@ -135,7 +135,7 @@ const LANG = {
     manual_loc: 'إدخال الموقع يدويًا (بدون GPS)', lat: 'خط العرض', lon: 'خط الطول',
     panic: 'استغاثة', hold: 'استمر بالضغط…', panic_sub: 'اضغط مع الاستمرار ثانيتين', keep_holding: 'استمر بالضغط للإرسال',
     alert_sent_full: 'تم إرسال الاستغاثة', team_notified: 'تم إخطار فريقك.', tap_dismiss: 'اضغط للإغلاق',
-    sending_alert: 'جارٍ إرسال الاستغاثة…', alert_sent_msg: '🆘 تم إرسال الاستغاثة إلى فريقك', alert_queued: 'في الانتظار — ستُرسل الاستغاثة عند الاتصال',
+    sending_alert: 'جارٍ إرسال الاستغاثة…', alert_sent_msg: '🆘 تم إرسال الاستغاثة إلى فريقك', alert_sent_silent: '✓ تم إرسال الاستغاثة (صامت)', alert_queued: 'في الانتظار — ستُرسل الاستغاثة عند الاتصال',
     signed_out: 'تم تسجيل الخروج — ستتم المزامنة عند الاتصال', sharing_loc: 'جارٍ مشاركة الموقع…',
     open_chat: 'فتح مجموعة الدردشة', actions: 'الإجراءات', map: 'الخريطة',
     chats: 'الدردشات', no_chats: 'لا توجد مجموعات دردشة متاحة لك بعد.', chats_trust: 'يفتح تطبيقًا خارجيًا لا تتحكم به نور. انضمّ فقط إلى المجموعات الموثوقة.', open: 'فتح', team_chat: 'الفريق', org_chat: 'المنظمة', account: 'الحساب', setup_alerts: 'إعداد التنبيهات', setup_alerts_sub: 'استلام تنبيهات الاستغاثة والمهام على هاتفك', already_setup: 'تم الإعداد — إخفاء', on_duty: 'في الخدمة', off_duty: 'خارج الخدمة', off_duty_note: 'خارج الخدمة — لن تصلك أي إشعارات (ولا حتى الاستغاثة أو النداء) حتى تعود إلى الخدمة. زر الاستغاثة الخاص بك ما زال ينبّه فريقك.', off_duty_banner: '🌙 أنت خارج الخدمة — لا تصلك أي تنبيهات، ولا حتى الاستغاثة أو النداء. زر الاستغاثة ما زال ينبّه فريقك.', broadcasts: 'الإعلانات', no_broadcasts: 'لا توجد إعلانات بعد.', urgent: 'عاجل', acknowledge: 'تأكيد الاستلام', acknowledged: 'تم الاستلام',
@@ -181,6 +181,7 @@ export default function NgoFieldPage() {
   const [manLon, setManLon] = useState('')
   const [holding, setHolding] = useState(false)
   const [flash, setFlash] = useState(false)
+  const [safeFlash, setSafeFlash] = useState(false) // brief green "marked safe ✓" after a roll-call answer
   const [checkinQueued, setCheckinQueued] = useState(false)
   // Per-action busy flags — every async action disables its button + shows a visual change
   // the instant it's tapped, so on a slow/2G link nobody thinks "nothing happened" and taps
@@ -487,15 +488,16 @@ export default function NgoFieldPage() {
       await qAdd({ id: `panic|${typeof performance !== 'undefined' ? performance.now() : ''}|${Math.round(Math.random() * 1e9)}`, url: '/api/ngo/safety/panic', body, label: 'panic', method: 'POST' })
       refreshQueueCount()
     }
-    // Silent mode: NO sound, NO flash, no loud message — onlookers see nothing. The
-    // post-fire panel (driven by active_panic) is the only, subdued, change.
+    // Silent mode: NO sound, NO full-screen flash — onlookers must see nothing alarming. But the
+    // worker still gets a DISCREET confirmation (a small neutral line) so they know it fired,
+    // alongside the subdued 'Alert active · Silent' panel. Non-silent gets the loud flash.
     if (!silent) {
       playAlarm()
       setFlash(true)
       setTimeout(() => setFlash(false), 4000)
       setMsg(sent ? t('alert_sent_msg') : t('alert_queued'))
     } else {
-      setMsg(sent ? '' : t('alert_queued'))
+      setMsg(sent ? t('alert_sent_silent') : t('alert_queued'))
     }
     loadState() // surfaces active_panic → reason chips, cancel window, ack feedback
   }
@@ -539,6 +541,8 @@ export default function NgoFieldPage() {
       const { lat, lon } = await resolveCoords()
       const sent = await send('/api/ngo/safety/roll-call/respond', { roll_call_id: state.active_roll_call.id, lat, lon }, 'roll-call')
       setMsg(sent ? t('marked_safe') : t('queued_send'))
+      // Prominent confirmation — a roll-call answer is a safety signal, not a small toast.
+      if (sent) { setSafeFlash(true); setTimeout(() => setSafeFlash(false), 2200) }
       await loadState()
     } finally { setRollBusy(false) }
   }
@@ -636,6 +640,15 @@ export default function NgoFieldPage() {
           <div style={{ fontSize: 32, fontWeight: 800 }}>🆘 {t('alert_sent_full')}</div>
           <div style={{ fontSize: 16, marginTop: 8, opacity: 0.95 }}>{t('team_notified')}</div>
           <div style={{ fontSize: 13, marginTop: 18, opacity: 0.8 }}>{t('tap_dismiss')}</div>
+        </div>
+      )}
+
+      {/* Roll-call answer confirmation — prominent green flash so a worker can't miss that
+          their "safe" signal was recorded (matches the weight of the check-in confirmation). */}
+      {safeFlash && (
+        <div style={safeFlashOverlay} onClick={() => setSafeFlash(false)}>
+          <div style={{ fontSize: 72, fontWeight: 800, lineHeight: 1 }}>✓</div>
+          <div style={{ fontSize: 24, fontWeight: 800, marginTop: 10 }}>{t('marked_safe')}</div>
         </div>
       )}
 
@@ -950,6 +963,7 @@ const panicBar: React.CSSProperties = {
   pointerEvents: 'none',
 }
 const flashOverlay: React.CSSProperties = { position: 'fixed', inset: 0, zIndex: 100, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: '#fff', fontFamily: 'system-ui', animation: 'nourFlash 0.7s ease-in-out infinite', cursor: 'pointer' }
+const safeFlashOverlay: React.CSSProperties = { position: 'fixed', inset: 0, zIndex: 100, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: '#fff', background: 'rgba(35,134,54,0.96)', fontFamily: 'system-ui', cursor: 'pointer' }
 const rollCallBtn: React.CSSProperties = { width: '100%', padding: '18px', background: '#1f6feb', border: '1px solid #58a6ff', color: '#fff', borderRadius: 14, fontSize: 19, fontWeight: 700, cursor: 'pointer', fontFamily: 'system-ui' }
 function statusBtn(active: boolean): React.CSSProperties {
   return { flex: 1, height: 56, borderRadius: 12, fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'system-ui', background: active ? 'rgba(88,166,255,0.18)' : '#161b22', border: active ? '2px solid #58a6ff' : '1px solid #21262d', color: active ? '#58a6ff' : '#c9d1d9' }
