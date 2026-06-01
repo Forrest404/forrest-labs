@@ -27,7 +27,7 @@ const STATUS_LABEL: Record<string, string> = {
   official_verified: 'Official', news_verified: 'News verified', confirmed: 'Confirmed', auto_confirmed: 'Auto',
 }
 const TEAM_STATUS_COLOUR: Record<string, string> = {
-  standby: '#3fb950', deployed: '#d29922', unavailable: '#8b949e', offline: '#484f58',
+  standby: '#3fb950', deployed: '#d29922', unavailable: '#8b949e', offline: '#484f58', off_duty: '#a371f7',
 }
 
 interface CustomIncident {
@@ -70,7 +70,7 @@ function setupBoardLayers(m: any) {
   layer({ id: 'inc-radius-fill', type: 'fill', source: 'inc-radius', paint: { 'fill-color': STATUS_COLOUR_EXPR, 'fill-opacity': ['case', ['get', 'inside'], 0.25, 0.04] } })
   layer({ id: 'inc-radius-line', type: 'line', source: 'inc-radius', paint: { 'line-color': STATUS_COLOUR_EXPR, 'line-width': 1.2, 'line-opacity': ['case', ['get', 'inside'], 0.8, 0.2] } })
   layer({ id: 'inc-dots', type: 'circle', source: 'inc-dots', paint: { 'circle-radius': 7, 'circle-color': STATUS_COLOUR_EXPR, 'circle-opacity': ['case', ['get', 'inside'], 1, 0.3], 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1.5, 'circle-stroke-opacity': ['case', ['get', 'inside'], 0.8, 0.2] } })
-  layer({ id: 'team-dots', type: 'circle', source: 'teams', paint: { 'circle-radius': 8, 'circle-color': ['case', ['==', ['get', 'status'], 'standby'], TEAM_STATUS_COLOUR.standby, ['==', ['get', 'status'], 'deployed'], TEAM_STATUS_COLOUR.deployed, ['==', ['get', 'status'], 'unavailable'], TEAM_STATUS_COLOUR.unavailable, TEAM_STATUS_COLOUR.offline], 'circle-stroke-color': '#0d1117', 'circle-stroke-width': 2 } })
+  layer({ id: 'team-dots', type: 'circle', source: 'teams', paint: { 'circle-radius': 8, 'circle-color': ['case', ['==', ['get', 'status'], 'standby'], TEAM_STATUS_COLOUR.standby, ['==', ['get', 'status'], 'deployed'], TEAM_STATUS_COLOUR.deployed, ['==', ['get', 'status'], 'unavailable'], TEAM_STATUS_COLOUR.unavailable, ['==', ['get', 'status'], 'off_duty'], TEAM_STATUS_COLOUR.off_duty, TEAM_STATUS_COLOUR.offline], 'circle-stroke-color': '#0d1117', 'circle-stroke-width': 2 } })
   layer({ id: 'team-labels', type: 'symbol', source: 'teams', layout: { 'text-field': ['get', 'label'], 'text-size': 11, 'text-offset': [0, 1.4], 'text-anchor': 'top', 'text-max-width': 14 }, paint: { 'text-color': '#e6edf3', 'text-halo-color': 'rgba(0,0,0,0.85)', 'text-halo-width': 1.5 } })
   // Custom (org-created) incidents — severity-coloured square markers + label; an
   // uncovered one shows an amber ring.

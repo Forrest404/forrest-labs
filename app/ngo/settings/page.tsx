@@ -173,7 +173,7 @@ export default function NgoSettingsPage() {
               <Section title="Availability">
                 <Toggle label="Off duty" checked={account.off_duty} onChange={(v) => setA('off_duty', v)} />
                 <div style={{ fontSize: 11, color: '#484f58', marginTop: -4 }}>
-                  When off duty you won’t get dispatches, broadcasts or other alerts, and you won’t be flagged for missed check-ins. <b style={{ color: '#d29922' }}>Panic and roll-call still reach you.</b>
+                  When off duty you receive <b style={{ color: '#d29922' }}>no notifications at all</b> — not even panic or roll-call — and you won’t be flagged for missed check-ins. Your own panic button still alerts your team.
                 </div>
               </Section>
 

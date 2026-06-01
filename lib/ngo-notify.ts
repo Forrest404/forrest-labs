@@ -152,9 +152,11 @@ export async function sendSms(phone: string, body: string): Promise<{ ok: boolea
 // ── Urgency-driven delivery engine ─────────────────────────────────────────────
 // Every feature calls one of the resolvers below with an `event`; urgency is fixed per
 // event here (never passed in, so it can't be downgraded). CRITICAL + HIGH are life-
-// safety / operational and are NEVER muted by prefs, quiet hours, off-duty, or flood
-// limits — the engine short-circuits before any preference lookup for them. Only
-// NORMAL/LOW consult preferences. This is the hard rule, enforced in code.
+// safety / operational and are NEVER muted by prefs, quiet hours, or flood limits — the
+// engine short-circuits before those preference lookups for them. Only NORMAL/LOW consult
+// them. The SOLE exception is OFF DUTY: an off-duty operator is fully silent (zero
+// notifications, including panic/roll-call) until they go back on duty — checked first, for
+// every urgency. This is the hard rule, enforced in code.
 export type Urgency = 'critical' | 'high' | 'normal' | 'low'
 const EVENT_URGENCY: Record<string, Urgency> = {
   panic: 'critical', roll_call: 'critical', panic_dispatch: 'critical', panic_escalate: 'critical',
@@ -239,11 +241,16 @@ async function deliver(supabase: any, args: {
   // notif_push / off-duty / quiet-hours / per-event prefs (which a single org broadcast never
   // could). Recipients fan out in parallel so a large broadcast isn't N sequential sends.
   await Promise.all(recipients.map(async (u) => {
-    // Non-protected gating: off duty, quiet hours, flood. (None of this applies to
-    // CRITICAL/HIGH — those always go through.) Suppression is LOGGED as 'skipped' so a muted
-    // NORMAL/LOW alert is visible in the delivery log rather than silently absent.
+    // OFF DUTY = fully silent. An off-duty operator receives NOTHING — including panic and
+    // roll-call — until they go back on duty. This is the one gate that applies even to
+    // CRITICAL/HIGH events. (Their OWN panic still alerts everyone else: off_duty only filters
+    // them as a *recipient*, never as a sender.) Logged as 'skipped' so it's visible.
+    if (u.off_duty) { await logDelivery(supabase, orgId, u.id, event, urgency, 'push', 'skipped'); return }
+
+    // Other non-protected gating: quiet hours, flood. (These don't apply to CRITICAL/HIGH —
+    // those go through.) Suppression is LOGGED as 'skipped' so a muted NORMAL/LOW alert is
+    // visible in the delivery log rather than silently absent.
     if (!guarded) {
-      if (u.off_duty) { await logDelivery(supabase, orgId, u.id, event, urgency, 'push', 'skipped'); return }
       if (inQuietHours(u.quiet_start, u.quiet_end)) { await logDelivery(supabase, orgId, u.id, event, urgency, 'push', 'skipped'); return }
       if (await floodedFor(supabase, u.id, event)) { await logDelivery(supabase, orgId, u.id, event, urgency, 'push', 'throttled'); return }
     }

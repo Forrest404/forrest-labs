@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { getNgoSession, requireRole } from '@/lib/ngo-auth'
 import { pointInPolygon } from '@/lib/ngo-geo'
+import { availabilityByTeam, isTeamOffDuty } from '@/lib/ngo-safety'
 
 // Situation-board data for the caller's organisation. READ-ONLY on clusters —
 // the board never writes to the verification pipeline. Everything is scoped to
@@ -82,6 +83,9 @@ export async function GET(request: NextRequest) {
     .select('id, name, type, team_status ( status, last_lat, last_lon, last_seen_at )')
     .eq('org_id', orgId)
 
+  // A team whose every linked member is off duty shows as 'off_duty' on the board.
+  const availability = await availabilityByTeam(supabase, (teams ?? []).map((t: any) => t.id))
+
   const teamPins = (teams ?? [])
     .map((t: any) => {
       const s = Array.isArray(t.team_status) ? t.team_status[0] : t.team_status
@@ -89,7 +93,7 @@ export async function GET(request: NextRequest) {
         id: t.id,
         name: t.name,
         type: t.type,
-        status: s?.status ?? 'offline',
+        status: isTeamOffDuty(availability[t.id]) ? 'off_duty' : (s?.status ?? 'offline'),
         lat: s?.last_lat ?? null,
         lon: s?.last_lon ?? null,
         last_seen_at: s?.last_seen_at ?? null,

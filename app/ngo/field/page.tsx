@@ -94,7 +94,7 @@ const LANG = {
     sending_alert: 'Sending alert…', alert_sent_msg: '🆘 Alert sent to your team', alert_queued: 'Queued — alert will send when online',
     signed_out: 'Signed out — will sync when back online', sharing_loc: 'Sharing location…',
     open_chat: 'OPEN GROUP CHAT', actions: 'Actions', map: 'Map',
-    chats: 'Chats', no_chats: 'No group chats shared with you yet.', chats_trust: 'Opens an external app NOUR doesn’t control. Only join groups you trust.', open: 'Open', team_chat: 'Team', org_chat: 'Organisation', account: 'Account', setup_alerts: 'Set up alerts', setup_alerts_sub: 'Get panic & dispatch notifications on your phone', on_duty: 'On duty', off_duty: 'Off duty', off_duty_note: 'Off duty — no dispatches/alerts and no missed-check-in flags. Panic & roll call still reach you.', broadcasts: 'Broadcasts', no_broadcasts: 'No broadcasts yet.', urgent: 'Urgent', acknowledge: 'Acknowledge', acknowledged: 'Acknowledged',
+    chats: 'Chats', no_chats: 'No group chats shared with you yet.', chats_trust: 'Opens an external app NOUR doesn’t control. Only join groups you trust.', open: 'Open', team_chat: 'Team', org_chat: 'Organisation', account: 'Account', setup_alerts: 'Set up alerts', setup_alerts_sub: 'Get panic & dispatch notifications on your phone', already_setup: 'Already set up — hide', on_duty: 'On duty', off_duty: 'Off duty', off_duty_note: 'Off duty — you get no notifications at all (not even panic or roll call) until you go back on duty. Your own panic button still alerts your team.', broadcasts: 'Broadcasts', no_broadcasts: 'No broadcasts yet.', urgent: 'Urgent', acknowledge: 'Acknowledge', acknowledged: 'Acknowledged',
     silent_mode: 'Silent', alert_active: 'Alert active', help_seen: 'Help has seen this',
     choose_reason: 'What’s happening? (optional)', cancel_false_alarm: 'Cancel — false alarm',
     locked_note: 'Locked — only a responder can resolve this now', cancelled: 'Alert cancelled',
@@ -116,7 +116,7 @@ const LANG = {
     sending_alert: 'Envoi de l’alerte…', alert_sent_msg: '🆘 Alerte envoyée à votre équipe', alert_queued: 'En attente — alerte envoyée à la reconnexion',
     signed_out: 'Déconnecté — synchro à la reconnexion', sharing_loc: 'Partage de la position…',
     open_chat: 'OUVRIR LE GROUPE', actions: 'Actions', map: 'Carte',
-    chats: 'Groupes', no_chats: 'Aucun groupe partagé pour l’instant.', chats_trust: 'Ouvre une app externe que NOUR ne contrôle pas. Ne rejoignez que des groupes de confiance.', open: 'Ouvrir', team_chat: 'Équipe', org_chat: 'Organisation', account: 'Compte', setup_alerts: 'Configurer les alertes', setup_alerts_sub: 'Recevoir les alertes panique et missions sur votre téléphone', on_duty: 'En service', off_duty: 'Hors service', off_duty_note: 'Hors service — pas d’alertes ni de signalement d’absence de pointage. Les alertes panique et appel restent actives.', broadcasts: 'Annonces', no_broadcasts: 'Aucune annonce pour l’instant.', urgent: 'Urgent', acknowledge: 'Accuser réception', acknowledged: 'Reçu',
+    chats: 'Groupes', no_chats: 'Aucun groupe partagé pour l’instant.', chats_trust: 'Ouvre une app externe que NOUR ne contrôle pas. Ne rejoignez que des groupes de confiance.', open: 'Ouvrir', team_chat: 'Équipe', org_chat: 'Organisation', account: 'Compte', setup_alerts: 'Configurer les alertes', setup_alerts_sub: 'Recevoir les alertes panique et missions sur votre téléphone', already_setup: 'Déjà configuré — masquer', on_duty: 'En service', off_duty: 'Hors service', off_duty_note: 'Hors service — vous ne recevez aucune notification (ni panique ni appel) jusqu’à votre retour en service. Votre propre bouton panique alerte toujours votre équipe.', broadcasts: 'Annonces', no_broadcasts: 'Aucune annonce pour l’instant.', urgent: 'Urgent', acknowledge: 'Accuser réception', acknowledged: 'Reçu',
     silent_mode: 'Silencieux', alert_active: 'Alerte active', help_seen: 'Les secours ont vu',
     choose_reason: 'Que se passe-t-il ? (facultatif)', cancel_false_alarm: 'Annuler — fausse alerte',
     locked_note: 'Verrouillé — seul un répondant peut clôturer', cancelled: 'Alerte annulée',
@@ -138,7 +138,7 @@ const LANG = {
     sending_alert: 'جارٍ إرسال الاستغاثة…', alert_sent_msg: '🆘 تم إرسال الاستغاثة إلى فريقك', alert_queued: 'في الانتظار — ستُرسل الاستغاثة عند الاتصال',
     signed_out: 'تم تسجيل الخروج — ستتم المزامنة عند الاتصال', sharing_loc: 'جارٍ مشاركة الموقع…',
     open_chat: 'فتح مجموعة الدردشة', actions: 'الإجراءات', map: 'الخريطة',
-    chats: 'الدردشات', no_chats: 'لا توجد مجموعات دردشة متاحة لك بعد.', chats_trust: 'يفتح تطبيقًا خارجيًا لا تتحكم به نور. انضمّ فقط إلى المجموعات الموثوقة.', open: 'فتح', team_chat: 'الفريق', org_chat: 'المنظمة', account: 'الحساب', setup_alerts: 'إعداد التنبيهات', setup_alerts_sub: 'استلام تنبيهات الاستغاثة والمهام على هاتفك', on_duty: 'في الخدمة', off_duty: 'خارج الخدمة', off_duty_note: 'خارج الخدمة — لا تنبيهات ولا تنبيه بفوات التفقد. تنبيهات الاستغاثة والنداء تصلك دائمًا.', broadcasts: 'الإعلانات', no_broadcasts: 'لا توجد إعلانات بعد.', urgent: 'عاجل', acknowledge: 'تأكيد الاستلام', acknowledged: 'تم الاستلام',
+    chats: 'الدردشات', no_chats: 'لا توجد مجموعات دردشة متاحة لك بعد.', chats_trust: 'يفتح تطبيقًا خارجيًا لا تتحكم به نور. انضمّ فقط إلى المجموعات الموثوقة.', open: 'فتح', team_chat: 'الفريق', org_chat: 'المنظمة', account: 'الحساب', setup_alerts: 'إعداد التنبيهات', setup_alerts_sub: 'استلام تنبيهات الاستغاثة والمهام على هاتفك', already_setup: 'تم الإعداد — إخفاء', on_duty: 'في الخدمة', off_duty: 'خارج الخدمة', off_duty_note: 'خارج الخدمة — لن تصلك أي إشعارات (ولا حتى الاستغاثة أو النداء) حتى تعود إلى الخدمة. زر الاستغاثة الخاص بك ما زال ينبّه فريقك.', broadcasts: 'الإعلانات', no_broadcasts: 'لا توجد إعلانات بعد.', urgent: 'عاجل', acknowledge: 'تأكيد الاستلام', acknowledged: 'تم الاستلام',
     silent_mode: 'صامت', alert_active: 'الاستغاثة نشطة', help_seen: 'شاهد المنقذون التنبيه',
     choose_reason: 'ماذا يحدث؟ (اختياري)', cancel_false_alarm: 'إلغاء — إنذار خاطئ',
     locked_note: 'مقفل — لا يمكن إنهاؤه إلا من قبل المنقذ', cancelled: 'تم إلغاء الاستغاثة',
@@ -205,6 +205,7 @@ export default function NgoFieldPage() {
   const [chatLinks, setChatLinks] = useState<ChatLink[]>([])
   const [offDuty, setOffDuty] = useState(false)
   const [offDutyBusy, setOffDutyBusy] = useState(false)
+  const [notifSetupDone, setNotifSetupDone] = useState(true) // assume done until /me says otherwise (avoids a flash)
   const [broadcasts, setBroadcasts] = useState<{ id: string; body: string; urgency: string; created_at: string; sender_name: string; acknowledged_at: string | null }[]>([])
   const [ackBusy, setAckBusy] = useState<string | null>(null)
   const mapEl = useRef<HTMLDivElement | null>(null)
@@ -229,11 +230,20 @@ export default function NgoFieldPage() {
   }
   const unackedUrgent = broadcasts.filter((b) => b.urgency === 'urgent' && !b.acknowledged_at).length
 
-  // Own availability (off-duty). While off duty: no dispatches/alerts, not flagged for
-  // missed check-ins — but panic + roll-call still reach the worker.
+  // Own availability (off-duty) + whether push setup is done (hides the one-time nudge).
+  // While off duty the operator gets NO notifications at all and isn't flagged for missed
+  // check-ins; their own panic still alerts the team.
   useEffect(() => {
-    fetch('/api/ngo/me', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).then((d) => { if (d?.account) setOffDuty(!!d.account.off_duty) }).catch(() => {})
+    fetch('/api/ngo/me', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).then((d) => {
+      if (d?.account) { setOffDuty(!!d.account.off_duty); setNotifSetupDone(!!d.account.notif_setup_done) }
+    }).catch(() => {})
   }, [])
+  // Dismiss the setup nudge — they confirm push is already working. Persists server-side so it
+  // stays hidden across devices/reloads.
+  const dismissSetup = async () => {
+    setNotifSetupDone(true)
+    try { await fetch('/api/ngo/me', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notif_setup_done: true }) }) } catch { /* best effort */ }
+  }
   const toggleOffDuty = async () => {
     const next = !offDuty
     setOffDutyBusy(true); setOffDuty(next)
@@ -649,7 +659,8 @@ export default function NgoFieldPage() {
         {online && refreshError && (
           <div style={{ fontSize: 12, color: '#d29922', marginTop: 6 }}>{t('server_retry')}</div>
         )}
-        {/* Availability — off-duty mutes ops alerts + missed-check-in flags; panic/roll-call still arrive. */}
+        {/* Availability — off-duty makes the operator fully silent (no notifications at all, not
+            even panic/roll-call) and exempt from missed-check-in flags. Their own panic still fires. */}
         <div style={{ marginTop: 8 }}>
           <button type="button" onClick={toggleOffDuty} disabled={offDutyBusy} style={{
             width: '100%', minHeight: 40, borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'system-ui',
@@ -676,11 +687,18 @@ export default function NgoFieldPage() {
       {tab === 'actions' && (<>
       {/* One-time nudge to set up push alerts (ntfy) — field coordinators are the most
           important recipients, so make the path to setup obvious. Links to /ngo/settings
-          (allowed for this role by middleware), where the download + tutorial live. */}
-      <a href="/ngo/settings" style={{ display: 'block', textDecoration: 'none', background: '#161b22', border: '1px solid #21262d', borderRadius: 10, padding: '10px 12px' }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: '#58a6ff' }}>🔔 {t('setup_alerts')} →</div>
-        <div style={{ fontSize: 12, color: '#8b949e', marginTop: 2 }}>{t('setup_alerts_sub')}</div>
-      </a>
+          (allowed for this role by middleware), where the download + tutorial live. Hidden once
+          the user has set up notifications (sent a test push, or dismissed it here). */}
+      {!notifSetupDone && (
+        <div style={{ display: 'flex', alignItems: 'stretch', gap: 8 }}>
+          <a href="/ngo/settings" style={{ flex: 1, textDecoration: 'none', background: '#161b22', border: '1px solid #21262d', borderRadius: 10, padding: '10px 12px' }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#58a6ff' }}>🔔 {t('setup_alerts')} →</div>
+            <div style={{ fontSize: 12, color: '#8b949e', marginTop: 2 }}>{t('setup_alerts_sub')}</div>
+          </a>
+          <button type="button" onClick={dismissSetup} title={t('already_setup')} aria-label={t('already_setup')}
+            style={{ flex: '0 0 auto', background: '#161b22', border: '1px solid #21262d', borderRadius: 10, color: '#8b949e', fontSize: 18, cursor: 'pointer', fontFamily: 'system-ui', padding: '0 12px' }}>✓</button>
+        </div>
+      )}
       {/* Active-panic panel — appears after a panic fires (driven by polled state, so it
           survives reloads + offline→online sync). Reason chips, the false-alarm cancel
           window, and "help has seen this". Subdued in silent mode. */}

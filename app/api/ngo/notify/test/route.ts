@@ -24,5 +24,9 @@ export async function POST(request: NextRequest) {
     priority: 'high',
     tags: 'white_check_mark',
   })
+  // Reaching the test step means the user has been through setup — mark it done so the
+  // one-time "Set up alerts" nudge on the field screen disappears. Tolerant: a not-yet-applied
+  // migration must not fail the test itself.
+  try { await supabase.from('ngo_users').update({ notif_setup_done: true }).eq('id', session.userId) } catch { /* additive column */ }
   return NextResponse.json({ ok: res.ok, stubbed: res.stubbed })
 }

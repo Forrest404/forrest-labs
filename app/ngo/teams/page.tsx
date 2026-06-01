@@ -7,11 +7,11 @@ import { useEffect, useState, useCallback } from 'react'
 
 const TEAM_TYPES = ['medical', 'rescue', 'assessment', 'shelter', 'logistics'] as const
 
-interface Team { id: string; name: string; type: string; capacity: number | null; status: string; group_chat_url?: string | null }
+interface Team { id: string; name: string; type: string; capacity: number | null; status: string; all_off_duty?: boolean; group_chat_url?: string | null }
 interface Member { id: string; name: string; role: string | null; phone: string | null; emergency_contact: string | null; ngo_user_id: string | null }
 
 const STATUS_COLOUR: Record<string, string> = {
-  standby: '#3fb950', deployed: '#d29922', unavailable: '#8b949e', offline: '#484f58',
+  standby: '#3fb950', deployed: '#d29922', unavailable: '#8b949e', offline: '#484f58', off_duty: '#a371f7',
 }
 
 export default function NgoTeamsPage() {
@@ -162,7 +162,7 @@ export default function NgoTeamsPage() {
             <div key={t.id} onClick={() => setSelected(t.id)} style={{ ...card, cursor: 'pointer', borderColor: selected === t.id ? '#58a6ff' : '#21262d', marginBottom: 8 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ fontWeight: 600 }}>{t.name}</div>
-                <span style={{ fontSize: 11, color: STATUS_COLOUR[t.status] ?? '#484f58' }}>● {t.status}</span>
+                <span style={{ fontSize: 11, color: STATUS_COLOUR[t.all_off_duty ? 'off_duty' : t.status] ?? '#484f58' }}>● {t.all_off_duty ? '🌙 off duty' : t.status}</span>
               </div>
               <div style={{ fontSize: 12, color: '#8b949e', marginTop: 4 }}>
                 {t.type}{t.capacity != null ? ` · capacity ${t.capacity}` : ''}

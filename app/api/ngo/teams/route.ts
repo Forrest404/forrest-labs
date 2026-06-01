@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { getNgoSession, requireRole } from '@/lib/ngo-auth'
 import { rateLimit, tooMany, MUTATION_MAX, MUTATION_WINDOW } from '@/lib/rate-limit'
-import { notifiableCountsByTeam } from '@/lib/ngo-safety'
+import { notifiableCountsByTeam, availabilityByTeam, isTeamOffDuty } from '@/lib/ngo-safety'
 
 // Teams for the caller's organisation. All access scoped to session.orgId.
 // ngo_teams.type is CHECK-constrained to this set.
@@ -28,7 +28,10 @@ export async function GET(request: NextRequest) {
 
   // Members linked to an active account per team — so callers can warn about teams that
   // can't actually be alerted (roster is name-only / unlinked).
-  const notifiable = await notifiableCountsByTeam(supabase, (res.data ?? []).map((t: any) => t.id))
+  const teamIds = (res.data ?? []).map((t: any) => t.id)
+  const notifiable = await notifiableCountsByTeam(supabase, teamIds)
+  // When every linked member of a team is off duty, the whole team is off duty in the dashboard.
+  const availability = await availabilityByTeam(supabase, teamIds)
 
   const shaped = (res.data ?? []).map((t: any) => {
     const status = Array.isArray(t.team_status) ? t.team_status[0] : t.team_status
@@ -38,6 +41,7 @@ export async function GET(request: NextRequest) {
       type: t.type,
       capacity: t.capacity,
       status: status?.status ?? 'offline',
+      all_off_duty: isTeamOffDuty(availability[t.id]),
       last_lat: status?.last_lat ?? null,
       last_lon: status?.last_lon ?? null,
       last_seen_at: status?.last_seen_at ?? null,
