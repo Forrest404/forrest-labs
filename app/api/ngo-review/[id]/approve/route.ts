@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { getSessionFromRequest } from '@/lib/admin/auth'
 import { logAdminAction } from '@/lib/admin/audit'
+import { sendEmail, logEmail, approvalEmail } from '@/lib/email'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.noursystems.org'
 
@@ -44,22 +45,33 @@ export async function POST(
     .limit(1)
     .maybeSingle()
 
-  console.log(
-    `[ngo-review] APPROVED org "${org.name}" (${id}). ` +
-      `Notify ${adminUser?.email ?? 'unknown'} — they can now sign in at ${APP_URL}/ngo/login`,
-  )
+  // Email the org admin their approval + login link (best-effort; never fails the approval).
+  let emailStatus: 'sent' | 'stubbed' | 'failed' | 'no_admin' = 'no_admin'
+  if (adminUser?.email) {
+    const tpl = approvalEmail(org.name)
+    const result = await sendEmail({ to: adminUser.email, ...tpl })
+    await logEmail(supabase, 'approval', adminUser.email, id, result)
+    emailStatus = result.ok ? 'sent' : result.stubbed ? 'stubbed' : 'failed'
+    if (emailStatus !== 'sent') {
+      console.log(`[ngo-review] APPROVED "${org.name}" (${id}); approval email ${emailStatus} — admin can sign in at ${APP_URL}/ngo/login`)
+    }
+  }
 
   await logAdminAction({
     action: 'ngo_org_approved',
     entityType: 'ngo_organisation',
     entityId: id,
     sessionId: admin.sessionId,
-    details: { org: org.name, note: `Approved — admin ${adminUser?.email ?? 'unknown'} can now sign in` },
+    details: { org: org.name, email: emailStatus },
   })
 
   return NextResponse.json({
     success: true,
     notified: adminUser?.email ?? null,
-    note: 'Email not wired — approval + login link logged to the server console.',
+    email_status: emailStatus,
+    note: emailStatus === 'sent' ? 'Approval email sent.'
+      : emailStatus === 'stubbed' ? 'Approved — email not configured (set RESEND_API_KEY + EMAIL_FROM).'
+      : emailStatus === 'failed' ? 'Approved — email send failed (check domain verification).'
+      : 'Approved — no org admin email on file.',
   })
 }
