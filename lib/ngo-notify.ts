@@ -28,6 +28,9 @@ type Priority = 'low' | 'default' | 'high' | 'urgent'
 // is always well-formed.
 const NTFY_BASE_URL = (process.env.NTFY_BASE_URL ?? 'https://ntfy.sh').replace(/\/+$/, '')
 
+// ntfy's JSON API takes a numeric priority (1=min … 5=max/urgent); map our urgency words.
+const NTFY_PRIORITY: Record<Priority, number> = { low: 2, default: 3, high: 4, urgent: 5 }
+
 // Strip decimal coordinate pairs / lone high-precision decimals (lat,lon) and bare
 // map links as a defence-in-depth backstop. Bodies should already be generic; this
 // guarantees nothing coordinate-shaped reaches the relay if a call site regresses.
@@ -101,15 +104,22 @@ export async function sendPush(topic: string | null, opts: {
     return { ok: false, stubbed: true }
   }
   try {
-    const res = await fetch(`${NTFY_BASE_URL}/${channel}`, {
+    // Publish as JSON (NOT via headers). The title/message routinely contain emoji and
+    // non-ASCII (🆘 PANIC, 🚑 Dispatch, Arabic, …) which are INVALID in HTTP header values —
+    // `fetch` throws "Cannot convert argument to a ByteString" before the request is sent, so
+    // the header form silently FAILED every alert with an emoji title (panic/roll-call/
+    // dispatch/broadcast). JSON carries them safely in the UTF-8 body. POST to the ntfy root;
+    // the topic travels in the payload. ntfy JSON priority is 1..5.
+    const res = await fetch(NTFY_BASE_URL, {
       method: 'POST',
-      headers: {
-        Title: scrubSensitive(opts.title),
-        Priority: opts.priority ?? 'default',
-        Tags: opts.tags ?? 'bell',
-        'Content-Type': 'text/plain',
-      },
-      body: scrubSensitive(opts.body),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        topic: channel,
+        title: scrubSensitive(opts.title),
+        message: scrubSensitive(opts.body),
+        priority: NTFY_PRIORITY[opts.priority ?? 'default'],
+        tags: opts.tags ? opts.tags.split(',').map((t) => t.trim()).filter(Boolean) : undefined,
+      }),
     })
     return { ok: res.ok, stubbed: false }
   } catch (err) {
