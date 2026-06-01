@@ -186,6 +186,9 @@ export default function NgoSettingsPage() {
                   <Field label="to"><input type="time" style={field} value={minToTime(account.quiet_end)} onChange={(e) => setA('quiet_end', timeToMin(e.target.value))} /></Field>
                 </div>
                 <div style={{ fontSize: 11, color: '#484f58' }}>Quiet hours mute non-urgent SMS only (evaluated in UTC). Leave blank for none.</div>
+                <div style={{ height: 1, background: '#21262d' }} />
+                <div style={{ fontSize: 12, color: '#8b949e' }}>Which non-urgent events reach me, and how:</div>
+                <EventPrefs scope="user" />
               </Section>
 
               <button type="button" onClick={saveAccount} disabled={busy || !account.full_name?.trim()} style={{ ...primaryBtn, opacity: busy || !account.full_name?.trim() ? 0.6 : 1 }}>{busy ? 'Saving…' : 'Save account'}</button>
@@ -261,16 +264,15 @@ export default function NgoSettingsPage() {
           )}
 
           {/* NOTIFICATIONS — org defaults (org_admin) */}
-          {tab === 'notif' && org && isAdmin && (
+          {tab === 'notif' && isAdmin && (
             <div style={col}>
-              <div style={{ fontSize: 12, color: '#8b949e' }}>Which event types raise an org-wide alert. Each person’s own preferences (in My account) can further limit what reaches them.</div>
-              <Toggle label="New verified incident in your area" checked={org.alert_new_incident} onChange={(v) => setO('alert_new_incident', v)} />
-              <Toggle label="Low acknowledgement on an alert" checked={org.alert_low_ack} onChange={(v) => setO('alert_low_ack', v)} />
-              <div style={{ height: 1, background: '#21262d', margin: '4px 0' }} />
-              <div style={{ fontSize: 11, color: '#d29922' }}>Safety-critical — always delivered to the responder chain regardless of this toggle; it only affects the wider informational notice.</div>
-              <Toggle label="Panic / duress" checked={org.alert_panic} onChange={(v) => setO('alert_panic', v)} />
-              <Toggle label="Missed check-in" checked={org.alert_missed_checkin} onChange={(v) => setO('alert_missed_checkin', v)} />
-              <button type="button" onClick={() => patchOrg({ alert_new_incident: org.alert_new_incident, alert_low_ack: org.alert_low_ack, alert_panic: org.alert_panic, alert_missed_checkin: org.alert_missed_checkin }, 'Notification defaults saved.')} disabled={busy} style={primaryBtn}>{busy ? 'Saving…' : 'Save defaults'}</button>
+              <div style={{ fontSize: 12, color: '#8b949e' }}>Default routing for non-urgent events org-wide. Each person’s own preferences (My account) override these. Changes save as you toggle.</div>
+              <Section title="Event defaults">
+                <EventPrefs scope="org" />
+              </Section>
+              <div style={{ fontSize: 11, color: '#d29922' }}>
+                Safety-critical alerts — <b>panic, roll call, missed check-in, and dispatch</b> — are always delivered to the responder chain by push and SMS. They can’t be turned off here or by personal preferences.
+              </div>
             </div>
           )}
 
@@ -339,6 +341,49 @@ function ChangeCredential({ isPin, onMsg, onErr }: { isPin: boolean; onMsg: (m: 
       <button type="button" onClick={submit} disabled={busy || !next} style={{ ...primaryBtn, opacity: busy || !next ? 0.6 : 1 }}>{busy ? '…' : isPin ? 'Change PIN' : 'Change password'}</button>
     </div>
   )
+}
+
+const EVENT_LABEL: Record<string, string> = { new_incident: 'New incident in area', broadcast: 'Broadcast', report_ready: 'Report ready' }
+
+// Per-event channel preferences for the tunable NORMAL/LOW events. scope='user' edits the
+// signed-in user's prefs; scope='org' (org_admin) edits org defaults. Saves on each toggle.
+function EventPrefs({ scope }: { scope: 'user' | 'org' }) {
+  const [data, setData] = useState<{ events: string[]; user: any; org?: any } | null>(null)
+  const [err, setErr] = useState<string | null>(null)
+  useEffect(() => {
+    fetch('/api/ngo/notify/prefs', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).then((d) => d && setData(d)).catch(() => setErr('Could not load preferences.'))
+  }, [])
+  const rows = scope === 'org' ? data?.org : data?.user
+  const set = async (event: string, patch: Record<string, boolean>) => {
+    if (!data) return
+    const cur = (scope === 'org' ? data.org : data.user)[event]
+    const next = { ...cur, ...patch }
+    setData({ ...data, ...(scope === 'org' ? { org: { ...data.org, [event]: next } } : { user: { ...data.user, [event]: next } }) })
+    await fetch('/api/ngo/notify/prefs', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ scope, event, ...next }) }).catch(() => setErr('Could not save.'))
+  }
+  if (err) return <div style={{ fontSize: 12, color: '#f85149' }}>{err}</div>
+  if (!data || !rows) return <div style={{ fontSize: 12, color: '#8b949e' }}>Loading…</div>
+  return (
+    <div style={{ display: 'grid', gap: 10 }}>
+      {data.events.map((e) => {
+        const v = rows[e]
+        return (
+          <div key={e} style={{ borderTop: '1px solid #21262d', paddingTop: 8 }}>
+            <div style={{ fontSize: 13, color: '#e6edf3', marginBottom: 4 }}>{EVENT_LABEL[e] ?? e}</div>
+            <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 12, color: '#8b949e' }}>
+              {scope === 'org' && <Mini label="enabled" checked={v.enabled} onChange={(c) => set(e, { enabled: c })} />}
+              <Mini label="push" checked={v.push} onChange={(c) => set(e, { push: c })} />
+              <Mini label="SMS" checked={v.sms} onChange={(c) => set(e, { sms: c })} />
+              <Mini label="email" checked={v.email} onChange={(c) => set(e, { email: c })} />
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+function Mini({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
+  return <label style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}><input type="checkbox" checked={!!checked} onChange={(e) => onChange(e.target.checked)} />{label}</label>
 }
 
 function ProviderRow({ label, ok, note }: { label: string; ok?: boolean; note?: string }) {
