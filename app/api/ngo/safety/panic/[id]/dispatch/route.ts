@@ -44,6 +44,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   // Sanitised broadcast (security C1): name/place/map link stay in the dispatch note
   // (authenticated dashboard) above; the relay carries only a generic notice.
   await notifyTeam(supabase, teamId, {
+    event: 'panic_dispatch',
     title: '🆘 Panic response',
     body: `${team.name}: panic response assigned. Open NOUR for the location.`,
     priority: 'urgent', tags: 'rotating_light',

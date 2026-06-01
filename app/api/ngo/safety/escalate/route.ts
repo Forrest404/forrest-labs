@@ -52,7 +52,16 @@ export async function POST(request: NextRequest) {
       .eq('role', 'field_coordinator')
       .eq('status', 'active')
 
+    // Off-duty coordinators aren't expected to check in — never raise a missed-check-in
+    // alarm for them. Tolerant of a not-yet-applied column (treats all as on-duty).
+    let offDuty = new Set<string>()
+    try {
+      const { data: od } = await supabase.from('ngo_users').select('id').eq('org_id', org.id).eq('off_duty', true)
+      offDuty = new Set((od ?? []).map((d: any) => d.id))
+    } catch { /* column absent → no one off-duty */ }
+
     for (const u of coords ?? []) {
+      if (offDuty.has(u.id)) continue
       checked++
       const { data: last } = await supabase
         .from('check_ins').select('created_at').eq('ngo_user_id', u.id)
@@ -76,6 +85,7 @@ export async function POST(request: NextRequest) {
       if (level === 'red') {
         red++
         await notifyOrgRoles(supabase, org.id, ['org_admin'], {
+          event: 'missed_checkin',
           title: '🔴 Missed check-in (escalated)',
           body: `A field worker has missed check-in for over ${2 * windowMin} min. Open NOUR.`,
           priority: 'urgent', tags: 'red_circle',
@@ -83,6 +93,7 @@ export async function POST(request: NextRequest) {
       } else {
         amber++
         await notifyOrgRoles(supabase, org.id, ['team_leader'], {
+          event: 'missed_checkin',
           title: '🟠 Missed check-in',
           body: `A field worker has missed a check-in (> ${windowMin} min). Open NOUR.`,
           priority: 'high', tags: 'warning',

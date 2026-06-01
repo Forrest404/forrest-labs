@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
   const supabase = createServiceClient()
   const { data, error } = await supabase
     .from('ngo_users')
-    .select('full_name, email, phone, role, language, notif_push, notif_sms, quiet_start, quiet_end, password_hash, pin_hash, totp_enabled')
+    .select('full_name, email, phone, role, language, notif_push, notif_sms, quiet_start, quiet_end, off_duty, password_hash, pin_hash, totp_enabled')
     .eq('id', session!.userId)
     .maybeSingle()
   if (error || !data) return NextResponse.json({ error: 'Account not found' }, { status: 404 })
@@ -26,6 +26,7 @@ export async function GET(request: NextRequest) {
       notif_sms: (data as any).notif_sms ?? true,
       quiet_start: (data as any).quiet_start ?? null,
       quiet_end: (data as any).quiet_end ?? null,
+      off_duty: (data as any).off_duty ?? false,
       has_password: !!data.password_hash,
       has_pin: !!data.pin_hash,
       totp_enabled: !!(data as any).totp_enabled,
@@ -56,6 +57,7 @@ export async function PATCH(request: NextRequest) {
   }
   if (body.notif_push !== undefined) update.notif_push = !!body.notif_push
   if (body.notif_sms !== undefined) update.notif_sms = !!body.notif_sms
+  if (body.off_duty !== undefined) update.off_duty = !!body.off_duty
   for (const k of ['quiet_start', 'quiet_end'] as const) {
     if (body[k] !== undefined) {
       if (body[k] === null || body[k] === '') { update[k] = null; continue }

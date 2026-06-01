@@ -28,10 +28,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (error) return NextResponse.json({ error: 'Could not recall' }, { status: 500 })
 
   await notifyTeam(supabase, d.team_id, {
+    event: 'dispatch',
     title: '↩️ Recalled',
     body: `Stand down — your dispatch has been recalled${reason ? `: ${reason}` : ''}.`,
     priority: 'urgent', tags: 'leftwards_arrow_with_hook',
-  }, { respectPrefs: true })
+  })
 
   return NextResponse.json({ success: true })
 }

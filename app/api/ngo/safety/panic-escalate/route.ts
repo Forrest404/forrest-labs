@@ -55,12 +55,14 @@ export async function POST(request: NextRequest) {
       // Sanitised broadcast (security C1): no name/timing detail on the relay.
       if (target >= 2) {
         await notifyOrgRoles(supabase, org.id, ['org_admin'], {
+          event: 'panic_escalate',
           title: '🔴 PANIC still unacknowledged',
           body: 'A duress alert is still unacknowledged. Open NOUR and respond now.',
           priority: 'urgent', tags: 'rotating_light',
         })
       } else {
         await notifyOrgRoles(supabase, org.id, ['org_admin', 'team_leader'], {
+          event: 'panic_escalate',
           title: '🆘 PANIC unacknowledged',
           body: 'A duress alert is unacknowledged. Open NOUR and respond now.',
           priority: 'urgent', tags: 'rotating_light',

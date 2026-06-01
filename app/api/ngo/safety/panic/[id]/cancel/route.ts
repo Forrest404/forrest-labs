@@ -37,6 +37,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   // name on the relay; the board shows which alert cleared.
   const orgId = (panic as any).org_id ?? session!.orgId
   await notifyOrgRoles(supabase, orgId, ['org_admin', 'team_leader'], {
+    event: 'panic_cancel',
     title: '✅ Panic cancelled',
     body: 'A field worker cancelled their duress alert — false alarm.',
     priority: 'high', tags: 'white_check_mark',

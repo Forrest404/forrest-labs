@@ -93,6 +93,7 @@ export async function POST(request: NextRequest) {
   // actionable notice. The worker's identity and last-known coordinates stay behind
   // the authenticated board (which reads the panic_events row written above).
   await notifyOrgRoles(supabase, session!.orgId, ['org_admin', 'team_leader'], {
+    event: 'panic',
     title: '🆘 PANIC',
     body: 'A field worker triggered a duress alert. Open NOUR now to respond.',
     priority: 'urgent',
