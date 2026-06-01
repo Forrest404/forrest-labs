@@ -91,6 +91,17 @@ export default function WarningsPage() {
     return () => { active = false; clearInterval(id) }
   }, [router])
 
+  // Manage a warning: mark all-clear or discard a false/duplicate one. Optimistic update.
+  const [acting, setActing] = useState<string | null>(null)
+  async function actOn(id: string, status: 'all_clear' | 'discarded') {
+    if (status === 'discarded' && !window.confirm('Discard this warning? It will no longer appear as active.')) return
+    setActing(id)
+    try {
+      const r = await fetch('/api/admin/warnings/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) })
+      if (r.ok) setWarnings((ws) => ws.map((w) => (w.id === id ? { ...w, status } : w)))
+    } catch { /* ignore */ } finally { setActing(null) }
+  }
+
   const filtered =
     filter === 'all'
       ? warnings
@@ -157,7 +168,7 @@ export default function WarningsPage() {
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
           <thead>
             <tr style={{ borderBottom: '1px solid #21262d' }}>
-              {['Location', 'Reports', 'Type', 'Confidence', 'Expires', 'Status', 'All clear'].map(
+              {['Location', 'Reports', 'Type', 'Confidence', 'Expires', 'Status', 'All clear', 'Actions'].map(
                 (col) => (
                   <th
                     key={col}
@@ -252,6 +263,18 @@ export default function WarningsPage() {
                         />
                       </div>
                     </div>
+                  </td>
+                  <td style={{ padding: '10px 0' }}>
+                    {w.status === 'active' ? (
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button type="button" disabled={acting === w.id} onClick={() => actOn(w.id, 'all_clear')}
+                          style={{ fontSize: 10, fontWeight: 600, color: '#3fb950', background: 'rgba(63,185,80,0.1)', border: '1px solid rgba(63,185,80,0.3)', borderRadius: 4, padding: '3px 8px', cursor: 'pointer' }}>All clear</button>
+                        <button type="button" disabled={acting === w.id} onClick={() => actOn(w.id, 'discarded')}
+                          style={{ fontSize: 10, fontWeight: 600, color: '#f85149', background: 'rgba(248,81,73,0.1)', border: '1px solid rgba(248,81,73,0.3)', borderRadius: 4, padding: '3px 8px', cursor: 'pointer' }}>Discard</button>
+                      </div>
+                    ) : (
+                      <span style={{ fontSize: 11, color: '#484f58' }}>—</span>
+                    )}
                   </td>
                 </tr>
               )
