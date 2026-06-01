@@ -159,7 +159,7 @@ export type Urgency = 'critical' | 'high' | 'normal' | 'low'
 const EVENT_URGENCY: Record<string, Urgency> = {
   panic: 'critical', roll_call: 'critical', panic_dispatch: 'critical', panic_escalate: 'critical',
   panic_cancel: 'high', missed_checkin: 'high', dispatch: 'high',
-  new_incident: 'normal', broadcast: 'normal', dispatch_update: 'normal',
+  new_incident: 'normal', broadcast: 'normal', dispatch_update: 'normal', team_change: 'normal',
   invite: 'low', password_reset: 'low', report_ready: 'low',
 }
 export function urgencyOf(event: string): Urgency { return EVENT_URGENCY[event] ?? 'normal' }

@@ -27,6 +27,7 @@ export default function NgoTeamsPage() {
   const [memberForm, setMemberForm] = useState({ name: '', role: '', phone: '', emergency_contact: '' })
   const [memberEdit, setMemberEdit] = useState<null | { id: string; name: string; role: string; phone: string; emergency_contact: string }>(null)
   const [inviteModal, setInviteModal] = useState<null | { memberId: string; name: string; email: string }>(null)
+  const [transferModal, setTransferModal] = useState<null | { memberId: string; name: string; targetTeamId: string }>(null)
   const [inviteResult, setInviteResult] = useState<null | { name: string; code: string }>(null)
   const [busy, setBusy] = useState(false)
 
@@ -108,6 +109,20 @@ export default function NgoTeamsPage() {
     const res = await fetch(`/api/ngo/teams/${selected}/members/${memberId}`, { method: 'DELETE' })
     if (res.ok) await loadMembers(selected)
     else setErr((await res.json()).error ?? 'Could not remove member.')
+  }
+
+  async function transferMember() {
+    if (!transferModal || !selected || !transferModal.targetTeamId) { setErr('Choose a team to move them to.'); return }
+    setErr(null); setBusy(true)
+    try {
+      const res = await fetch(`/api/ngo/teams/${selected}/members/${transferModal.memberId}/transfer`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target_team_id: transferModal.targetTeamId }),
+      })
+      const data = await res.json()
+      if (res.ok) { setTransferModal(null); await loadMembers(selected) } // they leave this team's roster
+      else setErr(data.error ?? 'Could not move member.')
+    } finally { setBusy(false) }
   }
 
   async function sendInvite() {
@@ -194,6 +209,9 @@ export default function NgoTeamsPage() {
                     {isAdmin && !m.ngo_user_id && (
                       <button type="button" onClick={() => setInviteModal({ memberId: m.id, name: m.name, email: '' })} style={miniBtn}>Invite</button>
                     )}
+                    {teams.length > 1 && (
+                      <button type="button" onClick={() => setTransferModal({ memberId: m.id, name: m.name, targetTeamId: '' })} style={miniBtn}>Move</button>
+                    )}
                     <button type="button" onClick={() => removeMember(m.id)} style={{ ...miniBtn, color: '#f85149', borderColor: 'rgba(248,81,73,0.4)' }}>Remove</button>
                   </div>
                 </div>
@@ -254,6 +272,24 @@ export default function NgoTeamsPage() {
           <input style={field} value={memberEdit.emergency_contact} onChange={(e) => setMemberEdit({ ...memberEdit, emergency_contact: e.target.value })} />
           <button type="button" onClick={saveMemberEdit} disabled={busy || !memberEdit.name.trim()} style={{ ...primaryBtn, marginTop: 16, opacity: busy || !memberEdit.name.trim() ? 0.6 : 1 }}>
             {busy ? 'Saving…' : 'Save member'}
+          </button>
+        </Modal>
+      )}
+
+      {/* Transfer / move member modal */}
+      {transferModal && (
+        <Modal title={`Move ${transferModal.name}`} onClose={() => setTransferModal(null)}>
+          <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 12 }}>
+            Moves {transferModal.name} to another team in your organisation. Their app access, role
+            and contacts move with them, and if they have a login they’re notified of the change.
+          </div>
+          <label style={labelStyle}>Move to team</label>
+          <select style={field} value={transferModal.targetTeamId} onChange={(e) => setTransferModal({ ...transferModal, targetTeamId: e.target.value })}>
+            <option value="">Select a team…</option>
+            {teams.filter((t) => t.id !== selected).map((t) => <option key={t.id} value={t.id}>{t.name} ({t.type})</option>)}
+          </select>
+          <button type="button" onClick={transferMember} disabled={busy || !transferModal.targetTeamId} style={{ ...primaryBtn, marginTop: 16, opacity: busy || !transferModal.targetTeamId ? 0.6 : 1 }}>
+            {busy ? 'Moving…' : 'Move member'}
           </button>
         </Modal>
       )}
