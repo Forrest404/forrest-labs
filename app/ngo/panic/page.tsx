@@ -24,6 +24,15 @@ function ago(iso: string): string {
   const h = Math.floor(m / 60)
   return h < 24 ? `${h}h ago` : `${Math.floor(h / 24)}d ago`
 }
+// Live "updated Xs ago" for the freshness label. _tick changes each second to force re-render.
+function freshAgo(at: number | null): string {
+  if (at == null) return '—'
+  const s = Math.floor((Date.now() - at) / 1000)
+  if (s < 5) return 'just now'
+  if (s < 60) return `${s}s ago`
+  const m = Math.floor(s / 60)
+  return m < 60 ? `${m}m ago` : `${Math.floor(m / 60)}h ago`
+}
 function distanceKm(a: { lat: number; lon: number }, lat: number, lon: number): number {
   const R = 6371, toRad = (d: number) => (d * Math.PI) / 180
   const dLat = toRad(lat - a.lat), dLon = toRad(lon - a.lon)
@@ -40,12 +49,14 @@ export default function NgoPanicPage() {
   const [teams, setTeams] = useState<Team[]>([])
   const [resolveFor, setResolveFor] = useState<Panic | null>(null)
   const [note, setNote] = useState('')
+  const [updatedAt, setUpdatedAt] = useState<number | null>(null)
+  const [, setTick] = useState(0) // 1s tick keeps the "updated Xs ago" label live
 
   const load = useCallback(async () => {
     try {
       const r = await fetch('/api/ngo/safety/panic', { cache: 'no-store' })
       if (!r.ok) { setError(true); setLoaded(true); return }
-      setPanics((await r.json()).panics ?? []); setError(false); setLoaded(true)
+      setPanics((await r.json()).panics ?? []); setError(false); setLoaded(true); setUpdatedAt(Date.now())
     } catch { setError(true); setLoaded(true) }
   }, [])
 
@@ -57,6 +68,12 @@ export default function NgoPanicPage() {
     window.addEventListener('focus', load)
     return () => { clearInterval(id); document.removeEventListener('visibilitychange', onVis); window.removeEventListener('focus', load) }
   }, [load])
+
+  // 1s tick (paused when hidden) so the "updated Xs ago" freshness label counts up.
+  useEffect(() => {
+    const id = setInterval(() => { if (document.visibilityState === 'visible') setTick((n) => n + 1) }, 1000)
+    return () => clearInterval(id)
+  }, [])
 
   async function acknowledge(id: string) {
     setBusy(id)
@@ -84,6 +101,7 @@ export default function NgoPanicPage() {
   const mapsLink = (p: Panic) => (p.lat != null && p.lon != null ? `https://www.google.com/maps?q=${p.lat},${p.lon}` : null)
   // Audible + visual alert when a NEW panic arrives while this page is open (sound default on).
   const { muted, toggleMute, newNames, dismiss } = useNewPanicAlert(panics)
+  const unacked = panics.filter((p) => !p.acknowledged_at).length
 
   // Rank teams nearest-first when the panic has a location.
   const rankedTeams = (p: Panic | null): (Team & { km: number | null })[] => {
@@ -101,6 +119,16 @@ export default function NgoPanicPage() {
         <div style={{ fontSize: 13, color: '#8b949e', marginTop: 2 }}>
           Duress alerts from your field staff. A panic never auto-closes — a responder must resolve it with an outcome note.
         </div>
+        {loaded && !error && (
+          <div style={{ fontSize: 12, marginTop: 6, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            {panics.length > 0 && (
+              <span style={{ color: unacked > 0 ? '#f85149' : '#3fb950', fontWeight: 600 }}>
+                {panics.length} active{unacked > 0 ? ` · ${unacked} unacknowledged` : ' · all acknowledged'}
+              </span>
+            )}
+            <span style={{ color: '#484f58' }}>updated {freshAgo(updatedAt)}</span>
+          </div>
+        )}
       </div>
 
       {/* New-panic alert banner — fires (with a chime unless muted) when a panic arrives while
@@ -114,7 +142,11 @@ export default function NgoPanicPage() {
       {!loaded && <div style={{ color: '#8b949e', fontSize: 13 }}>Loading…</div>}
       {loaded && error && <div style={errBox}>Couldn’t load panics. <button type="button" onClick={load} style={retryBtn}>Retry</button></div>}
       {loaded && !error && panics.length === 0 && (
-        <div style={{ padding: '40px 0', textAlign: 'center', color: '#3fb950', fontSize: 15 }}>✓ No active panics.</div>
+        <div style={{ padding: '32px 16px', textAlign: 'center', background: 'rgba(63,185,80,0.08)', border: '1px solid rgba(63,185,80,0.35)', borderRadius: 12 }}>
+          <div style={{ fontSize: 44, lineHeight: 1, color: '#3fb950' }}>✓</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: '#3fb950', marginTop: 8 }}>All clear</div>
+          <div style={{ fontSize: 13, color: '#8b949e', marginTop: 2 }}>No active panics.</div>
+        </div>
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>

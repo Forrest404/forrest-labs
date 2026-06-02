@@ -71,7 +71,9 @@ function setupBoardLayers(m: any) {
   layer({ id: 'inc-radius-fill', type: 'fill', source: 'inc-radius', paint: { 'fill-color': STATUS_COLOUR_EXPR, 'fill-opacity': ['case', ['get', 'inside'], 0.25, 0.04] } })
   layer({ id: 'inc-radius-line', type: 'line', source: 'inc-radius', paint: { 'line-color': STATUS_COLOUR_EXPR, 'line-width': 1.2, 'line-opacity': ['case', ['get', 'inside'], 0.8, 0.2] } })
   layer({ id: 'inc-dots', type: 'circle', source: 'inc-dots', paint: { 'circle-radius': 7, 'circle-color': STATUS_COLOUR_EXPR, 'circle-opacity': ['case', ['get', 'inside'], 1, 0.3], 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1.5, 'circle-stroke-opacity': ['case', ['get', 'inside'], 0.8, 0.2] } })
-  layer({ id: 'team-dots', type: 'circle', source: 'teams', paint: { 'circle-radius': 8, 'circle-color': ['case', ['==', ['get', 'status'], 'standby'], TEAM_STATUS_COLOUR.standby, ['==', ['get', 'status'], 'deployed'], TEAM_STATUS_COLOUR.deployed, ['==', ['get', 'status'], 'unavailable'], TEAM_STATUS_COLOUR.unavailable, ['==', ['get', 'status'], 'off_duty'], TEAM_STATUS_COLOUR.off_duty, TEAM_STATUS_COLOUR.offline], 'circle-stroke-color': '#0d1117', 'circle-stroke-width': 2 } })
+  // Team pins dim to 35% when their last-known location is stale (>1h or never), so leaders
+  // don't trust a ghost position; the label already shows the "· Xm/Xh ago" age.
+  layer({ id: 'team-dots', type: 'circle', source: 'teams', paint: { 'circle-radius': 8, 'circle-color': ['case', ['==', ['get', 'status'], 'standby'], TEAM_STATUS_COLOUR.standby, ['==', ['get', 'status'], 'deployed'], TEAM_STATUS_COLOUR.deployed, ['==', ['get', 'status'], 'unavailable'], TEAM_STATUS_COLOUR.unavailable, ['==', ['get', 'status'], 'off_duty'], TEAM_STATUS_COLOUR.off_duty, TEAM_STATUS_COLOUR.offline], 'circle-opacity': ['case', ['get', 'stale'], 0.35, 1], 'circle-stroke-color': '#0d1117', 'circle-stroke-width': 2, 'circle-stroke-opacity': ['case', ['get', 'stale'], 0.35, 1] } })
   layer({ id: 'team-labels', type: 'symbol', source: 'teams', layout: { 'text-field': ['get', 'label'], 'text-size': 11, 'text-offset': [0, 1.4], 'text-anchor': 'top', 'text-max-width': 14 }, paint: { 'text-color': '#e6edf3', 'text-halo-color': 'rgba(0,0,0,0.85)', 'text-halo-width': 1.5 } })
   // Custom (org-created) incidents — severity-coloured square markers + label; an
   // uncovered one shows an amber ring.
@@ -140,6 +142,17 @@ function timeAgo(iso: string | null): string {
   return `${Math.floor(hrs / 24)}d ago`
 }
 
+// Live "updated Xs ago" for the freshness chip. _tick is unused but its change forces a
+// re-render each second so the seconds count up.
+function freshAgo(at: number | null, _tick: number): string {
+  if (at == null) return '—'
+  const s = Math.floor((Date.now() - at) / 1000)
+  if (s < 5) return 'just now'
+  if (s < 60) return `${s}s ago`
+  const m = Math.floor(s / 60)
+  return m < 60 ? `${m}m ago` : `${Math.floor(m / 60)}h ago`
+}
+
 export default function NgoBoardPage() {
   const mapContainer = useRef<HTMLDivElement | null>(null)
   const map = useRef<any>(null)
@@ -185,6 +198,8 @@ export default function NgoBoardPage() {
   // Audible chime when a NEW panic arrives while the board is open (the strip + map glow are the
   // visual). Sound default on; the operator can mute (shared with the panic monitor).
   const { muted, toggleMute } = useNewPanicAlert(panics)
+  const [updatedAt, setUpdatedAt] = useState<number | null>(null) // last successful board fetch
+  const [agoTick, setAgoTick] = useState(0) // 1s tick to keep the "updated Xs ago" label live
   // Handled (dismissed/completed) incidents — collapsible reopen list.
   const [handledIncidents, setHandledIncidents] = useState<Incident[]>([])
   const [handledCustom, setHandledCustom] = useState<CustomIncident[]>([])
@@ -265,7 +280,7 @@ export default function NgoBoardPage() {
       features: d.teams.map((t) => ({
         type: 'Feature',
         geometry: { type: 'Point', coordinates: [t.lon, t.lat] },
-        properties: { id: t.id, status: t.status, label: `${t.name} · ${timeAgo(t.last_seen_at)}` },
+        properties: { id: t.id, status: t.status, stale: !t.last_seen_at || Date.now() - new Date(t.last_seen_at).getTime() > 3600000, label: `${t.name} · ${timeAgo(t.last_seen_at)}` },
       })),
     }
     const areaFC = d.area ? { type: 'Feature', geometry: d.area, properties: {} } : { type: 'FeatureCollection', features: [] }
@@ -326,7 +341,7 @@ export default function NgoBoardPage() {
       const res = await fetch(`/api/ngo/board?days=${daysRef.current}`)
       if (!res.ok) { setLoadError(true); setLoaded(true); return }
       const data = await res.json()
-      setLoadError(false); setLoaded(true)
+      setLoadError(false); setLoaded(true); setUpdatedAt(Date.now())
       const inc: Incident[] = data.incidents ?? []
       const tms: TeamPin[] = data.teams ?? []
       const pnc: Panic[] = data.panics ?? []
@@ -428,6 +443,12 @@ export default function NgoBoardPage() {
 
   // When the map becomes ready, paint the latest data onto it.
   useEffect(() => { if (mapLoaded) renderSources() }, [mapLoaded, renderSources])
+
+  // 1s tick keeps the "updated Xs ago" freshness label live (paused when hidden).
+  useEffect(() => {
+    const id = setInterval(() => { if (document.visibilityState === 'visible') setAgoTick((n) => n + 1) }, 1000)
+    return () => clearInterval(id)
+  }, [])
 
   // Pulse the coverage-gap and panic glows.
   useEffect(() => {
@@ -581,12 +602,16 @@ export default function NgoBoardPage() {
         </div>
       )}
 
-      {/* Loading / refresh-error chip (top-left) */}
+      {/* Loading / refresh-error chip (top-left) + a live "updated Xs ago" so a silently-polling
+          board never looks current when it's actually stale (e.g. offline). */}
       {!loaded && <div style={statusChip}>Loading…</div>}
       {loaded && loadError && (
         <div style={{ ...statusChip, color: '#f85149', borderColor: 'rgba(248,81,73,0.4)' }}>
-          Couldn’t refresh <button type="button" onClick={fetchBoard} style={chipRetry}>Retry</button>
+          {typeof navigator !== 'undefined' && !navigator.onLine ? 'Offline' : 'Couldn’t refresh'} · updated {freshAgo(updatedAt, agoTick)} <button type="button" onClick={fetchBoard} style={chipRetry}>Retry</button>
         </div>
+      )}
+      {loaded && !loadError && updatedAt != null && (
+        <div style={{ ...statusChip, color: '#8b949e' }}>updated {freshAgo(updatedAt, agoTick)}</div>
       )}
 
       {/* Base-map style switcher + worker-pins toggle */}
