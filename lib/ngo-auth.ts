@@ -126,9 +126,18 @@ export async function getNgoSession(request: NextRequest): Promise<NgoSession | 
       return null
     }
 
+    // deleted_at is additive — select it, but if the column doesn't exist yet the query errors
+    // and we fail OPEN (keep the valid JWT) exactly like any transient DB error.
     const { data: org, error: orgErr } = await supabase
-      .from('ngo_organisations').select('status').eq('id', user.org_id).maybeSingle()
-    if (orgErr) return session             // transient — keep them signed in
+      .from('ngo_organisations').select('status, deleted_at').eq('id', user.org_id).maybeSingle()
+    if (orgErr) {
+      const { data: o2, error: e2 } = await supabase
+        .from('ngo_organisations').select('status').eq('id', user.org_id).maybeSingle()
+      if (e2) return session                                  // transient — keep them signed in
+      if (o2 && o2.status !== 'approved') return null
+      return session
+    }
+    if (org && (org as any).deleted_at) return null // org soft-closed from the Danger zone — revoked
     if (org && org.status !== 'approved') return null // org suspended/pending — revoked
 
     return session

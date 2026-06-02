@@ -55,6 +55,8 @@ export default function NgoSettingsPage() {
   const [msg, setMsg] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [log, setLog] = useState<{ entries: any[]; failed_critical: number; available: boolean } | null>(null)
+  const [dangerArm, setDangerArm] = useState<null | 'wipe' | 'close'>(null) // which danger action is armed
+  const [confirmText, setConfirmText] = useState('') // must match the org name to enable the action
 
   const isAdmin = role === 'org_admin'
 
@@ -123,6 +125,34 @@ export default function NgoSettingsPage() {
       if (res.ok) setMsg(`Purged: ${d.check_ins_deleted} check-ins, ${d.panics_deleted} resolved panics, ${d.roll_calls_deleted} roll calls, ${d.team_positions_cleared} stale team positions cleared.`)
       else setError(d.error ?? 'Purge failed.')
     } catch { setError('Purge failed.') }
+    finally { setBusy(false) }
+  }
+
+  // Danger zone — both require typing the exact org name (confirmText) to enable.
+  async function wipeOrg() {
+    setBusy(true); setMsg(null); setError(null)
+    try {
+      const res = await fetch('/api/ngo/org/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirm_name: confirmText }) })
+      const d = await res.json().catch(() => ({}))
+      if (res.ok) { setMsg(`Wiped: ${d.teams_deleted} team(s) and ${d.users_deleted} member account(s) removed.`); setDangerArm(null); setConfirmText('') }
+      else setError(d.error ?? 'Could not wipe teams & members.')
+    } catch { setError('Could not wipe teams & members.') }
+    finally { setBusy(false) }
+  }
+  async function closeOrg() {
+    setBusy(true); setMsg(null); setError(null)
+    try {
+      const res = await fetch('/api/ngo/org', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirm_name: confirmText }) })
+      if (res.ok) {
+        // Org is closed → end this session and bounce to login (every other session is revoked
+        // server-side on its next request).
+        await fetch('/api/ngo/auth/logout', { method: 'POST' }).catch(() => {})
+        window.location.href = '/ngo/login'
+        return
+      }
+      const d = await res.json().catch(() => ({}))
+      setError(d.error ?? 'Could not close the organisation.')
+    } catch { setError('Could not close the organisation.') }
     finally { setBusy(false) }
   }
 
@@ -261,6 +291,48 @@ export default function NgoSettingsPage() {
               <div style={{ fontSize: 13, marginTop: 4 }}>
                 Operational area: {org.has_operational_area ? <span style={{ color: '#3fb950' }}>defined</span> : <span style={{ color: '#8b949e' }}>not set</span>}
                 {' · '}<a href="/ngo/setup" style={link}>Edit on map →</a>
+              </div>
+
+              {/* ── DANGER ZONE — org_admin only (this whole tab is). Both actions require typing
+                  the exact org name. Civilian reports are never affected by anything here. ── */}
+              <div style={{ marginTop: 8, background: 'rgba(248,81,73,0.05)', border: '1px solid rgba(248,81,73,0.4)', borderRadius: 10, padding: 16, display: 'grid', gap: 16 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#f85149' }}>⚠ Danger zone</div>
+
+                {/* Wipe teams & members */}
+                <div style={{ display: 'grid', gap: 8 }}>
+                  <div style={{ fontSize: 13, color: '#e6edf3' }}>Wipe teams &amp; members</div>
+                  <div style={{ fontSize: 12, color: '#8b949e' }}>Removes <b>all teams, roster members, and every team-leader / field-coordinator account</b>. Your organisation, its admins, and incident / dispatch history are kept. This cannot be undone.</div>
+                  {dangerArm !== 'wipe'
+                    ? <button type="button" onClick={() => { setDangerArm('wipe'); setConfirmText(''); setMsg(null); setError(null) }} style={dangerBtn}>Wipe teams &amp; members…</button>
+                    : (
+                      <div style={{ display: 'grid', gap: 8 }}>
+                        <label style={labelStyle}>Type <b style={{ color: '#e6edf3' }}>{org.name}</b> to confirm</label>
+                        <input style={field} value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder={org.name} />
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button type="button" onClick={wipeOrg} disabled={busy || confirmText.trim() !== org.name.trim()} style={{ ...dangerBtn, opacity: busy || confirmText.trim() !== org.name.trim() ? 0.5 : 1 }}>{busy ? 'Wiping…' : 'Wipe everyone'}</button>
+                          <button type="button" onClick={() => { setDangerArm(null); setConfirmText('') }} disabled={busy} style={ghostBtn}>Cancel</button>
+                        </div>
+                      </div>
+                    )}
+                </div>
+
+                {/* Close (delete) the organisation */}
+                <div style={{ display: 'grid', gap: 8, borderTop: '1px solid rgba(248,81,73,0.25)', paddingTop: 14 }}>
+                  <div style={{ fontSize: 13, color: '#e6edf3' }}>Delete this organisation</div>
+                  <div style={{ fontSize: 12, color: '#8b949e' }}>Closes <b>{org.name}</b> and signs <b>everyone</b> out immediately. Data is retained and can be restored by the NOUR platform team. <span style={{ color: '#3fb950' }}>Civilian reports are unaffected.</span></div>
+                  {dangerArm !== 'close'
+                    ? <button type="button" onClick={() => { setDangerArm('close'); setConfirmText(''); setMsg(null); setError(null) }} style={dangerBtn}>Delete this organisation…</button>
+                    : (
+                      <div style={{ display: 'grid', gap: 8 }}>
+                        <label style={labelStyle}>Type <b style={{ color: '#e6edf3' }}>{org.name}</b> to confirm</label>
+                        <input style={field} value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder={org.name} />
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button type="button" onClick={closeOrg} disabled={busy || confirmText.trim() !== org.name.trim()} style={{ ...dangerBtn, opacity: busy || confirmText.trim() !== org.name.trim() ? 0.5 : 1 }}>{busy ? 'Closing…' : 'Close organisation'}</button>
+                          <button type="button" onClick={() => { setDangerArm(null); setConfirmText('') }} disabled={busy} style={ghostBtn}>Cancel</button>
+                        </div>
+                      </div>
+                    )}
+                </div>
               </div>
             </div>
           )}
@@ -528,6 +600,7 @@ const labelStyle: React.CSSProperties = { fontSize: 12, color: '#8b949e', margin
 const link: React.CSSProperties = { color: '#58a6ff', textDecoration: 'none' }
 const primaryBtn: React.CSSProperties = { minHeight: 44, padding: '0 18px', background: '#238636', border: '1px solid #2ea043', color: '#fff', borderRadius: 6, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'system-ui', justifySelf: 'start' }
 const dangerBtn: React.CSSProperties = { minHeight: 40, padding: '0 16px', background: 'rgba(248,81,73,0.1)', border: '1px solid rgba(248,81,73,0.4)', color: '#f85149', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'system-ui', justifySelf: 'start' }
+const ghostBtn: React.CSSProperties = { minHeight: 40, padding: '0 16px', background: 'transparent', border: '1px solid #30363d', color: '#c9d1d9', borderRadius: 6, fontSize: 13, cursor: 'pointer', fontFamily: 'system-ui' }
 const errorBox: React.CSSProperties = { background: 'rgba(248,81,73,0.1)', border: '1px solid rgba(248,81,73,0.3)', color: '#f85149', borderRadius: 6, padding: '9px 12px', fontSize: 13, marginBottom: 14 }
 const okBox: React.CSSProperties = { background: 'rgba(63,185,80,0.1)', border: '1px solid rgba(63,185,80,0.3)', color: '#3fb950', borderRadius: 6, padding: '9px 12px', fontSize: 13, marginBottom: 14 }
 const retryBtn: React.CSSProperties = { marginLeft: 8, background: 'none', border: '1px solid rgba(248,81,73,0.4)', color: '#f85149', borderRadius: 4, fontSize: 12, padding: '2px 8px', cursor: 'pointer' }
