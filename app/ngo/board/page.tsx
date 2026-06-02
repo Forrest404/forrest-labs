@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
+import { useNewPanicAlert } from '@/lib/use-new-panic-alert'
 
 declare global {
   interface Window { mapboxgl: any }
@@ -181,6 +182,9 @@ export default function NgoBoardPage() {
   const [panicNote, setPanicNote] = useState('')
   const [panicTeams, setPanicTeams] = useState<{ id: string; name: string; type: string; status: string; notifiable_count?: number }[]>([])
   const [panicBusy, setPanicBusy] = useState(false)
+  // Audible chime when a NEW panic arrives while the board is open (the strip + map glow are the
+  // visual). Sound default on; the operator can mute (shared with the panic monitor).
+  const { muted, toggleMute } = useNewPanicAlert(panics)
   // Handled (dismissed/completed) incidents — collapsible reopen list.
   const [handledIncidents, setHandledIncidents] = useState<Incident[]>([])
   const [handledCustom, setHandledCustom] = useState<CustomIncident[]>([])
@@ -570,8 +574,10 @@ export default function NgoBoardPage() {
       {/* Dismiss-proof panic strip — always on top of the board while any panic is active */}
       {panics.length > 0 && (
         <div onClick={() => { setPanelOpen(true); const u = panics.find((p) => !p.acknowledged_at) ?? panics[0]; locatePanic(u) }} style={panicStrip}>
-          🆘 {panics.length} active panic{panics.length === 1 ? '' : 's'}
-          {panics.some((p) => !p.acknowledged_at) ? ` · ${panics.filter((p) => !p.acknowledged_at).length} unacknowledged` : ' · all acknowledged'} — tap to respond
+          <span>🆘 {panics.length} active panic{panics.length === 1 ? '' : 's'}
+            {panics.some((p) => !p.acknowledged_at) ? ` · ${panics.filter((p) => !p.acknowledged_at).length} unacknowledged` : ' · all acknowledged'} — tap to respond</span>
+          <button type="button" onClick={(e) => { e.stopPropagation(); toggleMute() }} title={muted ? 'New-panic sound off' : 'New-panic sound on'}
+            style={{ marginInlineStart: 10, background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.4)', color: '#fff', borderRadius: 6, fontSize: 12, padding: '2px 8px', cursor: 'pointer', fontFamily: 'system-ui', flexShrink: 0 }}>{muted ? '🔇' : '🔔'}</button>
         </div>
       )}
 
@@ -933,6 +939,7 @@ const panicStrip: React.CSSProperties = {
   position: 'absolute', top: 0, left: 0, right: 0, zIndex: 9,
   background: '#da3633', color: '#fff', fontSize: 13, fontWeight: 700, textAlign: 'center',
   padding: '8px 12px', cursor: 'pointer', fontFamily: 'system-ui',
+  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
   boxShadow: '0 2px 10px rgba(0,0,0,0.4)',
 }
 const panel: React.CSSProperties = {

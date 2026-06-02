@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { useNewPanicAlert } from '@/lib/use-new-panic-alert'
 
 // Dedicated responder panic view: every active duress alert for the org with the full
 // responder toolkit — acknowledge, call, locate, open the team's group chat, send the
@@ -81,6 +82,8 @@ export default function NgoPanicPage() {
     } finally { setBusy(null) }
   }
   const mapsLink = (p: Panic) => (p.lat != null && p.lon != null ? `https://www.google.com/maps?q=${p.lat},${p.lon}` : null)
+  // Audible + visual alert when a NEW panic arrives while this page is open (sound default on).
+  const { muted, toggleMute, newNames, dismiss } = useNewPanicAlert(panics)
 
   // Rank teams nearest-first when the panic has a location.
   const rankedTeams = (p: Panic | null): (Team & { km: number | null })[] => {
@@ -91,11 +94,22 @@ export default function NgoPanicPage() {
   return (
     <div style={wrap}>
       <div style={{ marginBottom: 18 }}>
-        <h1 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>Active panics</h1>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+          <h1 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>Active panics</h1>
+          <button type="button" onClick={toggleMute} title={muted ? 'New-panic sound is off' : 'New-panic sound is on'} style={muteBtn}>{muted ? '🔇 Muted' : '🔔 Sound on'}</button>
+        </div>
         <div style={{ fontSize: 13, color: '#8b949e', marginTop: 2 }}>
           Duress alerts from your field staff. A panic never auto-closes — a responder must resolve it with an outcome note.
         </div>
       </div>
+
+      {/* New-panic alert banner — fires (with a chime unless muted) when a panic arrives while
+          this page is open, so it can't scroll in unnoticed. */}
+      {newNames.length > 0 && (
+        <div style={alertBanner} onClick={dismiss} role="alert">
+          🆘 New panic{newNames.length > 1 ? 's' : ''}: {newNames.join(', ')} <span style={{ fontWeight: 400, opacity: 0.85 }}>· tap to dismiss</span>
+        </div>
+      )}
 
       {!loaded && <div style={{ color: '#8b949e', fontSize: 13 }}>Loading…</div>}
       {loaded && error && <div style={errBox}>Couldn’t load panics. <button type="button" onClick={load} style={retryBtn}>Retry</button></div>}
@@ -182,3 +196,5 @@ const retryBtn: React.CSSProperties = { marginLeft: 8, background: 'none', borde
 const backdrop: React.CSSProperties = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }
 const modal: React.CSSProperties = { width: 380, maxWidth: '100%', background: '#161b22', border: '1px solid #21262d', borderRadius: 12, padding: 20, fontFamily: 'system-ui', color: '#e6edf3' }
 const teamRow: React.CSSProperties = { textAlign: 'left', background: '#0d1117', border: '1px solid #21262d', borderRadius: 8, padding: '10px 12px', color: '#e6edf3', fontSize: 14, cursor: 'pointer', fontFamily: 'system-ui' }
+const muteBtn: React.CSSProperties = { flexShrink: 0, height: 30, padding: '0 10px', background: 'rgba(255,255,255,0.04)', border: '1px solid #21262d', color: '#8b949e', borderRadius: 6, fontSize: 12, cursor: 'pointer', fontFamily: 'system-ui' }
+const alertBanner: React.CSSProperties = { background: '#da3633', color: '#fff', borderRadius: 10, padding: '12px 14px', fontSize: 15, fontWeight: 700, marginBottom: 14, cursor: 'pointer', boxShadow: '0 0 0 1px #f85149, 0 4px 14px rgba(248,81,73,0.4)' }
