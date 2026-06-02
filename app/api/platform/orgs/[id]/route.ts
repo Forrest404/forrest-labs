@@ -12,11 +12,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const { id } = await params
   const supabase = createServiceClient()
 
-  const { data: org, error } = await supabase
-    .from('ngo_organisations')
-    .select('id, name, type, country, status, operational_area, share_team_presence, share_operational_area, created_at')
-    .eq('id', id)
-    .maybeSingle()
+  // deleted_at is additive — select it, fall back without it pre-migration.
+  const cols = 'id, name, type, country, status, operational_area, share_team_presence, share_operational_area, created_at'
+  let r: any = await supabase.from('ngo_organisations').select(`${cols}, deleted_at`).eq('id', id).maybeSingle()
+  if (r.error && (r.error.code === '42703' || r.error.code === 'PGRST204')) {
+    r = await supabase.from('ngo_organisations').select(cols).eq('id', id).maybeSingle()
+  }
+  const { data: org, error } = r
   if (error) return NextResponse.json({ error: 'Could not load organisation' }, { status: 500 })
   if (!org) return NextResponse.json({ error: 'Organisation not found' }, { status: 404 })
 
@@ -45,6 +47,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         country: org.country,
         status: org.status,
         created_at: org.created_at,
+        deleted_at: (org as any).deleted_at ?? null,
         area_description: areaDescription,
         share_team_presence: org.share_team_presence,
         share_operational_area: org.share_operational_area,

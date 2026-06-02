@@ -10,12 +10,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { id } = await params
 
   const supabase = createServiceClient()
-  const { data: org, error } = await supabase
+  // Approve the org and clear any deleted_at (so an org that closed itself is fully reinstated).
+  // deleted_at is additive — fall back to a status-only update if the column isn't applied yet.
+  let res: any = await supabase
     .from('ngo_organisations')
-    .update({ status: 'approved' })
+    .update({ status: 'approved', deleted_at: null })
     .eq('id', id)
     .select('id, name')
     .maybeSingle()
+  if (res.error && (res.error.code === '42703' || res.error.code === 'PGRST204')) {
+    res = await supabase.from('ngo_organisations').update({ status: 'approved' }).eq('id', id).select('id, name').maybeSingle()
+  }
+  const { data: org, error } = res
   if (error) return NextResponse.json({ error: 'Restore failed' }, { status: 500 })
   if (!org) return NextResponse.json({ error: 'Organisation not found' }, { status: 404 })
 

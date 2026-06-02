@@ -160,10 +160,12 @@ export async function PATCH(request: NextRequest) {
 }
 
 // DELETE — "soft close" the organisation from the settings Danger zone (org_admin only).
-// Sets ngo_organisations.deleted_at; getNgoSession then revokes every session for this org on
-// its next request (everyone is signed out). ALL data is retained for audit / a platform-
-// operator restore — and the civilian pipeline is untouched. Requires the caller to type the
-// exact org name as a confirmation.
+// Sets ngo_organisations.deleted_at AND status='suspended', so: (a) every session for this org
+// is revoked on its next request (everyone signed out), (b) login is blocked up-front (no
+// dashboard flash) with an "account no longer exists" message (driven by deleted_at), and
+// (c) the platform's Manage-NGOs view shows it suspended, where an operator can reinstate
+// (restore clears deleted_at) or permanently delete it. ALL data is retained; the civilian
+// pipeline is untouched. Requires typing the exact org name to confirm.
 export async function DELETE(request: NextRequest) {
   const session = await getNgoSession(request)
   if (!requireRole(session, ['org_admin'])) {
@@ -181,7 +183,7 @@ export async function DELETE(request: NextRequest) {
   }
 
   const { error } = await supabase
-    .from('ngo_organisations').update({ deleted_at: new Date().toISOString() }).eq('id', session!.orgId)
+    .from('ngo_organisations').update({ deleted_at: new Date().toISOString(), status: 'suspended' }).eq('id', session!.orgId)
   if (error) {
     return NextResponse.json({ error: 'Could not close the organisation — the deleted_at migration may not be applied yet.' }, { status: 503 })
   }

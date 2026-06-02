@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation'
 
 interface OrgDetail {
   id: string; name: string; type: string; country: string | null; status: string; created_at: string
+  deleted_at: string | null
   area_description: string | null
   share_team_presence: boolean; share_operational_area: boolean
   team_count: number
@@ -109,6 +110,12 @@ export default function NgoDetail() {
             : <button type="button" disabled={busy === 'org'} onClick={() => orgAction('revoke', `Suspend "${org.name}"? This blocks all its users from signing in.`)} style={btn('#d29922')}>Suspend org</button>}
         </div>
       </div>
+
+      {org.deleted_at && (
+        <div style={{ background: 'rgba(210,153,34,0.1)', border: '1px solid rgba(210,153,34,0.4)', color: '#d29922', borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 16 }}>
+          🌙 This organisation was closed by its own admin on {new Date(org.deleted_at).toLocaleDateString()} — everyone is signed out. Reactivate to reinstate it, or permanently delete it below.
+        </div>
+      )}
 
       {note && <div style={infoBox}>{note}</div>}
 

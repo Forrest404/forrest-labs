@@ -87,14 +87,24 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'This account has been suspended' }, { status: 403 })
   }
 
-  // Credential is valid — only now reveal org approval status.
-  const { data: org } = await supabase.from('ngo_organisations').select('status').eq('id', user.org_id).single()
-  if (!org || org.status !== 'approved') {
-    const msg =
-      org?.status === 'suspended'
+  // Credential is valid — only now reveal org approval status. deleted_at is additive, so select
+  // it but fall back to status-only if the column isn't applied yet.
+  let org: { status: string; deleted_at?: string | null } | null = null
+  {
+    const r1 = await supabase.from('ngo_organisations').select('status, deleted_at').eq('id', user.org_id).maybeSingle()
+    if (r1.error) {
+      const r2 = await supabase.from('ngo_organisations').select('status').eq('id', user.org_id).maybeSingle()
+      org = r2.data as any
+    } else org = r1.data as any
+  }
+  const closed = !!org?.deleted_at // org was closed from its own Danger zone
+  if (!org || closed || org.status !== 'approved') {
+    const msg = closed
+      ? 'This account no longer exists.'
+      : org?.status === 'suspended'
         ? 'Your organisation has been suspended. Contact NOUR.'
         : 'Your organisation is pending approval. You will be notified once approved.'
-    return NextResponse.json({ error: msg, status: org?.status ?? 'pending' }, { status: 403 })
+    return NextResponse.json({ error: msg, status: closed ? 'deleted' : (org?.status ?? 'pending') }, { status: 403 })
   }
 
   // Second factor (password accounts that opted into TOTP). Field-coordinator access-code
