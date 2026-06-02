@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { getNgoSession, requireRole } from '@/lib/ngo-auth'
+import { pointInPolygon } from '@/lib/ngo-geo'
+import { availabilityByTeam, isTeamOffDuty } from '@/lib/ngo-safety'
 
 // Situation-board data for the caller's organisation. READ-ONLY on clusters —
 // the board never writes to the verification pipeline. Everything is scoped to
@@ -11,24 +13,6 @@ import { getNgoSession, requireRole } from '@/lib/ngo-auth'
 const INCIDENT_STATUSES = ['confirmed', 'auto_confirmed', 'news_verified', 'official_verified']
 // A dispatch counts as "covering" an incident while it is still in progress.
 const ACTIVE_DISPATCH = ['assigned', 'en_route', 'on_scene']
-
-// Ray-casting point-in-polygon over a GeoJSON Polygon's outer ring ([lon,lat]).
-export function pointInPolygon(
-  lon: number,
-  lat: number,
-  polygon: { type?: string; coordinates?: number[][][] } | null | undefined,
-): boolean {
-  const ring = polygon?.coordinates?.[0]
-  if (!Array.isArray(ring) || ring.length < 4) return false
-  let inside = false
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const [xi, yi] = ring[i]
-    const [xj, yj] = ring[j]
-    const intersects = yi > lat !== yj > lat && lon < ((xj - xi) * (lat - yi)) / (yj - yi) + xi
-    if (intersects) inside = !inside
-  }
-  return inside
-}
 
 export async function GET(request: NextRequest) {
   const session = await getNgoSession(request)
@@ -99,6 +83,9 @@ export async function GET(request: NextRequest) {
     .select('id, name, type, team_status ( status, last_lat, last_lon, last_seen_at )')
     .eq('org_id', orgId)
 
+  // A team whose every linked member is off duty shows as 'off_duty' on the board.
+  const availability = await availabilityByTeam(supabase, (teams ?? []).map((t: any) => t.id))
+
   const teamPins = (teams ?? [])
     .map((t: any) => {
       const s = Array.isArray(t.team_status) ? t.team_status[0] : t.team_status
@@ -106,7 +93,7 @@ export async function GET(request: NextRequest) {
         id: t.id,
         name: t.name,
         type: t.type,
-        status: s?.status ?? 'offline',
+        status: isTeamOffDuty(availability[t.id]) ? 'off_duty' : (s?.status ?? 'offline'),
         lat: s?.last_lat ?? null,
         lon: s?.last_lon ?? null,
         last_seen_at: s?.last_seen_at ?? null,
@@ -122,9 +109,14 @@ export async function GET(request: NextRequest) {
   const peopleIds = (orgPeople ?? []).map((u) => u.id)
   let workers: any[] = []
   if (peopleIds.length) {
+    // Only read the last 24h of located events. The board shows each worker's LATEST
+    // position (a stale day-old pin isn't operationally useful), and bounding the read
+    // means the server never materialises a long location trail in memory — even before
+    // the retention purge runs. Latest-per-user reduction below is unchanged.
+    const sinceIso = new Date(Date.now() - 24 * 3600 * 1000).toISOString()
     const [{ data: cis }, { data: pes }] = await Promise.all([
-      supabase.from('check_ins').select('ngo_user_id, lat, lon, created_at').in('ngo_user_id', peopleIds).not('lat', 'is', null).order('created_at', { ascending: false }).limit(1000),
-      supabase.from('panic_events').select('ngo_user_id, last_lat, last_lon, created_at').in('ngo_user_id', peopleIds).not('last_lat', 'is', null).order('created_at', { ascending: false }).limit(500),
+      supabase.from('check_ins').select('ngo_user_id, lat, lon, created_at').in('ngo_user_id', peopleIds).not('lat', 'is', null).gte('created_at', sinceIso).order('created_at', { ascending: false }).limit(1000),
+      supabase.from('panic_events').select('ngo_user_id, last_lat, last_lon, created_at').in('ngo_user_id', peopleIds).not('last_lat', 'is', null).gte('created_at', sinceIso).order('created_at', { ascending: false }).limit(500),
     ])
     // Latest located event per user, across both sources.
     const latest = new Map<string, { lat: number; lon: number; at: string; source: string }>()
@@ -189,22 +181,38 @@ export async function GET(request: NextRequest) {
   if (rc) {
     const { data: roster } = await supabase
       .from('ngo_users')
-      .select('id, full_name')
+      .select('id, full_name, off_duty')
       .eq('org_id', orgId)
       .eq('role', 'field_coordinator')
       .eq('status', 'active')
     const { data: responses } = await supabase
       .from('roll_call_responses')
-      .select('ngo_user_id')
+      .select('ngo_user_id, safe')
       .eq('roll_call_id', rc.id)
-    const respondedIds = new Set((responses ?? []).map((r) => r.ngo_user_id))
-    const members = (roster ?? []).map((u) => ({ id: u.id, name: u.full_name, safe: respondedIds.has(u.id) }))
+    // Map each responder to their answer. A row means they answered; safe=false = explicitly
+    // unsafe, anything else (true/null) = safe. Absence of a row = awaiting.
+    const answer = new Map((responses ?? []).map((r) => [r.ngo_user_id, r.safe !== false]))
+    // Per-member state. OFF DUTY is exempt — an off-duty worker who hasn't tapped must NEVER
+    // read as missing (false missing-person signal). awaiting (on-duty, no answer) is distinct
+    // from unsafe (answered safe=false).
+    const members = (roster ?? []).map((u) => {
+      const state = (u as any).off_duty
+        ? 'off_duty'
+        : answer.has(u.id)
+          ? (answer.get(u.id) ? 'safe' : 'unsafe')
+          : 'awaiting'
+      return { id: u.id, name: u.full_name, state, safe: state === 'safe' }
+    })
+    const accountable = members.filter((m) => m.state !== 'off_duty')
     rollCall = {
       id: rc.id,
       created_at: rc.created_at,
       message: rc.message,
-      safe_count: members.filter((m) => m.safe).length,
-      total: members.length,
+      total: accountable.length, // Y in "X of Y safe" — excludes off-duty (exempt)
+      safe_count: accountable.filter((m) => m.state === 'safe').length,
+      unsafe_count: accountable.filter((m) => m.state === 'unsafe').length,
+      awaiting_count: accountable.filter((m) => m.state === 'awaiting').length,
+      off_duty_count: members.length - accountable.length,
       members,
     }
   }

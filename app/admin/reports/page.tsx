@@ -68,6 +68,17 @@ export default function ReportsPage() {
   // Reset page when filter changes
   useEffect(() => { setPage(0) }, [mediaOnly])
 
+  // Manage a report: discard a bogus/spam report, or restore it. Optimistic update.
+  const [acting, setActing] = useState<string | null>(null)
+  async function setReportStatus(id: string, status: 'discarded' | 'pending') {
+    if (status === 'discarded' && !window.confirm('Discard this report as bogus/spam?')) return
+    setActing(id)
+    try {
+      const r = await fetch('/api/admin/reports/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) })
+      if (r.ok) setReports((rs) => rs.map((x) => (x.id === id ? { ...x, status } : x)))
+    } catch { /* ignore */ } finally { setActing(null) }
+  }
+
   const totalPages = Math.max(1, Math.ceil(total / 50))
 
   return (
@@ -137,7 +148,7 @@ export default function ReportsPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <thead>
               <tr style={{ borderBottom: '1px solid #21262d' }}>
-                {['Time', 'Location', 'Distance', 'Events', 'Media', 'Session', 'Cluster'].map(
+                {['Time', 'Location', 'Distance', 'Events', 'Media', 'Session', 'Cluster', 'Actions'].map(
                   (col) => (
                     <th
                       key={col}
@@ -253,6 +264,15 @@ export default function ReportsPage() {
                       >
                         Unclustered
                       </span>
+                    )}
+                  </td>
+                  <td style={{ padding: '10px 0' }}>
+                    {r.status === 'discarded' ? (
+                      <button type="button" disabled={acting === r.id} onClick={() => setReportStatus(r.id, 'pending')}
+                        style={{ fontSize: 10, fontWeight: 600, color: '#8b949e', background: 'rgba(139,148,158,0.1)', border: '1px solid #21262d', borderRadius: 4, padding: '3px 8px', cursor: 'pointer' }}>Restore</button>
+                    ) : (
+                      <button type="button" disabled={acting === r.id} onClick={() => setReportStatus(r.id, 'discarded')}
+                        style={{ fontSize: 10, fontWeight: 600, color: '#f85149', background: 'rgba(248,81,73,0.1)', border: '1px solid rgba(248,81,73,0.3)', borderRadius: 4, padding: '3px 8px', cursor: 'pointer' }}>Discard</button>
                     )}
                   </td>
                 </tr>

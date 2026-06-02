@@ -45,6 +45,7 @@ async function qClear() {
 // data. The httpOnly session cookie can only be cleared server-side (online logout).
 async function wipeLocalSensitive() {
   try { localStorage.removeItem(LAST_GPS_KEY) } catch { /* storage off */ }
+  try { localStorage.removeItem(CHATS_CACHE_KEY) } catch { /* storage off */ }
   await qClear()
 }
 
@@ -82,7 +83,7 @@ const LANG = {
     server_retry: 'Couldn’t reach the server — retrying…', queued: 'queued',
     rollcall: 'ROLL CALL — TAP IF SAFE', marked_safe: 'You’re marked safe ✓',
     check_in: 'CHECK IN', checkin_sub: 'I’m safe · share my location', getting_loc: 'Getting location…',
-    checked: 'Checked in', next_due: 'next due', overdue: 'OVERDUE', queued_send: 'Queued — will send when online',
+    checked: 'Checked in', next_due: 'next due', overdue: 'OVERDUE', due_in: 'due in', never_checked_in: 'Not checked in yet — tap to check in', no_checkin: 'no check-in', queued_send: 'Queued — will send when online',
     set_status: 'Set status', standby: 'Standby', deployed: 'Deployed', unavailable: 'Unavailable', status_set: 'Status set', st_offline: 'Offline',
     dispatch: 'DISPATCH', assigned: 'Assigned', en_route: 'En route', on_scene: 'On scene', done: 'Done', advance_to: 'ADVANCE TO',
     onscene_report: 'On-scene report', people_assisted: 'People assisted', services_delivered: 'Services delivered', new_hazards: 'New hazards',
@@ -90,9 +91,10 @@ const LANG = {
     manual_loc: 'Enter location manually (no GPS)', lat: 'lat', lon: 'lon',
     panic: 'PANIC', hold: 'HOLD…', panic_sub: 'press and hold 2 seconds', keep_holding: 'keep holding to send',
     alert_sent_full: 'ALERT SENT', team_notified: 'Your team has been notified.', tap_dismiss: 'tap to dismiss',
-    sending_alert: 'Sending alert…', alert_sent_msg: '🆘 Alert sent to your team', alert_queued: 'Queued — alert will send when online',
+    sending_alert: 'Sending alert…', alert_sent_msg: '🆘 Alert sent to your team', alert_sent_silent: '✓ Alert sent (silent)', alert_queued: 'Queued — alert will send when online',
     signed_out: 'Signed out — will sync when back online', sharing_loc: 'Sharing location…',
     open_chat: 'OPEN GROUP CHAT', actions: 'Actions', map: 'Map',
+    chats: 'Chats', no_chats: 'No group chats shared with you yet.', chats_trust: 'Opens an external app NOUR doesn’t control. Only join groups you trust.', open: 'Open', team_chat: 'Team', org_chat: 'Organisation', account: 'Account', logged_in_as: 'Logged in as', your_team: 'Your team', team_lead: 'Lead', no_team: 'Not assigned to a team', not_you: 'Not you? Log out', setup_alerts: 'Set up alerts', setup_alerts_sub: 'Get panic & dispatch notifications on your phone', already_setup: 'Already set up — hide', on_duty: 'On duty', off_duty: 'Off duty', off_duty_note: 'Off duty — you get no notifications at all (not even panic or roll call) until you go back on duty. Your own panic button still alerts your team.', off_duty_banner: '🌙 YOU ARE OFF DUTY — no alerts reach you, not even panic or roll call. Your panic button still alerts your team.', broadcasts: 'Broadcasts', no_broadcasts: 'No broadcasts yet.', urgent: 'Urgent', acknowledge: 'Acknowledge', acknowledged: 'Acknowledged',
     silent_mode: 'Silent', alert_active: 'Alert active', help_seen: 'Help has seen this',
     choose_reason: 'What’s happening? (optional)', cancel_false_alarm: 'Cancel — false alarm',
     locked_note: 'Locked — only a responder can resolve this now', cancelled: 'Alert cancelled',
@@ -103,7 +105,7 @@ const LANG = {
     server_retry: 'Serveur injoignable — nouvelle tentative…', queued: 'en attente',
     rollcall: 'APPEL — TOUCHEZ SI EN SÉCURITÉ', marked_safe: 'Vous êtes en sécurité ✓',
     check_in: 'JE SUIS SAUF', checkin_sub: 'Je suis sauf · partager ma position', getting_loc: 'Localisation…',
-    checked: 'Pointé', next_due: 'prochain', overdue: 'EN RETARD', queued_send: 'En attente — envoi à la reconnexion',
+    checked: 'Pointé', next_due: 'prochain', overdue: 'EN RETARD', due_in: 'dans', never_checked_in: 'Pas encore pointé — appuyez pour pointer', no_checkin: 'aucun pointage', queued_send: 'En attente — envoi à la reconnexion',
     set_status: 'Définir le statut', standby: 'En attente', deployed: 'Déployé', unavailable: 'Indisponible', status_set: 'Statut défini', st_offline: 'Hors ligne',
     dispatch: 'MISSION', assigned: 'Assigné', en_route: 'En route', on_scene: 'Sur place', done: 'Terminé', advance_to: 'PASSER À',
     onscene_report: 'Rapport sur place', people_assisted: 'Personnes aidées', services_delivered: 'Services fournis', new_hazards: 'Nouveaux dangers',
@@ -111,9 +113,10 @@ const LANG = {
     manual_loc: 'Saisir la position manuellement (sans GPS)', lat: 'lat', lon: 'lon',
     panic: 'ALERTE', hold: 'MAINTENEZ…', panic_sub: 'maintenez 2 secondes', keep_holding: 'continuez à maintenir',
     alert_sent_full: 'ALERTE ENVOYÉE', team_notified: 'Votre équipe a été alertée.', tap_dismiss: 'touchez pour fermer',
-    sending_alert: 'Envoi de l’alerte…', alert_sent_msg: '🆘 Alerte envoyée à votre équipe', alert_queued: 'En attente — alerte envoyée à la reconnexion',
+    sending_alert: 'Envoi de l’alerte…', alert_sent_msg: '🆘 Alerte envoyée à votre équipe', alert_sent_silent: '✓ Alerte envoyée (silencieux)', alert_queued: 'En attente — alerte envoyée à la reconnexion',
     signed_out: 'Déconnecté — synchro à la reconnexion', sharing_loc: 'Partage de la position…',
     open_chat: 'OUVRIR LE GROUPE', actions: 'Actions', map: 'Carte',
+    chats: 'Groupes', no_chats: 'Aucun groupe partagé pour l’instant.', chats_trust: 'Ouvre une app externe que NOUR ne contrôle pas. Ne rejoignez que des groupes de confiance.', open: 'Ouvrir', team_chat: 'Équipe', org_chat: 'Organisation', account: 'Compte', logged_in_as: 'Connecté en tant que', your_team: 'Votre équipe', team_lead: 'Resp.', no_team: 'Aucune équipe assignée', not_you: 'Pas vous ? Déconnexion', setup_alerts: 'Configurer les alertes', setup_alerts_sub: 'Recevoir les alertes panique et missions sur votre téléphone', already_setup: 'Déjà configuré — masquer', on_duty: 'En service', off_duty: 'Hors service', off_duty_note: 'Hors service — vous ne recevez aucune notification (ni panique ni appel) jusqu’à votre retour en service. Votre propre bouton panique alerte toujours votre équipe.', off_duty_banner: '🌙 VOUS ÊTES HORS SERVICE — aucune alerte ne vous parvient, ni panique ni appel. Votre bouton panique alerte toujours votre équipe.', broadcasts: 'Annonces', no_broadcasts: 'Aucune annonce pour l’instant.', urgent: 'Urgent', acknowledge: 'Accuser réception', acknowledged: 'Reçu',
     silent_mode: 'Silencieux', alert_active: 'Alerte active', help_seen: 'Les secours ont vu',
     choose_reason: 'Que se passe-t-il ? (facultatif)', cancel_false_alarm: 'Annuler — fausse alerte',
     locked_note: 'Verrouillé — seul un répondant peut clôturer', cancelled: 'Alerte annulée',
@@ -124,7 +127,7 @@ const LANG = {
     server_retry: 'تعذّر الوصول إلى الخادم — إعادة المحاولة…', queued: 'في الانتظار',
     rollcall: 'نداء التفقّد — اضغط إن كنت بأمان', marked_safe: 'تم تسجيلك بأمان ✓',
     check_in: 'أنا بأمان', checkin_sub: 'أنا بأمان · مشاركة موقعي', getting_loc: 'جارٍ تحديد الموقع…',
-    checked: 'سجّلت', next_due: 'التالي', overdue: 'متأخر', queued_send: 'في الانتظار — سيُرسل عند الاتصال',
+    checked: 'سجّلت', next_due: 'التالي', overdue: 'متأخر', due_in: 'خلال', never_checked_in: 'لم تسجّل بعد — اضغط للتسجيل', no_checkin: 'لا تسجيل', queued_send: 'في الانتظار — سيُرسل عند الاتصال',
     set_status: 'تعيين الحالة', standby: 'جاهز', deployed: 'منتشر', unavailable: 'غير متاح', status_set: 'تم تعيين الحالة', st_offline: 'غير متصل',
     dispatch: 'مهمة', assigned: 'مُكلّف', en_route: 'في الطريق', on_scene: 'في الموقع', done: 'منجز', advance_to: 'الانتقال إلى',
     onscene_report: 'تقرير الموقع', people_assisted: 'عدد المستفيدين', services_delivered: 'الخدمات المقدّمة', new_hazards: 'مخاطر جديدة',
@@ -132,9 +135,10 @@ const LANG = {
     manual_loc: 'إدخال الموقع يدويًا (بدون GPS)', lat: 'خط العرض', lon: 'خط الطول',
     panic: 'استغاثة', hold: 'استمر بالضغط…', panic_sub: 'اضغط مع الاستمرار ثانيتين', keep_holding: 'استمر بالضغط للإرسال',
     alert_sent_full: 'تم إرسال الاستغاثة', team_notified: 'تم إخطار فريقك.', tap_dismiss: 'اضغط للإغلاق',
-    sending_alert: 'جارٍ إرسال الاستغاثة…', alert_sent_msg: '🆘 تم إرسال الاستغاثة إلى فريقك', alert_queued: 'في الانتظار — ستُرسل الاستغاثة عند الاتصال',
+    sending_alert: 'جارٍ إرسال الاستغاثة…', alert_sent_msg: '🆘 تم إرسال الاستغاثة إلى فريقك', alert_sent_silent: '✓ تم إرسال الاستغاثة (صامت)', alert_queued: 'في الانتظار — ستُرسل الاستغاثة عند الاتصال',
     signed_out: 'تم تسجيل الخروج — ستتم المزامنة عند الاتصال', sharing_loc: 'جارٍ مشاركة الموقع…',
     open_chat: 'فتح مجموعة الدردشة', actions: 'الإجراءات', map: 'الخريطة',
+    chats: 'الدردشات', no_chats: 'لا توجد مجموعات دردشة متاحة لك بعد.', chats_trust: 'يفتح تطبيقًا خارجيًا لا تتحكم به نور. انضمّ فقط إلى المجموعات الموثوقة.', open: 'فتح', team_chat: 'الفريق', org_chat: 'المنظمة', account: 'الحساب', logged_in_as: 'تسجيل الدخول باسم', your_team: 'فريقك', team_lead: 'المسؤول', no_team: 'غير معيّن لفريق', not_you: 'لست أنت؟ تسجيل الخروج', setup_alerts: 'إعداد التنبيهات', setup_alerts_sub: 'استلام تنبيهات الاستغاثة والمهام على هاتفك', already_setup: 'تم الإعداد — إخفاء', on_duty: 'في الخدمة', off_duty: 'خارج الخدمة', off_duty_note: 'خارج الخدمة — لن تصلك أي إشعارات (ولا حتى الاستغاثة أو النداء) حتى تعود إلى الخدمة. زر الاستغاثة الخاص بك ما زال ينبّه فريقك.', off_duty_banner: '🌙 أنت خارج الخدمة — لا تصلك أي تنبيهات، ولا حتى الاستغاثة أو النداء. زر الاستغاثة ما زال ينبّه فريقك.', broadcasts: 'الإعلانات', no_broadcasts: 'لا توجد إعلانات بعد.', urgent: 'عاجل', acknowledge: 'تأكيد الاستلام', acknowledged: 'تم الاستلام',
     silent_mode: 'صامت', alert_active: 'الاستغاثة نشطة', help_seen: 'شاهد المنقذون التنبيه',
     choose_reason: 'ماذا يحدث؟ (اختياري)', cancel_false_alarm: 'إلغاء — إنذار خاطئ',
     locked_note: 'مقفل — لا يمكن إنهاؤه إلا من قبل المنقذ', cancelled: 'تم إلغاء الاستغاثة',
@@ -146,7 +150,7 @@ type LangKey = keyof typeof LANG['en']
 
 interface ActivePanic { id: string; created_at: string; silent: boolean; reason: string | null; acknowledged: boolean }
 interface FieldState {
-  team: { id: string; name: string; type: string; status: string; group_chat_url?: string | null } | null
+  team: { id: string; name: string; type: string; status: string; leader_name?: string | null; group_chat_url?: string | null } | null
   last_check_in: string | null
   active_roll_call: { id: string; message: string | null; answered: boolean } | null
   checkin_window_minutes?: number
@@ -154,6 +158,14 @@ interface FieldState {
 }
 const REASONS = ['injured', 'under_fire', 'detained', 'vehicle', 'medical', 'moving'] as const
 const CANCEL_WINDOW_S = 10
+
+// Group chats the operator can see (org-scope + their own team), as returned by
+// /api/ngo/chat. Cached locally so they're available offline in the field.
+interface ChatLink { id: string; label: string; platform: string; url: string; scope: 'org' | 'team'; team_name: string | null; description: string | null }
+const CHATS_CACHE_KEY = 'nour-chats'
+function chatIcon(p: string): string {
+  switch (p) { case 'signal': return '🔵'; case 'whatsapp': return '🟢'; case 'telegram': return '🔷'; default: return '💬' }
+}
 
 export default function NgoFieldPage() {
   const [lang, setLang] = useState<Lang>('ar')
@@ -169,7 +181,15 @@ export default function NgoFieldPage() {
   const [manLon, setManLon] = useState('')
   const [holding, setHolding] = useState(false)
   const [flash, setFlash] = useState(false)
+  const [safeFlash, setSafeFlash] = useState(false) // brief green "marked safe ✓" after a roll-call answer
   const [checkinQueued, setCheckinQueued] = useState(false)
+  // Per-action busy flags — every async action disables its button + shows a visual change
+  // the instant it's tapped, so on a slow/2G link nobody thinks "nothing happened" and taps
+  // again (which had let people double-advance a dispatch).
+  const [checkingIn, setCheckingIn] = useState(false)
+  const [advancing, setAdvancing] = useState(false)
+  const [rollBusy, setRollBusy] = useState(false)
+  const [reportBusy, setReportBusy] = useState(false)
   const [pendingStatus, setPendingStatus] = useState<string | null>(null) // optimistic chip highlight
   const [silent, setSilent] = useState(false) // pre-arm silent mode (no sound/flash/feedback)
   const holdTimer = useRef<any>(null)
@@ -181,10 +201,72 @@ export default function NgoFieldPage() {
   const [refreshError, setRefreshError] = useState(false)
   const [who, setWho] = useState<{ name: string; org: string | null } | null>(null)
   const [nowTick, setNowTick] = useState(0) // forces the "next due" line to refresh
-  const [tab, setTab] = useState<'actions' | 'map'>('actions')
+  const [tab, setTab] = useState<'actions' | 'map' | 'chats' | 'broadcasts'>('actions')
   const [mapStatus, setMapStatus] = useState<'idle' | 'loading' | 'ready' | 'offline'>('idle')
+  const [chatLinks, setChatLinks] = useState<ChatLink[]>([])
+  const [offDuty, setOffDuty] = useState(false)
+  const [offDutyBusy, setOffDutyBusy] = useState(false)
+  const [notifSetupDone, setNotifSetupDone] = useState(true) // assume done until /me says otherwise (avoids a flash)
+  const [broadcasts, setBroadcasts] = useState<{ id: string; body: string; urgency: string; created_at: string; sender_name: string; acknowledged_at: string | null }[]>([])
+  const [ackBusy, setAckBusy] = useState<string | null>(null)
   const mapEl = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<any>(null)
+
+  // Broadcasts addressed to this worker (read-only; can acknowledge urgent ones). Fetching
+  // marks them delivered server-side. Refresh on mount and whenever the tab is opened.
+  const loadBroadcasts = useCallback(async () => {
+    try {
+      const r = await fetch('/api/ngo/broadcasts', { cache: 'no-store' })
+      if (r.ok) { const d = await r.json(); setBroadcasts(d.broadcasts ?? []) }
+    } catch { /* offline — keep what we have */ }
+  }, [])
+  useEffect(() => { loadBroadcasts() }, [loadBroadcasts])
+  useEffect(() => { if (tab === 'broadcasts') loadBroadcasts() }, [tab, loadBroadcasts])
+  const acknowledge = async (id: string) => {
+    setAckBusy(id)
+    try {
+      const r = await fetch(`/api/ngo/broadcasts/${id}/acknowledge`, { method: 'POST' })
+      if (r.ok) setBroadcasts((bs) => bs.map((b) => (b.id === id ? { ...b, acknowledged_at: new Date().toISOString() } : b)))
+    } catch { /* ignore */ } finally { setAckBusy(null) }
+  }
+  const unackedUrgent = broadcasts.filter((b) => b.urgency === 'urgent' && !b.acknowledged_at).length
+
+  // Own availability (off-duty) + whether push setup is done (hides the one-time nudge).
+  // While off duty the operator gets NO notifications at all and isn't flagged for missed
+  // check-ins; their own panic still alerts the team.
+  useEffect(() => {
+    fetch('/api/ngo/me', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).then((d) => {
+      if (d?.account) { setOffDuty(!!d.account.off_duty); setNotifSetupDone(!!d.account.notif_setup_done) }
+    }).catch(() => {})
+  }, [])
+  // Dismiss the setup nudge — they confirm push is already working. Persists server-side so it
+  // stays hidden across devices/reloads.
+  const dismissSetup = async () => {
+    setNotifSetupDone(true)
+    try { await fetch('/api/ngo/me', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notif_setup_done: true }) }) } catch { /* best effort */ }
+  }
+  const toggleOffDuty = async () => {
+    const next = !offDuty
+    setOffDutyBusy(true); setOffDuty(next)
+    try {
+      const r = await fetch('/api/ngo/me', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ off_duty: next }) })
+      if (!r.ok) setOffDuty(!next) // revert on failure
+    } catch { setOffDuty(!next) } finally { setOffDutyBusy(false) }
+  }
+
+  // Group chats the operator can access. Hydrate from the local cache first so they
+  // show instantly and offline, then refresh from the server when online.
+  useEffect(() => {
+    try { const c = localStorage.getItem(CHATS_CACHE_KEY); if (c) setChatLinks(JSON.parse(c)) } catch { /* no cache */ }
+    fetch('/api/ngo/chat', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!d?.links) return
+        setChatLinks(d.links)
+        try { localStorage.setItem(CHATS_CACHE_KEY, JSON.stringify(d.links)) } catch { /* quota */ }
+      })
+      .catch(() => { /* offline — keep cached */ })
+  }, [])
 
   // Language: reuse the site-wide fl_lang; default Arabic (Arabic-first).
   useEffect(() => {
@@ -286,6 +368,13 @@ export default function NgoFieldPage() {
     }
   }, [flushQueue, loadState, loadDispatch, loadWho, refreshQueueCount])
 
+  // 1s tick drives the live check-in countdown. Cheap UI re-render only — no GPS, no network —
+  // and paused while the tab is hidden, so it stays battery-conscious in the field.
+  useEffect(() => {
+    const id = setInterval(() => { if (document.visibilityState === 'visible') setNowTick((n) => n + 1) }, 1000)
+    return () => clearInterval(id)
+  }, [])
+
   async function resolveCoords(): Promise<{ lat: number | null; lon: number | null }> {
     if (manual) {
       const lat = parseFloat(manLat), lon = parseFloat(manLon)
@@ -351,12 +440,16 @@ export default function NgoFieldPage() {
   useEffect(() => () => { if (mapRef.current) { mapRef.current.remove(); mapRef.current = null } }, [])
 
   async function doCheckIn() {
+    if (checkingIn) return
+    setCheckingIn(true)
     setMsg(t('getting_loc'))
-    const { lat, lon } = await resolveCoords()
-    const sent = await send('/api/ngo/safety/check-in', { lat, lon }, 'check-in')
-    setCheckinQueued(!sent)
-    setMsg(sent ? `${t('checked')} ✓` : t('queued_send'))
-    loadState()
+    try {
+      const { lat, lon } = await resolveCoords()
+      const sent = await send('/api/ngo/safety/check-in', { lat, lon }, 'check-in')
+      setCheckinQueued(!sent)
+      setMsg(sent ? `${t('checked')} ✓` : t('queued_send'))
+      await loadState()
+    } finally { setCheckingIn(false) }
   }
 
   // Short two-tone alarm via Web Audio (no asset needed). Triggered by the user's
@@ -395,15 +488,16 @@ export default function NgoFieldPage() {
       await qAdd({ id: `panic|${typeof performance !== 'undefined' ? performance.now() : ''}|${Math.round(Math.random() * 1e9)}`, url: '/api/ngo/safety/panic', body, label: 'panic', method: 'POST' })
       refreshQueueCount()
     }
-    // Silent mode: NO sound, NO flash, no loud message — onlookers see nothing. The
-    // post-fire panel (driven by active_panic) is the only, subdued, change.
+    // Silent mode: NO sound, NO full-screen flash — onlookers must see nothing alarming. But the
+    // worker still gets a DISCREET confirmation (a small neutral line) so they know it fired,
+    // alongside the subdued 'Alert active · Silent' panel. Non-silent gets the loud flash.
     if (!silent) {
       playAlarm()
       setFlash(true)
       setTimeout(() => setFlash(false), 4000)
       setMsg(sent ? t('alert_sent_msg') : t('alert_queued'))
     } else {
-      setMsg(sent ? '' : t('alert_queued'))
+      setMsg(sent ? t('alert_sent_silent') : t('alert_queued'))
     }
     loadState() // surfaces active_panic → reason chips, cancel window, ack feedback
   }
@@ -440,33 +534,48 @@ export default function NgoFieldPage() {
   useEffect(() => { if (pendingStatus && state?.team?.status === pendingStatus) setPendingStatus(null) }, [state, pendingStatus])
 
   async function respondRollCall() {
-    if (!state?.active_roll_call) return
+    if (!state?.active_roll_call || rollBusy) return
+    setRollBusy(true)
     setMsg(t('sharing_loc'))
-    const { lat, lon } = await resolveCoords()
-    const sent = await send('/api/ngo/safety/roll-call/respond', { roll_call_id: state.active_roll_call.id, lat, lon }, 'roll-call')
-    setMsg(sent ? t('marked_safe') : t('queued_send'))
-    loadState()
+    try {
+      const { lat, lon } = await resolveCoords()
+      const sent = await send('/api/ngo/safety/roll-call/respond', { roll_call_id: state.active_roll_call.id, lat, lon }, 'roll-call')
+      setMsg(sent ? t('marked_safe') : t('queued_send'))
+      // Prominent confirmation — a roll-call answer is a safety signal, not a small toast.
+      if (sent) { setSafeFlash(true); setTimeout(() => setSafeFlash(false), 2200) }
+      await loadState()
+    } finally { setRollBusy(false) }
   }
 
   const NEXT_STATUS: Record<string, string> = { assigned: 'en_route', en_route: 'on_scene', on_scene: 'done' }
 
   async function advanceDispatch() {
-    if (!dispatch) return
+    if (!dispatch || advancing) return
     const next = NEXT_STATUS[dispatch.status]
-    const sent = await send(`/api/ngo/dispatch/${dispatch.id}/advance`, {}, 'advance')
-    setMsg(sent ? `${t(next as LangKey)}` : t('queued_send'))
-    loadDispatch()
+    if (!next) return
+    setAdvancing(true)
+    // Optimistic: flip the status locally NOW so the card + button visibly move a step the
+    // instant it's tapped (works offline too). Reconciled by loadDispatch below.
+    setDispatch((d: any) => (d ? { ...d, status: next } : d))
+    try {
+      const sent = await send(`/api/ngo/dispatch/${dispatch.id}/advance`, {}, 'advance')
+      setMsg(sent ? `${t(next as LangKey)}` : t('queued_send'))
+      await loadDispatch()
+    } finally { setAdvancing(false) }
   }
   async function submitReport() {
-    if (!dispatch) return
-    // PUT updates the single report (creates it if none) so edits don't duplicate.
-    const sent = await sendPut(`/api/ngo/dispatch/${dispatch.id}/report`, {
-      people_assisted: report.people === '' ? null : Number(report.people),
-      services: report.services || null,
-      new_hazards: report.hazards || null,
-    }, 'report')
-    setReportSent(true); setEditingReport(false)
-    setMsg(sent ? t('report_saved') : t('queued_send'))
+    if (!dispatch || reportBusy) return
+    setReportBusy(true)
+    try {
+      // PUT updates the single report (creates it if none) so edits don't duplicate.
+      const sent = await sendPut(`/api/ngo/dispatch/${dispatch.id}/report`, {
+        people_assisted: report.people === '' ? null : Number(report.people),
+        services: report.services || null,
+        new_hazards: report.hazards || null,
+      }, 'report')
+      setReportSent(true); setEditingReport(false)
+      setMsg(sent ? t('report_saved') : t('queued_send'))
+    } finally { setReportBusy(false) }
   }
   function startEditReport() {
     const r = dispatch?.report
@@ -490,31 +599,40 @@ export default function NgoFieldPage() {
     const h = Math.floor(m / 60)
     return h < 24 ? `${h}h` : `${Math.floor(h / 24)}d`
   }
-  function hhmm(d: Date): string { return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
+  // Time-until-due, ticking. ≥1h: "Hh Mm"; 15–60m: "Xm"; <15m: "M:SS" (seconds, for urgency).
+  function fmtCountdown(ms: number): string {
+    const s = Math.floor(ms / 1000)
+    if (s >= 3600) return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`
+    if (s >= 900) return `${Math.ceil(s / 60)}m`
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+  }
 
-  // The persistent CHECK-IN subtitle + tone, derived from the last check-in + cadence.
-  function checkInInfo(): { sub: string; overdue: boolean } {
-    void nowTick // re-evaluate on the 5s tick
-    if (checkinQueued) return { sub: t('queued_send'), overdue: false }
+  // The persistent CHECK-IN state, derived from the last check-in + cadence. tone drives colour:
+  // neutral (no cadence yet) / ok (plenty of time) / warn (due soon or never checked in) /
+  // overdue (past due). Re-evaluated every second via nowTick so the countdown is live.
+  function checkInInfo(): { sub: string; tone: 'neutral' | 'ok' | 'warn' | 'overdue'; never: boolean } {
+    void nowTick
+    if (checkinQueued) return { sub: t('queued_send'), tone: 'neutral', never: false }
     const last = state?.last_check_in
-    if (!last) return { sub: t('checkin_sub'), overdue: false }
+    if (!last) return { sub: t('never_checked_in'), tone: 'warn', never: true }
     const windowMin = state?.checkin_window_minutes ?? 240
-    const due = new Date(new Date(last).getTime() + windowMin * 60000)
-    const overdue = Date.now() > due.getTime()
-    const sub = overdue
-      ? `✓ ${ago(last)} · ${t('overdue')}`
-      : `✓ ${ago(last)} · ${t('next_due')} ${hhmm(due)}`
-    return { sub, overdue }
+    const remaining = new Date(last).getTime() + windowMin * 60000 - Date.now()
+    if (remaining <= 0) return { sub: `✓ ${ago(last)} · ${t('overdue')}`, tone: 'overdue', never: false }
+    const tone = remaining <= 15 * 60000 ? 'warn' : 'ok'
+    return { sub: `✓ ${ago(last)} · ${t('due_in')} ${fmtCountdown(remaining)}`, tone, never: false }
   }
 
   const rc = state?.active_roll_call
   const showRc = rc && !rc.answered
   const ci = checkInInfo()
+  // Tone → colour. Status bar (dark bg) uses these directly; the green check-in button uses
+  // light tints below for contrast.
+  const toneColor: Record<typeof ci.tone, string> = { neutral: '#8b949e', ok: '#8b949e', warn: '#d29922', overdue: '#f85149' }
   const dispStatusKey = (s: string): LangKey => (['assigned', 'en_route', 'on_scene', 'done'].includes(s) ? (s as LangKey) : 'assigned')
 
   return (
     <div dir={isRtl ? 'rtl' : 'ltr'} style={{ ...wrap, paddingBottom: 'calc(196px + env(safe-area-inset-bottom))' }}>
-      <style>{`@keyframes nourHoldFill{from{width:0}to{width:100%}}@keyframes nourFlash{0%,100%{background:rgba(248,81,73,0.92)}50%{background:rgba(248,81,73,0.55)}}`}</style>
+      <style>{`@keyframes nourHoldFill{from{width:0}to{width:100%}}@keyframes nourFlash{0%,100%{background:rgba(248,81,73,0.92)}50%{background:rgba(248,81,73,0.55)}}button:active:not(:disabled){transform:scale(0.97);filter:brightness(1.08)}button:disabled{opacity:0.6}`}</style>
 
       {/* Full-screen confirmation flash after a panic is sent */}
       {flash && (
@@ -522,6 +640,15 @@ export default function NgoFieldPage() {
           <div style={{ fontSize: 32, fontWeight: 800 }}>🆘 {t('alert_sent_full')}</div>
           <div style={{ fontSize: 16, marginTop: 8, opacity: 0.95 }}>{t('team_notified')}</div>
           <div style={{ fontSize: 13, marginTop: 18, opacity: 0.8 }}>{t('tap_dismiss')}</div>
+        </div>
+      )}
+
+      {/* Roll-call answer confirmation — prominent green flash so a worker can't miss that
+          their "safe" signal was recorded (matches the weight of the check-in confirmation). */}
+      {safeFlash && (
+        <div style={safeFlashOverlay} onClick={() => setSafeFlash(false)}>
+          <div style={{ fontSize: 72, fontWeight: 800, lineHeight: 1 }}>✓</div>
+          <div style={{ fontSize: 24, fontWeight: 800, marginTop: 10 }}>{t('marked_safe')}</div>
         </div>
       )}
 
@@ -544,6 +671,7 @@ export default function NgoFieldPage() {
                 <button key={l} type="button" onClick={() => changeLang(l)} style={langBtn(lang === l)}>{l === 'ar' ? 'ع' : l.toUpperCase()}</button>
               ))}
             </div>
+            <a href="/ngo/settings" style={{ ...logoutBtn, color: '#8b949e', textDecoration: 'none' }}>{t('account')}</a>
             <button type="button" onClick={logout} style={logoutBtn}>{t('logout')}</button>
           </div>
         </div>
@@ -551,15 +679,25 @@ export default function NgoFieldPage() {
           <span style={{ ...connChip, background: online ? 'rgba(63,185,80,0.15)' : 'rgba(210,153,34,0.18)', color: online ? '#3fb950' : '#d29922', border: `1px solid ${online ? 'rgba(63,185,80,0.4)' : 'rgba(210,153,34,0.5)'}` }}>
             <span style={{ fontSize: 14 }}>●</span> {online ? t('online') : t('offline')}{queued > 0 ? ` · ${queued} ${t('queued')}` : ''}
           </span>
-          {state?.last_check_in && (
-            <span style={{ fontSize: 13, fontWeight: 600, color: ci.overdue ? '#f85149' : '#8b949e' }}>
-              ✓ {ago(state.last_check_in)}
-            </span>
-          )}
+          {/* Always shown — even when never checked in — so the worker always knows their state. */}
+          <span style={{ fontSize: 13, fontWeight: 600, color: toneColor[ci.tone], textAlign: 'right', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {ci.never ? `⚠ ${t('no_checkin')}` : ci.sub}
+          </span>
         </div>
         {online && refreshError && (
           <div style={{ fontSize: 12, color: '#d29922', marginTop: 6 }}>{t('server_retry')}</div>
         )}
+        {/* Availability — off-duty makes the operator fully silent (no notifications at all, not
+            even panic/roll-call) and exempt from missed-check-in flags. Their own panic still fires. */}
+        <div style={{ marginTop: 8 }}>
+          <button type="button" onClick={toggleOffDuty} disabled={offDutyBusy} style={{
+            width: '100%', minHeight: 40, borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'system-ui',
+            background: offDuty ? 'rgba(210,153,34,0.15)' : 'rgba(63,185,80,0.12)',
+            border: `1px solid ${offDuty ? 'rgba(210,153,34,0.5)' : 'rgba(63,185,80,0.45)'}`,
+            color: offDuty ? '#d29922' : '#3fb950',
+          }}>{offDuty ? `🌙 ${t('off_duty')} — ${t('on_duty')}?` : `🟢 ${t('on_duty')} — ${t('off_duty')}?`}</button>
+          {offDuty && <div style={{ fontSize: 11, color: '#8b949e', marginTop: 4 }}>{t('off_duty_note')}</div>}
+        </div>
       </div>
 
       {/* Prominent offline banner — offline is the normal state, not an error */}
@@ -570,9 +708,41 @@ export default function NgoFieldPage() {
       <div style={{ display: 'flex', gap: 8 }}>
         <button type="button" onClick={() => setTab('actions')} style={tabBtn(tab === 'actions')}>{t('actions')}</button>
         <button type="button" onClick={() => setTab('map')} style={tabBtn(tab === 'map')}>🗺 {t('map')}</button>
+        <button type="button" onClick={() => setTab('chats')} style={tabBtn(tab === 'chats')}>💬 {t('chats')}{chatLinks.length > 0 ? ` (${chatLinks.length})` : ''}</button>
+        <button type="button" onClick={() => setTab('broadcasts')} style={tabBtn(tab === 'broadcasts')}>📢 {t('broadcasts')}{unackedUrgent > 0 ? ` (${unackedUrgent})` : ''}</button>
       </div>
 
       {tab === 'actions' && (<>
+      {/* Identity + team (F-6/F-7). Field phones get shared, so make WHO is signed in and which
+          team unmistakable, with a one-tap "not you?" logout. Read-only; team changes are
+          leader-only on the dashboard. */}
+      <div style={{ background: '#161b22', border: '1px solid #21262d', borderRadius: 10, padding: '10px 12px' }}>
+        <div style={{ fontSize: 11, color: '#8b949e' }}>{t('logged_in_as')}</div>
+        <div style={{ fontSize: 17, fontWeight: 700, color: '#e6edf3' }}>
+          {who?.name ?? '—'}{who?.org ? <span style={{ fontSize: 12, fontWeight: 400, color: '#8b949e' }}> · {who.org}</span> : null}
+        </div>
+        <div style={{ fontSize: 12, color: '#8b949e', marginTop: 4 }}>
+          {state?.team
+            ? <>{t('your_team')}: <span style={{ color: '#c9d1d9' }}>{state.team.name} · {state.team.type}</span>{state.team.leader_name ? ` · ${t('team_lead')}: ${state.team.leader_name}` : ''}</>
+            : t('no_team')}
+        </div>
+        <button type="button" onClick={logout} style={{ background: 'none', border: 'none', color: '#58a6ff', cursor: 'pointer', fontSize: 12, padding: '6px 0 0', fontFamily: 'system-ui' }}>{t('not_you')}</button>
+      </div>
+
+      {/* One-time nudge to set up push alerts (ntfy) — field coordinators are the most
+          important recipients, so make the path to setup obvious. Links to /ngo/settings
+          (allowed for this role by middleware), where the download + tutorial live. Hidden once
+          the user has set up notifications (sent a test push, or dismissed it here). */}
+      {!notifSetupDone && (
+        <div style={{ display: 'flex', alignItems: 'stretch', gap: 8 }}>
+          <a href="/ngo/settings" style={{ flex: 1, textDecoration: 'none', background: '#161b22', border: '1px solid #21262d', borderRadius: 10, padding: '10px 12px' }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#58a6ff' }}>🔔 {t('setup_alerts')} →</div>
+            <div style={{ fontSize: 12, color: '#8b949e', marginTop: 2 }}>{t('setup_alerts_sub')}</div>
+          </a>
+          <button type="button" onClick={dismissSetup} title={t('already_setup')} aria-label={t('already_setup')}
+            style={{ flex: '0 0 auto', background: '#161b22', border: '1px solid #21262d', borderRadius: 10, color: '#8b949e', fontSize: 18, cursor: 'pointer', fontFamily: 'system-ui', padding: '0 12px' }}>✓</button>
+        </div>
+      )}
       {/* Active-panic panel — appears after a panic fires (driven by polled state, so it
           survives reloads + offline→online sync). Reason chips, the false-alarm cancel
           window, and "help has seen this". Subdued in silent mode. */}
@@ -600,17 +770,25 @@ export default function NgoFieldPage() {
 
       {/* Roll-call prompt */}
       {showRc && (
-        <button type="button" onClick={respondRollCall} style={rollCallBtn}>
-          🟢 {t('rollcall')}
+        <button type="button" onClick={respondRollCall} disabled={rollBusy} style={rollCallBtn}>
+          🟢 {rollBusy ? `${t('sharing_loc')}…` : t('rollcall')}
           {rc?.message ? <div style={{ fontSize: 14, fontWeight: 400, marginTop: 6 }}>{rc.message}</div> : null}
         </button>
       )}
       {rc && rc.answered && <div style={{ textAlign: 'center', color: '#3fb950', fontSize: 15, fontWeight: 600 }}>{t('marked_safe')}</div>}
 
+      {/* OFF-DUTY banner — persistent + unmissable above the primary control, so a worker is
+          never confused about why nothing is reaching them (off-duty is fully silent). */}
+      {offDuty && (
+        <div style={{ background: 'rgba(163,113,247,0.16)', border: '1px solid rgba(163,113,247,0.55)', color: '#d2b8ff', borderRadius: 12, padding: '12px 14px', fontSize: 14, fontWeight: 700, lineHeight: 1.35, textAlign: 'center' }}>
+          {t('off_duty_banner')}
+        </div>
+      )}
+
       {/* CHECK IN — the largest control on the screen */}
-      <button type="button" onClick={doCheckIn} style={checkInBtn}>
-        <span style={{ fontSize: 32, fontWeight: 800 }}>{t('check_in')}</span>
-        <span style={{ fontSize: 15, fontWeight: 600, opacity: 0.95, color: ci.overdue ? '#ffd7d5' : '#fff' }}>{ci.sub}</span>
+      <button type="button" onClick={doCheckIn} disabled={checkingIn} style={checkInBtn}>
+        <span style={{ fontSize: 32, fontWeight: 800 }}>{checkingIn ? `${t('getting_loc')}…` : t('check_in')}</span>
+        <span style={{ fontSize: 15, fontWeight: 600, opacity: 0.95, color: ci.tone === 'overdue' ? '#ffd7d5' : ci.tone === 'warn' ? '#ffe8b3' : '#fff' }}>{checkingIn ? '' : ci.sub}</span>
       </button>
 
       {/* STATUS */}
@@ -637,8 +815,8 @@ export default function NgoFieldPage() {
           {dispatch.note && <div style={{ fontSize: 13, color: '#8b949e', marginTop: 4 }}>{dispatch.note}</div>}
           {dispatch.map_link && <a href={dispatch.map_link} target="_blank" rel="noreferrer" style={{ fontSize: 14, color: '#58a6ff', display: 'inline-block', marginTop: 6 }}>{t('map')} ↗</a>}
           {NEXT_STATUS[dispatch.status] && (
-            <button type="button" onClick={advanceDispatch} style={{ ...checkInBtn, height: 64, background: '#1f6feb', borderColor: '#58a6ff', marginTop: 10 }}>
-              <span style={{ fontSize: 18, fontWeight: 800 }}>{t('advance_to')} {t(NEXT_STATUS[dispatch.status] as LangKey).toUpperCase()}</span>
+            <button type="button" onClick={advanceDispatch} disabled={advancing} style={{ ...checkInBtn, height: 64, background: '#1f6feb', borderColor: '#58a6ff', marginTop: 10 }}>
+              <span style={{ fontSize: 18, fontWeight: 800 }}>{advancing ? '…' : `${t('advance_to')} ${t(NEXT_STATUS[dispatch.status] as LangKey).toUpperCase()}`}</span>
             </button>
           )}
           {/* On-scene report (3 fields) — fileable/editable once on scene or done */}
@@ -648,7 +826,7 @@ export default function NgoFieldPage() {
               <input style={field} inputMode="numeric" placeholder={t('people_assisted')} value={report.people} onChange={(e) => setReport({ ...report, people: e.target.value })} />
               <input style={field} placeholder={t('services_delivered')} value={report.services} onChange={(e) => setReport({ ...report, services: e.target.value })} />
               <input style={field} placeholder={t('new_hazards')} value={report.hazards} onChange={(e) => setReport({ ...report, hazards: e.target.value })} />
-              <button type="button" onClick={submitReport} style={{ ...statusBtn(false), height: 48 }}>{editingReport ? t('save_changes') : t('submit_report')}</button>
+              <button type="button" onClick={submitReport} disabled={reportBusy} style={{ ...statusBtn(false), height: 48 }}>{reportBusy ? '…' : (editingReport ? t('save_changes') : t('submit_report'))}</button>
             </div>
           )}
           {reportSent && !editingReport && (
@@ -708,6 +886,52 @@ export default function NgoFieldPage() {
         </div>
       )}
 
+      {/* Chats tab — the group chats this operator can access (org-wide + their team),
+          as added by the NGO in the dashboard. Cached locally so they open offline. */}
+      {tab === 'chats' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ fontSize: 12, color: '#d29922', background: 'rgba(210,153,34,0.1)', border: '1px solid rgba(210,153,34,0.35)', borderRadius: 10, padding: '10px 12px' }}>{t('chats_trust')}</div>
+          {chatLinks.length === 0 && <div style={{ fontSize: 14, color: '#8b949e', textAlign: 'center', padding: '24px 0' }}>{t('no_chats')}</div>}
+          {chatLinks.map((l) => (
+            <div key={l.id} style={{ background: '#161b22', border: '1px solid #21262d', borderRadius: 12, padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                <span style={{ fontSize: 22, lineHeight: '26px' }}>{chatIcon(l.platform)}</span>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: '#e6edf3' }}>{l.label}</div>
+                  {l.description && <div style={{ fontSize: 13, color: '#8b949e', marginTop: 2 }}>{l.description}</div>}
+                  <div style={{ fontSize: 12, color: '#6e7681', marginTop: 4 }}>{l.scope === 'team' ? `${t('team_chat')}${l.team_name ? ` · ${l.team_name}` : ''}` : t('org_chat')}</div>
+                </div>
+              </div>
+              {/* Tap to open — never auto-open. */}
+              <a href={l.url} target="_blank" rel="noreferrer noopener" style={{ ...groupChatBtn, minHeight: 52 }}>💬 {t('open')} ↗</a>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tab === 'broadcasts' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {broadcasts.length === 0 && <div style={{ fontSize: 14, color: '#8b949e', textAlign: 'center', padding: '24px 0' }}>{t('no_broadcasts')}</div>}
+          {broadcasts.map((b) => {
+            const urgent = b.urgency === 'urgent'
+            return (
+              <div key={b.id} style={{ background: '#161b22', border: `1px solid ${urgent ? 'rgba(248,81,73,0.5)' : '#21262d'}`, borderRadius: 12, padding: 14 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' }}>
+                  <div style={{ fontSize: 16, color: '#e6edf3', whiteSpace: 'pre-wrap', flex: 1 }}>{b.body}</div>
+                  {urgent && <span style={{ fontSize: 10, fontWeight: 700, color: '#f85149', border: '1px solid #f85149', borderRadius: 4, padding: '1px 6px', flexShrink: 0 }}>{t('urgent')}</span>}
+                </div>
+                <div style={{ fontSize: 12, color: '#8b949e', marginTop: 6 }}>{b.sender_name} · {new Date(b.created_at).toLocaleString()}</div>
+                {urgent && (
+                  b.acknowledged_at
+                    ? <div style={{ marginTop: 10, fontSize: 14, fontWeight: 600, color: '#3fb950' }}>✓ {t('acknowledged')}</div>
+                    : <button type="button" onClick={() => acknowledge(b.id)} disabled={ackBusy === b.id} style={{ marginTop: 10, width: '100%', minHeight: 48, borderRadius: 10, fontSize: 16, fontWeight: 700, cursor: 'pointer', fontFamily: 'system-ui', background: 'rgba(63,185,80,0.15)', border: '1px solid #3fb950', color: '#3fb950', opacity: ackBusy === b.id ? 0.6 : 1 }}>✓ {t('acknowledge')}</button>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
       {/* Fixed PANIC bar — always visible, hard to miss, never scrolls away. A small
           silent toggle sits above it: pre-arm for when being seen/heard is the danger. */}
       <div style={panicBar}>
@@ -755,6 +979,7 @@ const panicBar: React.CSSProperties = {
   pointerEvents: 'none',
 }
 const flashOverlay: React.CSSProperties = { position: 'fixed', inset: 0, zIndex: 100, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: '#fff', fontFamily: 'system-ui', animation: 'nourFlash 0.7s ease-in-out infinite', cursor: 'pointer' }
+const safeFlashOverlay: React.CSSProperties = { position: 'fixed', inset: 0, zIndex: 100, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: '#fff', background: 'rgba(35,134,54,0.96)', fontFamily: 'system-ui', cursor: 'pointer' }
 const rollCallBtn: React.CSSProperties = { width: '100%', padding: '18px', background: '#1f6feb', border: '1px solid #58a6ff', color: '#fff', borderRadius: 14, fontSize: 19, fontWeight: 700, cursor: 'pointer', fontFamily: 'system-ui' }
 function statusBtn(active: boolean): React.CSSProperties {
   return { flex: 1, height: 56, borderRadius: 12, fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'system-ui', background: active ? 'rgba(88,166,255,0.18)' : '#161b22', border: active ? '2px solid #58a6ff' : '1px solid #21262d', color: active ? '#58a6ff' : '#c9d1d9' }

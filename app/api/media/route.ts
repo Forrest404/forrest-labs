@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
+import { rateLimitByIp, tooMany } from '@/lib/rate-limit'
 
 export async function POST(request: NextRequest) {
+  // Media uploads are heavy (face-blur processing) — cap per IP (10 / 10 min).
+  const limit = await rateLimitByIp(createServiceClient(), request, 'public:media', 10, 600)
+  if (!limit.ok) return tooMany(limit.retryAfter)
+
   try {
     const formData = await request.formData()
     const file = formData.get('file') as File | null

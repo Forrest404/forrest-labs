@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { getNgoSession, requireRole } from '@/lib/ngo-auth'
+import { rateLimit, tooMany, MUTATION_MAX, MUTATION_WINDOW } from '@/lib/rate-limit'
+import { notifiableCountsByTeam, availabilityByTeam, isTeamOffDuty } from '@/lib/ngo-safety'
 
 // Teams for the caller's organisation. All access scoped to session.orgId.
 // ngo_teams.type is CHECK-constrained to this set.
@@ -24,6 +26,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Could not load teams' }, { status: 500 })
   }
 
+  // Members linked to an active account per team — so callers can warn about teams that
+  // can't actually be alerted (roster is name-only / unlinked).
+  const teamIds = (res.data ?? []).map((t: any) => t.id)
+  const notifiable = await notifiableCountsByTeam(supabase, teamIds)
+  // When every linked member of a team is off duty, the whole team is off duty in the dashboard.
+  const availability = await availabilityByTeam(supabase, teamIds)
+
   const shaped = (res.data ?? []).map((t: any) => {
     const status = Array.isArray(t.team_status) ? t.team_status[0] : t.team_status
     return {
@@ -32,10 +41,12 @@ export async function GET(request: NextRequest) {
       type: t.type,
       capacity: t.capacity,
       status: status?.status ?? 'offline',
+      all_off_duty: isTeamOffDuty(availability[t.id]),
       last_lat: status?.last_lat ?? null,
       last_lon: status?.last_lon ?? null,
       last_seen_at: status?.last_seen_at ?? null,
       group_chat_url: t.group_chat_url ?? null,
+      notifiable_count: notifiable[t.id] ?? 0,
     }
   })
   return NextResponse.json({ teams: shaped })
@@ -46,6 +57,7 @@ export async function POST(request: NextRequest) {
   if (!requireRole(session, ['org_admin', 'team_leader'])) {
     return NextResponse.json({ error: 'Not authorised' }, { status: 403 })
   }
+  { const l = await rateLimit(createServiceClient(), { bucket: 'mut:teams', identifier: session!.userId, max: MUTATION_MAX, windowSec: MUTATION_WINDOW }); if (!l.ok) return tooMany(l.retryAfter) }
 
   let body: { name?: string; type?: string; capacity?: unknown }
   try {

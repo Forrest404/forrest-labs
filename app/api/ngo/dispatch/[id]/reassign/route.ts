@@ -44,6 +44,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   // Sanitised broadcast (security C1): no hazard/place/coords/map link on the relay;
   // the team opens NOUR (authenticated) to see the new incident location.
   await notifyTeam(supabase, d.team_id, {
+    event: 'dispatch',
     title: '🔄 Reassigned',
     body: 'You have been reassigned to a new incident. Open NOUR for the location.',
     priority: 'urgent', tags: 'arrows_counterclockwise',

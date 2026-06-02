@@ -20,11 +20,13 @@ const NAV: NavItem[] = [
   // Coordination (Reports/Chat/Facilities are scaffolds — see their pages)
   { href: '/ngo/reports', label: 'Reports', roles: ['org_admin', 'team_leader'], section: 'Coordination' },
   { href: '/ngo/chat', label: 'Group chats', roles: ['org_admin', 'team_leader'], section: 'Coordination' },
+  { href: '/ngo/broadcasts', label: 'Broadcast', roles: ['org_admin', 'team_leader'], section: 'Coordination' },
   { href: '/ngo/facilities', label: 'Facilities & contacts', roles: ['org_admin', 'team_leader'], section: 'Coordination' },
   // Admin
   { href: '/ngo/setup', label: 'Operational area', roles: ['org_admin'], section: 'Admin' },
   { href: '/ngo/users', label: 'Users', roles: ['org_admin'], section: 'Admin' },
-  { href: '/ngo/settings', label: 'Settings', roles: ['org_admin'], section: 'Admin' },
+  { href: '/ngo/settings', label: 'Settings', roles: ['org_admin', 'team_leader'], section: 'Admin' },
+  { href: '/ngo/security', label: 'Security (2FA)', roles: ['org_admin', 'team_leader'], section: 'Admin' },
 ]
 const SECTION_ORDER = ['Operations', 'Coordination', 'Admin']
 
@@ -34,8 +36,8 @@ const SECTION_ORDER = ['Operations', 'Coordination', 'Admin']
 // it carries its own on-screen controls and needs no sidebar/drawer.
 export default function NgoLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname()
-  const isBare = pathname === '/ngo/login' || pathname === '/ngo/signup' || pathname.startsWith('/ngo/field')
-  const isAuthPage = pathname === '/ngo/login' || pathname === '/ngo/signup'
+  const isBare = pathname === '/ngo/login' || pathname === '/ngo/signup' || pathname === '/ngo/invite' || pathname === '/ngo/reset' || pathname.startsWith('/ngo/field')
+  const isAuthPage = pathname === '/ngo/login' || pathname === '/ngo/signup' || pathname === '/ngo/invite' || pathname === '/ngo/reset'
 
   const [role, setRole] = useState<NgoRole | null>(null)
   const [who, setWho] = useState<{ name: string; org: string | null } | null>(null)

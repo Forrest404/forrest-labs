@@ -13,10 +13,11 @@ const COOKIE_MAX_AGE = 43200 // 12h default (admins/leaders)
 
 export type NgoRole = 'org_admin' | 'team_leader' | 'field_coordinator'
 
-// Field coordinators stay signed in for 30 days (they work offline, in the field);
+// Field coordinators stay signed in for 7 days (they work offline, in the field, but a
+// lost/seized phone must go stale within a week — paired with remote revoke below);
 // admins/leaders keep a 12h desktop session.
 export function ngoSessionTtlSeconds(role: NgoRole): number {
-  return role === 'field_coordinator' ? 60 * 60 * 24 * 30 : COOKIE_MAX_AGE
+  return role === 'field_coordinator' ? 60 * 60 * 24 * 7 : COOKIE_MAX_AGE
 }
 
 // A unique, easy-to-read bearer access code for field-operative login (typed or via
@@ -33,6 +34,10 @@ export interface NgoSession {
   userId: string
   orgId: string
   role: NgoRole
+  // Per-user revocation epoch. An org_admin "sign out all devices" bumps ngo_users
+  // .token_version; getNgoSession rejects any token carrying a lower value. Tokens
+  // issued before this column existed have no claim and are treated as version 1.
+  tokenVersion?: number
 }
 
 function getJwtSecret(): Uint8Array {
@@ -66,10 +71,10 @@ export function verifySecret(plain: string, stored: string | null | undefined): 
 
 // ── JWT session ───────────────────────────────────────────────────────────────
 
-export async function createNgoSession(userId: string, orgId: string, role: NgoRole): Promise<string> {
+export async function createNgoSession(userId: string, orgId: string, role: NgoRole, tokenVersion: number = 1): Promise<string> {
   const secret = getJwtSecret()
   const exp = Math.floor(Date.now() / 1000) + ngoSessionTtlSeconds(role)
-  return await new SignJWT({ userId, orgId, role, type: 'ngo' })
+  return await new SignJWT({ userId, orgId, role, type: 'ngo', tokenVersion })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime(exp)
@@ -84,6 +89,7 @@ export async function verifyNgoToken(token: string): Promise<NgoSession | null> 
       userId: payload.userId as string,
       orgId: payload.orgId as string,
       role: payload.role as NgoRole,
+      tokenVersion: typeof payload.tokenVersion === 'number' ? payload.tokenVersion : 1,
     }
   } catch {
     return null
@@ -109,10 +115,16 @@ export async function getNgoSession(request: NextRequest): Promise<NgoSession | 
     const supabase = createServiceClient()
 
     const { data: user, error: userErr } = await supabase
-      .from('ngo_users').select('status, org_id').eq('id', session.userId).maybeSingle()
+      .from('ngo_users').select('status, org_id, token_version').eq('id', session.userId).maybeSingle()
     if (userErr) return session            // transient — keep them signed in
     if (!user) return null                 // user deleted — genuinely revoked
     if (user.status !== 'active') return null // suspended — revoked
+    // Remote device revocation: an admin "sign out all devices" bumps token_version, so
+    // any token minted before that is rejected here. (Column may be absent pre-migration
+    // → undefined → skip, matching the fail-open stance for transient gaps.)
+    if (typeof (user as any).token_version === 'number' && (session.tokenVersion ?? 1) < (user as any).token_version) {
+      return null
+    }
 
     const { data: org, error: orgErr } = await supabase
       .from('ngo_organisations').select('status').eq('id', user.org_id).maybeSingle()

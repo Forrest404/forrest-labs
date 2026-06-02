@@ -47,6 +47,7 @@ export async function POST(request: NextRequest) {
   // Sanitised broadcast (security C1): no coordinates/place/map link on the relay; the
   // assigned team opens NOUR (authenticated) to see the incident location.
   await notifyTeam(supabase, teamId, {
+    event: 'dispatch',
     title: '🚑 Dispatch',
     body: `${team.name}: new dispatch assigned. Open NOUR for the location.`,
     priority: 'urgent',

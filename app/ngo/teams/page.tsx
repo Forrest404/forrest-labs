@@ -7,11 +7,11 @@ import { useEffect, useState, useCallback } from 'react'
 
 const TEAM_TYPES = ['medical', 'rescue', 'assessment', 'shelter', 'logistics'] as const
 
-interface Team { id: string; name: string; type: string; capacity: number | null; status: string; group_chat_url?: string | null }
+interface Team { id: string; name: string; type: string; capacity: number | null; status: string; all_off_duty?: boolean; group_chat_url?: string | null }
 interface Member { id: string; name: string; role: string | null; phone: string | null; emergency_contact: string | null; ngo_user_id: string | null }
 
 const STATUS_COLOUR: Record<string, string> = {
-  standby: '#3fb950', deployed: '#d29922', unavailable: '#8b949e', offline: '#484f58',
+  standby: '#3fb950', deployed: '#d29922', unavailable: '#8b949e', offline: '#484f58', off_duty: '#a371f7',
 }
 
 export default function NgoTeamsPage() {
@@ -27,6 +27,7 @@ export default function NgoTeamsPage() {
   const [memberForm, setMemberForm] = useState({ name: '', role: '', phone: '', emergency_contact: '' })
   const [memberEdit, setMemberEdit] = useState<null | { id: string; name: string; role: string; phone: string; emergency_contact: string }>(null)
   const [inviteModal, setInviteModal] = useState<null | { memberId: string; name: string; email: string }>(null)
+  const [transferModal, setTransferModal] = useState<null | { memberId: string; name: string; targetTeamId: string }>(null)
   const [inviteResult, setInviteResult] = useState<null | { name: string; code: string }>(null)
   const [busy, setBusy] = useState(false)
 
@@ -110,6 +111,20 @@ export default function NgoTeamsPage() {
     else setErr((await res.json()).error ?? 'Could not remove member.')
   }
 
+  async function transferMember() {
+    if (!transferModal || !selected || !transferModal.targetTeamId) { setErr('Choose a team to move them to.'); return }
+    setErr(null); setBusy(true)
+    try {
+      const res = await fetch(`/api/ngo/teams/${selected}/members/${transferModal.memberId}/transfer`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target_team_id: transferModal.targetTeamId }),
+      })
+      const data = await res.json()
+      if (res.ok) { setTransferModal(null); await loadMembers(selected) } // they leave this team's roster
+      else setErr(data.error ?? 'Could not move member.')
+    } finally { setBusy(false) }
+  }
+
   async function sendInvite() {
     if (!inviteModal || !selected) return
     setErr(null); setBusy(true)
@@ -147,7 +162,7 @@ export default function NgoTeamsPage() {
             <div key={t.id} onClick={() => setSelected(t.id)} style={{ ...card, cursor: 'pointer', borderColor: selected === t.id ? '#58a6ff' : '#21262d', marginBottom: 8 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ fontWeight: 600 }}>{t.name}</div>
-                <span style={{ fontSize: 11, color: STATUS_COLOUR[t.status] ?? '#484f58' }}>● {t.status}</span>
+                <span style={{ fontSize: 11, color: STATUS_COLOUR[t.all_off_duty ? 'off_duty' : t.status] ?? '#484f58' }}>● {t.all_off_duty ? '🌙 off duty' : t.status}</span>
               </div>
               <div style={{ fontSize: 12, color: '#8b949e', marginTop: 4 }}>
                 {t.type}{t.capacity != null ? ` · capacity ${t.capacity}` : ''}
@@ -168,13 +183,21 @@ export default function NgoTeamsPage() {
             <div style={card}>
               <div style={{ fontWeight: 600, marginBottom: 12 }}>{selectedTeam.name} — members</div>
 
+              {members.some((m) => !m.ngo_user_id) && (
+                <div style={{ background: 'rgba(210,153,34,0.1)', border: '1px solid rgba(210,153,34,0.4)', color: '#d29922', borderRadius: 6, padding: '8px 10px', fontSize: 12, marginBottom: 12 }}>
+                  {members.filter((m) => !m.ngo_user_id).length} member(s) aren’t linked to a login account, so they won’t receive dispatches, broadcasts or safety alerts. {isAdmin ? 'Use Invite to give them app access.' : 'Ask an org admin to invite them.'}
+                </div>
+              )}
+
               {members.length === 0 && <div style={{ fontSize: 13, color: '#8b949e', marginBottom: 12 }}>No members yet.</div>}
               {members.map((m) => (
                 <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #21262d' }}>
                   <div>
                     <div style={{ fontSize: 14 }}>
                       {m.name}
-                      {m.ngo_user_id && <span style={{ fontSize: 11, color: '#3fb950', marginLeft: 8 }}>App access ✓</span>}
+                      {m.ngo_user_id
+                        ? <span style={{ fontSize: 11, color: '#3fb950', marginLeft: 8 }}>App access ✓</span>
+                        : <span style={{ fontSize: 11, color: '#d29922', marginLeft: 8 }}>⚠ No app access — won’t get alerts</span>}
                     </div>
                     <div style={{ fontSize: 12, color: '#8b949e' }}>
                       {[m.role, m.phone].filter(Boolean).join(' · ') || '—'}
@@ -185,6 +208,9 @@ export default function NgoTeamsPage() {
                     <button type="button" onClick={() => setMemberEdit({ id: m.id, name: m.name, role: m.role ?? '', phone: m.phone ?? '', emergency_contact: m.emergency_contact ?? '' })} style={miniBtn}>Edit</button>
                     {isAdmin && !m.ngo_user_id && (
                       <button type="button" onClick={() => setInviteModal({ memberId: m.id, name: m.name, email: '' })} style={miniBtn}>Invite</button>
+                    )}
+                    {teams.length > 1 && (
+                      <button type="button" onClick={() => setTransferModal({ memberId: m.id, name: m.name, targetTeamId: '' })} style={miniBtn}>Move</button>
                     )}
                     <button type="button" onClick={() => removeMember(m.id)} style={{ ...miniBtn, color: '#f85149', borderColor: 'rgba(248,81,73,0.4)' }}>Remove</button>
                   </div>
@@ -246,6 +272,24 @@ export default function NgoTeamsPage() {
           <input style={field} value={memberEdit.emergency_contact} onChange={(e) => setMemberEdit({ ...memberEdit, emergency_contact: e.target.value })} />
           <button type="button" onClick={saveMemberEdit} disabled={busy || !memberEdit.name.trim()} style={{ ...primaryBtn, marginTop: 16, opacity: busy || !memberEdit.name.trim() ? 0.6 : 1 }}>
             {busy ? 'Saving…' : 'Save member'}
+          </button>
+        </Modal>
+      )}
+
+      {/* Transfer / move member modal */}
+      {transferModal && (
+        <Modal title={`Move ${transferModal.name}`} onClose={() => setTransferModal(null)}>
+          <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 12 }}>
+            Moves {transferModal.name} to another team in your organisation. Their app access, role
+            and contacts move with them, and if they have a login they’re notified of the change.
+          </div>
+          <label style={labelStyle}>Move to team</label>
+          <select style={field} value={transferModal.targetTeamId} onChange={(e) => setTransferModal({ ...transferModal, targetTeamId: e.target.value })}>
+            <option value="">Select a team…</option>
+            {teams.filter((t) => t.id !== selected).map((t) => <option key={t.id} value={t.id}>{t.name} ({t.type})</option>)}
+          </select>
+          <button type="button" onClick={transferMember} disabled={busy || !transferModal.targetTeamId} style={{ ...primaryBtn, marginTop: 16, opacity: busy || !transferModal.targetTeamId ? 0.6 : 1 }}>
+            {busy ? 'Moving…' : 'Move member'}
           </button>
         </Modal>
       )}

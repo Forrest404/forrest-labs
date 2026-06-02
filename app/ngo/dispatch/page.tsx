@@ -10,11 +10,12 @@ const STATUS_LABEL: Record<string, string> = { assigned: 'Assigned', en_route: '
 const STATUS_COLOUR: Record<string, string> = { assigned: '#58a6ff', en_route: '#d29922', on_scene: '#3fb950', done: '#8b949e', cancelled: '#f85149' }
 
 interface Dispatch {
-  id: string; cluster_id: string; team_name: string | null; team_type: string | null; status: string
+  id: string; cluster_id: string; team_id: string | null; team_name: string | null; team_type: string | null; status: string
   note: string | null; assigned_at: string; response_minutes: number | null
   report: { people_assisted: number | null; services: string | null; new_hazards: string | null } | null
 }
 interface Incident { id: string; lat: number; lon: number; inside: boolean }
+interface Team { id: string; name: string; type: string; status: string; all_off_duty?: boolean; notifiable_count?: number }
 
 function timeAgo(iso: string | null): string {
   if (!iso) return ''
@@ -26,7 +27,9 @@ function timeAgo(iso: string | null): string {
 export default function NgoDispatchPage() {
   const [dispatches, setDispatches] = useState<Dispatch[]>([])
   const [incidents, setIncidents] = useState<Incident[]>([])
+  const [teams, setTeams] = useState<Team[]>([])
   const [reassignFor, setReassignFor] = useState<Dispatch | null>(null)
+  const [reassignTeamFor, setReassignTeamFor] = useState<Dispatch | null>(null)
   const [recallFor, setRecallFor] = useState<Dispatch | null>(null)
   const [reason, setReason] = useState('')
   const [loaded, setLoaded] = useState(false)
@@ -34,10 +37,11 @@ export default function NgoDispatchPage() {
 
   const load = useCallback(async () => {
     try {
-      const [dRes, bRes] = await Promise.all([fetch('/api/ngo/dispatch'), fetch('/api/ngo/board')])
+      const [dRes, bRes, tRes] = await Promise.all([fetch('/api/ngo/dispatch'), fetch('/api/ngo/board'), fetch('/api/ngo/teams')])
       if (!dRes.ok) { setLoadError(true); setLoaded(true); return }
       setDispatches((await dRes.json()).dispatches ?? [])
       if (bRes.ok) setIncidents(((await bRes.json()).incidents ?? []).filter((i: Incident) => i.inside))
+      if (tRes.ok) setTeams((await tRes.json()).teams ?? [])
       setLoadError(false); setLoaded(true)
     } catch { setLoadError(true); setLoaded(true) }
   }, [])
@@ -65,6 +69,11 @@ export default function NgoDispatchPage() {
     const res = await fetch(`/api/ngo/dispatch/${reassignFor.id}/reassign`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cluster_id: clusterId, reason }) })
     if (res.ok) { setReassignFor(null); setReason(''); load() }
   }
+  async function doReassignTeam(teamId: string) {
+    if (!reassignTeamFor) return
+    const res = await fetch(`/api/ngo/dispatch/${reassignTeamFor.id}/reassign-team`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ team_id: teamId, reason }) })
+    if (res.ok) { setReassignTeamFor(null); setReason(''); load() }
+  }
   const [clearing, setClearing] = useState(false)
   async function clearHistory() {
     if (!window.confirm('Delete all closed dispatches (done & cancelled) and their on-scene reports? Active dispatches are kept. This cannot be undone.')) return
@@ -90,12 +99,13 @@ export default function NgoDispatchPage() {
         </div>
       )}
 
-      <Section title={`Active (${active.length})`} rows={active} onRecall={(d) => { setRecallFor(d); setReason('') }} onReassign={setReassignFor} />
+      <Section title={`Active (${active.length})`} rows={active} onRecall={(d) => { setRecallFor(d); setReason('') }} onReassign={(d) => { setReassignFor(d); setReason('') }} onReassignTeam={(d) => { setReassignTeamFor(d); setReason('') }} />
       <Section
         title={`History (${closed.length})`}
         rows={closed}
         onRecall={(d) => { setRecallFor(d); setReason('') }}
-        onReassign={setReassignFor}
+        onReassign={(d) => { setReassignFor(d); setReason('') }}
+        onReassignTeam={(d) => { setReassignTeamFor(d); setReason('') }}
         action={closed.length > 0
           ? <button type="button" onClick={clearHistory} disabled={clearing} style={{ height: 28, padding: '0 12px', background: 'rgba(248,81,73,0.08)', border: '1px solid rgba(248,81,73,0.4)', color: '#f85149', borderRadius: 6, fontSize: 12, cursor: 'pointer', fontFamily: 'system-ui', opacity: clearing ? 0.6 : 1 }}>{clearing ? 'Clearing…' : 'Clear history'}</button>
           : null}
@@ -118,6 +128,29 @@ export default function NgoDispatchPage() {
         </div>
       )}
 
+      {reassignTeamFor && (
+        <div onClick={() => setReassignTeamFor(null)} style={backdrop}>
+          <div onClick={(e) => e.stopPropagation()} style={modal}>
+            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>Reassign to another team</div>
+            <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 10 }}>Currently {reassignTeamFor.team_name ?? 'this team'}. The new team is dispatched; the current team stands down.</div>
+            <input style={input} placeholder="Reason (optional)" value={reason} onChange={(e) => setReason(e.target.value)} />
+            <div style={{ fontSize: 12, color: '#8b949e', margin: '10px 0 6px' }}>Move to team:</div>
+            <div style={{ maxHeight: 260, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {teams.filter((tm) => tm.id !== reassignTeamFor.team_id).map((tm) => (
+                <button key={tm.id} type="button" onClick={() => doReassignTeam(tm.id)} style={incBtn}>
+                  <div>{tm.name} <span style={{ color: '#8b949e' }}>· {tm.type}</span></div>
+                  <div style={{ fontSize: 11, color: '#8b949e', marginTop: 2 }}>
+                    {tm.all_off_duty ? '🌙 off duty' : tm.status}{tm.notifiable_count === 0 ? ' · ⚠ no app access' : ''}
+                  </div>
+                </button>
+              ))}
+              {teams.filter((tm) => tm.id !== reassignTeamFor.team_id).length === 0 && <div style={{ fontSize: 13, color: '#8b949e' }}>No other teams.</div>}
+            </div>
+            <button type="button" onClick={() => setReassignTeamFor(null)} style={{ ...incBtn, marginTop: 12, borderColor: '#21262d', color: '#8b949e' }}>Cancel</button>
+          </div>
+        </div>
+      )}
+
       {recallFor && (
         <div onClick={() => setRecallFor(null)} style={backdrop}>
           <div onClick={(e) => e.stopPropagation()} style={modal}>
@@ -135,7 +168,7 @@ export default function NgoDispatchPage() {
   )
 }
 
-function Section({ title, rows, onRecall, onReassign, action }: { title: string; rows: Dispatch[]; onRecall: (d: Dispatch) => void; onReassign: (d: Dispatch) => void; action?: React.ReactNode }) {
+function Section({ title, rows, onRecall, onReassign, onReassignTeam, action }: { title: string; rows: Dispatch[]; onRecall: (d: Dispatch) => void; onReassign: (d: Dispatch) => void; onReassignTeam: (d: Dispatch) => void; action?: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 24 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
@@ -164,8 +197,9 @@ function Section({ title, rows, onRecall, onReassign, action }: { title: string;
               </div>
             )}
             {open && (
-              <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                <button type="button" onClick={() => onReassign(d)} style={smallBtn}>Reassign</button>
+              <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+                <button type="button" onClick={() => onReassignTeam(d)} style={smallBtn}>Change team</button>
+                <button type="button" onClick={() => onReassign(d)} style={smallBtn}>Change incident</button>
                 <button type="button" onClick={() => onRecall(d)} style={{ ...smallBtn, color: '#f85149', borderColor: 'rgba(248,81,73,0.4)' }}>Recall</button>
               </div>
             )}

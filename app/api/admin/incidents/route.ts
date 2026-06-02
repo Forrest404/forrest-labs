@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
   let query = supabase
     .from('clusters')
     .select(
-      'id, status, confidence_score, report_count, centroid_lat, centroid_lon, location_name, created_at, updated_at, dominant_event_types, ai_reasoning, ai_concerns, display_radius_metres, reviewed_by, reviewed_at',
+      'id, status, confidence_score, fraud_score, unique_ips, unique_sessions, report_count, centroid_lat, centroid_lon, location_name, created_at, updated_at, dominant_event_types, ai_reasoning, ai_concerns, display_radius_metres, reviewed_by, reviewed_at',
       { count: 'exact' },
     )
     .order('created_at', { ascending: false })

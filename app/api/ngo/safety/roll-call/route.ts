@@ -23,6 +23,7 @@ export async function POST(request: NextRequest) {
   if (error || !rc) return NextResponse.json({ error: 'Could not start roll call' }, { status: 500 })
 
   await notifyOrgRoles(supabase, session!.orgId, ['field_coordinator'], {
+    event: 'roll_call',
     title: '🟢 Roll call',
     body: body.message || 'Tap if safe — confirm your status now.',
     priority: 'urgent',

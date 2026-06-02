@@ -14,10 +14,11 @@ export async function GET(request: NextRequest) {
 
   let totalReports = 0, reportsToday = 0, confirmed = 0, autoConfirmed = 0
   let pendingReview = 0, discarded = 0, activeWarnings = 0, allClearWarnings = 0
+  let newsVerified = 0, officialVerified = 0, autoVerifiedToday = 0
   let recentClusters: Record<string, unknown>[] = []
 
   try {
-    const [r1, r2, r3, r4, r5, r6, r7, r8, r9] = await Promise.all([
+    const [r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r12] = await Promise.all([
       supabase.from('reports').select('*', { count: 'exact', head: true }),
       supabase.from('reports').select('*', { count: 'exact', head: true }).gte('created_at', oneDayAgo),
       supabase.from('clusters').select('*', { count: 'exact', head: true }).eq('status', 'confirmed'),
@@ -31,6 +32,13 @@ export async function GET(request: NextRequest) {
         .select('id, status, confidence_score, report_count, centroid_lat, centroid_lon, location_name, created_at, dominant_event_types, ai_reasoning')
         .order('created_at', { ascending: false })
         .limit(20),
+      supabase.from('clusters').select('*', { count: 'exact', head: true }).eq('status', 'news_verified'),
+      supabase.from('clusters').select('*', { count: 'exact', head: true }).eq('status', 'official_verified'),
+      // "Auto-verified today" = clusters verified WITHOUT human triage in the last 24h
+      // (AI auto-confirm + news/official intelligence verification).
+      supabase.from('clusters').select('*', { count: 'exact', head: true })
+        .in('status', ['auto_confirmed', 'news_verified', 'official_verified'])
+        .gte('created_at', oneDayAgo),
     ])
     totalReports = r1.count ?? 0
     reportsToday = r2.count ?? 0
@@ -41,6 +49,9 @@ export async function GET(request: NextRequest) {
     activeWarnings = r7.count ?? 0
     allClearWarnings = r8.count ?? 0
     recentClusters = (r9.data ?? []) as Record<string, unknown>[]
+    newsVerified = r10.count ?? 0
+    officialVerified = r11.count ?? 0
+    autoVerifiedToday = r12.count ?? 0
   } catch (err) {
     console.error('[admin/stats] Database queries failed:', err)
   }
@@ -48,7 +59,8 @@ export async function GET(request: NextRequest) {
   return NextResponse.json(
     {
       reports: { total: totalReports, today: reportsToday },
-      clusters: { confirmed, auto_confirmed: autoConfirmed, pending_review: pendingReview, discarded },
+      clusters: { confirmed, auto_confirmed: autoConfirmed, pending_review: pendingReview, discarded, news_verified: newsVerified, official_verified: officialVerified },
+      auto_verified_today: autoVerifiedToday,
       warnings: { active: activeWarnings, all_clear: allClearWarnings },
       recent_clusters: recentClusters,
       generated_at: now.toISOString(),

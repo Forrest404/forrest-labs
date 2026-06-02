@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
+import { rateLimit, tooMany } from '@/lib/rate-limit'
+import { isBlocked } from '@/lib/abuse'
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -20,14 +22,11 @@ function clientIp(req: NextRequest): string {
 }
 
 // ── rate limiting ─────────────────────────────────────────────────────────────
-// NOTE: in-memory rate limiting resets on cold start and does not coordinate
-// across Vercel function instances. This is acceptable for MVP. For production,
-// replace with Redis (e.g. Upstash) using the same ip_hash as the key.
-
-const rateLimitStore = new Map<string, { count: number; resetAt: number }>()
+// Durable (Supabase-backed) so it survives cold starts and coordinates across Vercel
+// instances. Keyed by the hashed IP (raw IP is never stored). 1 report / 10 min.
 
 const RATE_LIMIT = 1
-const RATE_WINDOW_MS = 10 * 60 * 1000 // 10 minutes
+const RATE_WINDOW_SEC = 10 * 60 // 10 minutes
 
 // ── validation ────────────────────────────────────────────────────────────────
 
@@ -66,25 +65,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // Hash IP immediately — never use or store raw IP address
   const ip_hash = await sha256hex(clientIp(req))
 
-  // Rate limit check (uses hashed IP, not raw)
-  const now = Date.now()
-  const existing = rateLimitStore.get(ip_hash)
-
-  if (existing) {
-    if (now < existing.resetAt) {
-      if (existing.count >= RATE_LIMIT) {
-        return NextResponse.json(
-          { error: 'Too many reports. Please wait before submitting again.' },
-          { status: 429 },
-        )
-      }
-      existing.count++
-    } else {
-      rateLimitStore.set(ip_hash, { count: 1, resetAt: now + RATE_WINDOW_MS })
-    }
-  } else {
-    rateLimitStore.set(ip_hash, { count: 1, resetAt: now + RATE_WINDOW_MS })
-  }
+  // Durable rate limit (uses hashed IP, not raw)
+  const supabase = createServiceClient()
+  const limit = await rateLimit(supabase, { bucket: 'public:report', identifier: ip_hash, max: RATE_LIMIT, windowSec: RATE_WINDOW_SEC })
+  if (!limit.ok) return tooMany(limit.retryAfter, 'Too many reports. Please wait before submitting again.')
 
   let body: unknown
   try {
@@ -123,7 +107,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // Hash session_id before storage — never persist raw values
   const session_hash = await sha256hex(session_id)
 
-  const supabase = createServiceClient()
+  // Abuse blocklist (set by an admin in the Fraud & Abuse view): a blocked IP/session
+  // cannot submit. Generic response — don't reveal the block.
+  if (await isBlocked(supabase, ip_hash, session_hash)) {
+    return NextResponse.json({ error: 'This submission could not be accepted.' }, { status: 403 })
+  }
+
   const { data, error } = await supabase
     .from('reports')
     .insert({ lat, lon, distance_band, event_types, session_hash, ip_hash })

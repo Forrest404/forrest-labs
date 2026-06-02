@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation'
 
 function LoginCard() {
   const [password, setPassword] = useState('')
+  const [code, setCode] = useState('')
+  const [needCode, setNeedCode] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const router = useRouter()
@@ -12,21 +14,23 @@ function LoginCard() {
 
   async function handleSubmit() {
     if (loading || !password.trim()) return
+    if (needCode && !code.trim()) { setError('Enter your authentication code.'); return }
     setLoading(true)
     setError('')
     try {
       const res = await fetch('/api/admin/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ password, ...(needCode ? { code: code.trim() } : {}) }),
       })
       if (res.ok) {
         const from = searchParams.get('from')
         router.push(from ?? '/admin')
         return
       }
-      const data = (await res.json()) as { error?: string }
-      setError(data.error ?? 'Sign in failed')
+      const data = (await res.json()) as { error?: string; totp_required?: boolean }
+      if (data.totp_required) { setNeedCode(true); setError(needCode ? (data.error ?? 'Invalid code') : '') }
+      else setError(data.error ?? 'Sign in failed')
     } catch {
       setError('Network error. Please try again.')
     } finally {
@@ -146,6 +150,24 @@ function LoginCard() {
             <div style={{ fontSize: 12, color: '#f85149', marginTop: 6 }}>{error}</div>
           )}
         </div>
+
+        {/* Authentication code (only after password, when 2FA is enabled) */}
+        {needCode && (
+          <div style={{ marginTop: 14 }}>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#8b949e', marginBottom: 6 }}>
+              Authentication code
+            </label>
+            <input
+              type="text" inputMode="numeric" autoFocus autoComplete="one-time-code"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleSubmit() }}
+              placeholder="6-digit code or recovery code"
+              style={{ width: '100%', height: 40, background: '#0d1117', border: '1px solid #21262d', borderRadius: 6, padding: '0 12px', fontSize: 14, color: '#e6edf3', fontFamily: 'system-ui', boxSizing: 'border-box', outline: 'none', letterSpacing: '0.12em' }}
+            />
+            <div style={{ fontSize: 11, color: '#484f58', marginTop: 6 }}>From your authenticator app, or a one-time recovery code.</div>
+          </div>
+        )}
 
         {/* Submit button */}
         <button

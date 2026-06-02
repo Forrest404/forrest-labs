@@ -36,16 +36,27 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'name and type required' }, { status: 400 })
   }
 
+  // Cap untrusted text so a malformed/oversized field can't be persisted unbounded.
+  const cap = (v: unknown, n: number): string | null => {
+    const s = (v ?? '').toString().trim()
+    return s ? s.slice(0, n) : null
+  }
+  const name = cap(body.name, 200)
+  const type = cap(body.type, 60)
+  if (!name || !type) {
+    return NextResponse.json({ error: 'name and type required' }, { status: 400 })
+  }
+
   const supabase = createServiceClient()
 
   const { data, error } = await supabase
     .from('organisations')
     .insert({
-      name: body.name,
-      type: body.type,
-      contact_email: body.contact_email ?? null,
-      contact_name: body.contact_name ?? null,
-      operational_area: body.operational_area ?? null,
+      name,
+      type,
+      contact_email: cap(body.contact_email, 200),
+      contact_name: cap(body.contact_name, 200),
+      operational_area: cap(body.operational_area, 8000),
     })
     .select()
     .single()

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { getSessionFromRequest } from '@/lib/admin/auth'
 import { logAdminAction } from '@/lib/admin/audit'
+import { sendEmail, logEmail, rejectionEmail } from '@/lib/email'
 
 // Admin-gated denial of a pending NGO org. The status CHECK allows only
 // pending|approved|suspended (no 'rejected'), so a denial sets 'suspended' —
@@ -44,15 +45,24 @@ export async function POST(
     return NextResponse.json({ error: 'Organisation not found or not pending' }, { status: 404 })
   }
 
-  console.log(`[ngo-review] DENIED org "${org.name}" (${id}). Reason: ${reason}`)
+  // Email the org admin the decision + reason (best-effort; never fails the action).
+  let emailStatus = 'no_admin'
+  const { data: adminUser } = await supabase
+    .from('ngo_users').select('email').eq('org_id', id).eq('role', 'org_admin').limit(1).maybeSingle()
+  if (adminUser?.email) {
+    const tpl = rejectionEmail(org.name, reason)
+    const result = await sendEmail({ to: adminUser.email, ...tpl })
+    await logEmail(supabase, 'rejection', adminUser.email, id, result)
+    emailStatus = result.ok ? 'sent' : result.stubbed ? 'stubbed' : 'failed'
+  }
 
   await logAdminAction({
     action: 'ngo_org_rejected',
     entityType: 'ngo_organisation',
     entityId: id,
     sessionId: admin.sessionId,
-    details: { org: org.name, reason, note: `Rejected: ${reason}` },
+    details: { org: org.name, reason, email: emailStatus },
   })
 
-  return NextResponse.json({ success: true })
+  return NextResponse.json({ success: true, email_status: emailStatus })
 }

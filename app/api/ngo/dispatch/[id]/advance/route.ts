@@ -3,6 +3,9 @@ import { createServiceClient } from '@/lib/supabase/service'
 import { getNgoSession } from '@/lib/ngo-auth'
 import { resolveTeamId } from '@/lib/ngo-safety'
 import { DISPATCH_FLOW } from '@/lib/ngo-dispatch'
+import { notifyOrgRoles } from '@/lib/ngo-notify'
+
+const ADVANCE_LABEL: Record<string, string> = { en_route: 'is en route', on_scene: 'is on scene', done: 'completed the dispatch' }
 
 const STAMP: Record<string, string> = { en_route: 'en_route_at', on_scene: 'on_scene_at', done: 'done_at' }
 
@@ -55,6 +58,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }
     } catch { /* overlay/table may be pre-migration; advancing still succeeded */ }
   }
+
+  // Field → HQ: tell leaders the team advanced (normal urgency → honours their prefs /
+  // quiet-hours, and reaches only leaders on their own topics). Best-effort; never fails
+  // the advance.
+  try {
+    const { data: team } = await supabase.from('ngo_teams').select('name').eq('id', d.team_id).maybeSingle()
+    await notifyOrgRoles(supabase, session.orgId, ['org_admin', 'team_leader'], {
+      event: 'dispatch_update',
+      title: 'Dispatch update',
+      body: `${team?.name ?? 'A team'} ${ADVANCE_LABEL[next] ?? `→ ${next}`}.`,
+    })
+  } catch { /* notification is best-effort */ }
 
   return NextResponse.json({ success: true, status: next })
 }

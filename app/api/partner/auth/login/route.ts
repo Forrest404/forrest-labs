@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { verifyPartnerPassword, hashPartnerPasswordScrypt, createPartnerSession } from '@/lib/admin/auth'
+import { rateLimit, clientIp, tooMany, AUTH_MAX, AUTH_WINDOW } from '@/lib/rate-limit'
 
 export async function POST(request: NextRequest) {
+  const supabase = createServiceClient()
+
+  // Durable brute-force throttle (5 / 15 min) by IP, plus per-account on the email.
+  const ipLimit = await rateLimit(supabase, { bucket: 'auth:partner-login', identifier: clientIp(request), max: AUTH_MAX, windowSec: AUTH_WINDOW })
+  if (!ipLimit.ok) return tooMany(ipLimit.retryAfter, 'Too many attempts. Try again in a few minutes.')
+
   let body: { email?: string; password?: string }
   try {
     body = await request.json()
@@ -16,7 +23,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Email and password required' }, { status: 400 })
   }
 
-  const supabase = createServiceClient()
+  const acctLimit = await rateLimit(supabase, { bucket: 'auth:partner-login:acct', identifier: email.toLowerCase().trim(), max: AUTH_MAX, windowSec: AUTH_WINDOW })
+  if (!acctLimit.ok) return tooMany(acctLimit.retryAfter, 'Too many attempts. Try again in a few minutes.')
 
   const { data: account } = await supabase
     .from('partner_accounts')

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
+import { useNewPanicAlert } from '@/lib/use-new-panic-alert'
 
 declare global {
   interface Window { mapboxgl: any }
@@ -27,7 +28,7 @@ const STATUS_LABEL: Record<string, string> = {
   official_verified: 'Official', news_verified: 'News verified', confirmed: 'Confirmed', auto_confirmed: 'Auto',
 }
 const TEAM_STATUS_COLOUR: Record<string, string> = {
-  standby: '#3fb950', deployed: '#d29922', unavailable: '#8b949e', offline: '#484f58',
+  standby: '#3fb950', deployed: '#d29922', unavailable: '#8b949e', offline: '#484f58', off_duty: '#a371f7',
 }
 
 interface CustomIncident {
@@ -36,6 +37,9 @@ interface CustomIncident {
 }
 interface Worker {
   ngo_user_id: string; name: string; role: string | null; lat: number; lon: number; last_seen_at: string; source: string
+}
+interface FacilityPin {
+  id: string; name: string; lat: number | null; lon: number | null; status: string; status_updated_at: string | null
 }
 const SEVERITY_COLOUR: Record<string, string> = { low: '#58a6ff', medium: '#d29922', high: '#f97316', critical: '#f85149' }
 const CATEGORIES = ['medical', 'fire', 'rescue', 'flood', 'shelter', 'security', 'other']
@@ -54,16 +58,22 @@ function setupBoardLayers(m: any) {
   if (!m) return
   const empty = { type: 'FeatureCollection', features: [] }
   const src = (id: string) => { if (!m.getSource(id)) m.addSource(id, { type: 'geojson', data: empty }) }
-  src('area'); src('inc-radius'); src('inc-dots'); src('gaps'); src('teams'); src('panics'); src('custom-inc'); src('workers')
+  src('area'); src('inc-radius'); src('inc-dots'); src('gaps'); src('teams'); src('panics'); src('custom-inc'); src('workers'); src('facilities')
   const layer = (def: any) => { if (!m.getLayer(def.id)) m.addLayer(def) }
 
   layer({ id: 'area-fill', type: 'fill', source: 'area', paint: { 'fill-color': '#58a6ff', 'fill-opacity': 0.05 } })
   layer({ id: 'area-line', type: 'line', source: 'area', paint: { 'line-color': '#58a6ff', 'line-width': 1.5, 'line-dasharray': [2, 2], 'line-opacity': 0.5 } })
+  // Facilities — diamond-ish markers coloured by status; stale status dims via opacity.
+  const FAC_COLOUR = ['case', ['==', ['get', 'status'], 'open'], '#3fb950', ['==', ['get', 'status'], 'full'], '#d29922', ['==', ['get', 'status'], 'closed'], '#f85149', '#8b949e'] as any
+  layer({ id: 'fac-dots', type: 'circle', source: 'facilities', paint: { 'circle-radius': 6, 'circle-color': FAC_COLOUR, 'circle-opacity': ['case', ['get', 'stale'], 0.45, 0.95], 'circle-stroke-color': '#0d1117', 'circle-stroke-width': 2 } })
+  layer({ id: 'fac-labels', type: 'symbol', source: 'facilities', layout: { 'text-field': ['get', 'label'], 'text-size': 10, 'text-offset': [0, 1.1], 'text-anchor': 'top', 'text-max-width': 12 }, paint: { 'text-color': '#c9d1d9', 'text-halo-color': 'rgba(0,0,0,0.85)', 'text-halo-width': 1.4 } })
   layer({ id: 'gap-glow', type: 'circle', source: 'gaps', paint: { 'circle-radius': 22, 'circle-color': '#f85149', 'circle-opacity': 0.35, 'circle-blur': 0.6 } })
   layer({ id: 'inc-radius-fill', type: 'fill', source: 'inc-radius', paint: { 'fill-color': STATUS_COLOUR_EXPR, 'fill-opacity': ['case', ['get', 'inside'], 0.25, 0.04] } })
   layer({ id: 'inc-radius-line', type: 'line', source: 'inc-radius', paint: { 'line-color': STATUS_COLOUR_EXPR, 'line-width': 1.2, 'line-opacity': ['case', ['get', 'inside'], 0.8, 0.2] } })
   layer({ id: 'inc-dots', type: 'circle', source: 'inc-dots', paint: { 'circle-radius': 7, 'circle-color': STATUS_COLOUR_EXPR, 'circle-opacity': ['case', ['get', 'inside'], 1, 0.3], 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1.5, 'circle-stroke-opacity': ['case', ['get', 'inside'], 0.8, 0.2] } })
-  layer({ id: 'team-dots', type: 'circle', source: 'teams', paint: { 'circle-radius': 8, 'circle-color': ['case', ['==', ['get', 'status'], 'standby'], TEAM_STATUS_COLOUR.standby, ['==', ['get', 'status'], 'deployed'], TEAM_STATUS_COLOUR.deployed, ['==', ['get', 'status'], 'unavailable'], TEAM_STATUS_COLOUR.unavailable, TEAM_STATUS_COLOUR.offline], 'circle-stroke-color': '#0d1117', 'circle-stroke-width': 2 } })
+  // Team pins dim to 35% when their last-known location is stale (>1h or never), so leaders
+  // don't trust a ghost position; the label already shows the "· Xm/Xh ago" age.
+  layer({ id: 'team-dots', type: 'circle', source: 'teams', paint: { 'circle-radius': 8, 'circle-color': ['case', ['==', ['get', 'status'], 'standby'], TEAM_STATUS_COLOUR.standby, ['==', ['get', 'status'], 'deployed'], TEAM_STATUS_COLOUR.deployed, ['==', ['get', 'status'], 'unavailable'], TEAM_STATUS_COLOUR.unavailable, ['==', ['get', 'status'], 'off_duty'], TEAM_STATUS_COLOUR.off_duty, TEAM_STATUS_COLOUR.offline], 'circle-opacity': ['case', ['get', 'stale'], 0.35, 1], 'circle-stroke-color': '#0d1117', 'circle-stroke-width': 2, 'circle-stroke-opacity': ['case', ['get', 'stale'], 0.35, 1] } })
   layer({ id: 'team-labels', type: 'symbol', source: 'teams', layout: { 'text-field': ['get', 'label'], 'text-size': 11, 'text-offset': [0, 1.4], 'text-anchor': 'top', 'text-max-width': 14 }, paint: { 'text-color': '#e6edf3', 'text-halo-color': 'rgba(0,0,0,0.85)', 'text-halo-width': 1.5 } })
   // Custom (org-created) incidents — severity-coloured square markers + label; an
   // uncovered one shows an amber ring.
@@ -90,15 +100,17 @@ interface Panic {
   phone?: string | null; silent?: boolean; reason?: string | null
   acknowledged_at?: string | null; acknowledged_by_name?: string | null
 }
+type RollState = 'safe' | 'unsafe' | 'awaiting' | 'off_duty'
 interface RollCall {
-  id: string; created_at: string; message: string | null; safe_count: number; total: number
-  members: { id: string; name: string; safe: boolean }[]
+  id: string; created_at: string; message: string | null
+  safe_count: number; total: number; unsafe_count: number; awaiting_count: number; off_duty_count: number
+  members: { id: string; name: string; state: RollState; safe: boolean }[]
 }
 interface Dispatch {
   id: string; cluster_id: string | null; ngo_incident_id?: string | null; team_id: string; team_name: string | null; status: string; response_minutes: number | null
 }
 interface RankedTeam {
-  id: string; name: string; type: string; status: string; type_match: boolean; distance_km: number | null; busy: boolean
+  id: string; name: string; type: string; status: string; type_match: boolean; distance_km: number | null; busy: boolean; notifiable_count?: number
 }
 const ACTIVE_DISPATCH = ['assigned', 'en_route', 'on_scene']
 const DISPATCH_LABEL: Record<string, string> = { assigned: 'Assigned', en_route: 'En route', on_scene: 'On scene', done: 'Done', cancelled: 'Cancelled' }
@@ -130,11 +142,22 @@ function timeAgo(iso: string | null): string {
   return `${Math.floor(hrs / 24)}d ago`
 }
 
+// Live "updated Xs ago" for the freshness chip. _tick is unused but its change forces a
+// re-render each second so the seconds count up.
+function freshAgo(at: number | null, _tick: number): string {
+  if (at == null) return '—'
+  const s = Math.floor((Date.now() - at) / 1000)
+  if (s < 5) return 'just now'
+  if (s < 60) return `${s}s ago`
+  const m = Math.floor(s / 60)
+  return m < 60 ? `${m}m ago` : `${Math.floor(m / 60)}h ago`
+}
+
 export default function NgoBoardPage() {
   const mapContainer = useRef<HTMLDivElement | null>(null)
   const map = useRef<any>(null)
   const [mapLoaded, setMapLoaded] = useState(false)
-  const dataRef = useRef<{ incidents: Incident[]; teams: TeamPin[]; area: any; panics: Panic[]; customIncidents: CustomIncident[]; workers: Worker[] } | null>(null)
+  const dataRef = useRef<{ incidents: Incident[]; teams: TeamPin[]; area: any; panics: Panic[]; customIncidents: CustomIncident[]; workers: Worker[]; facilities: FacilityPin[] } | null>(null)
 
   const [incidents, setIncidents] = useState<Incident[]>([])
   const [teams, setTeams] = useState<TeamPin[]>([])
@@ -161,11 +184,22 @@ export default function NgoBoardPage() {
   const [showWorkers, setShowWorkers] = useState(true)
   const showWorkersRef = useRef(true)
   useEffect(() => { showWorkersRef.current = showWorkers }, [showWorkers])
+  // Facilities overlay (where to take people) — off by default to keep the board clean,
+  // but the Facilities page links here with ?layer=facilities to switch it on.
+  const [facilities, setFacilities] = useState<FacilityPin[]>([])
+  const [showFacilities, setShowFacilities] = useState(() => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('layer') === 'facilities')
+  const showFacilitiesRef = useRef(false)
+  useEffect(() => { showFacilitiesRef.current = showFacilities }, [showFacilities])
   const [panicDispatchFor, setPanicDispatchFor] = useState<Panic | null>(null)
   const [resolvePanicFor, setResolvePanicFor] = useState<Panic | null>(null)
   const [panicNote, setPanicNote] = useState('')
-  const [panicTeams, setPanicTeams] = useState<{ id: string; name: string; type: string; status: string }[]>([])
+  const [panicTeams, setPanicTeams] = useState<{ id: string; name: string; type: string; status: string; notifiable_count?: number }[]>([])
   const [panicBusy, setPanicBusy] = useState(false)
+  // Audible chime when a NEW panic arrives while the board is open (the strip + map glow are the
+  // visual). Sound default on; the operator can mute (shared with the panic monitor).
+  const { muted, toggleMute } = useNewPanicAlert(panics)
+  const [updatedAt, setUpdatedAt] = useState<number | null>(null) // last successful board fetch
+  const [agoTick, setAgoTick] = useState(0) // 1s tick to keep the "updated Xs ago" label live
   // Handled (dismissed/completed) incidents — collapsible reopen list.
   const [handledIncidents, setHandledIncidents] = useState<Incident[]>([])
   const [handledCustom, setHandledCustom] = useState<CustomIncident[]>([])
@@ -182,7 +216,7 @@ export default function NgoBoardPage() {
   const [addr, setAddr] = useState('')
   const [incBusy, setIncBusy] = useState(false)
   const [assignIncFor, setAssignIncFor] = useState<CustomIncident | null>(null)
-  const [incTeams, setIncTeams] = useState<{ id: string; name: string; type: string; status: string }[]>([])
+  const [incTeams, setIncTeams] = useState<{ id: string; name: string; type: string; status: string; notifiable_count?: number }[]>([])
 
   function changeMapStyle(id: string) {
     const s = MAP_STYLES.find((x) => x.id === id)
@@ -246,7 +280,7 @@ export default function NgoBoardPage() {
       features: d.teams.map((t) => ({
         type: 'Feature',
         geometry: { type: 'Point', coordinates: [t.lon, t.lat] },
-        properties: { id: t.id, status: t.status, label: `${t.name} · ${timeAgo(t.last_seen_at)}` },
+        properties: { id: t.id, status: t.status, stale: !t.last_seen_at || Date.now() - new Date(t.last_seen_at).getTime() > 3600000, label: `${t.name} · ${timeAgo(t.last_seen_at)}` },
       })),
     }
     const areaFC = d.area ? { type: 'Feature', geometry: d.area, properties: {} } : { type: 'FeatureCollection', features: [] }
@@ -280,8 +314,25 @@ export default function NgoBoardPage() {
       })) : [],
     }
 
+    // Facility pins (hidden when the toggle is off). Stale = status set >4h ago or never.
+    const facilityFC = {
+      type: 'FeatureCollection',
+      features: showFacilitiesRef.current
+        ? (d.facilities ?? []).filter((f) => f.lat != null && f.lon != null).map((f) => ({
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: [f.lon, f.lat] },
+            properties: {
+              id: f.id,
+              status: f.status,
+              stale: !f.status_updated_at || now - new Date(f.status_updated_at).getTime() > 4 * 3600000,
+              label: f.name,
+            },
+          }))
+        : [],
+    }
+
     const set = (id: string, data: any) => { const s = m.getSource(id); if (s) s.setData(data) }
-    set('area', areaFC); set('inc-radius', radiusFC); set('inc-dots', dotFC); set('gaps', gapFC); set('teams', teamFC); set('panics', panicFC); set('custom-inc', customFC); set('workers', workerFC)
+    set('area', areaFC); set('inc-radius', radiusFC); set('inc-dots', dotFC); set('gaps', gapFC); set('teams', teamFC); set('panics', panicFC); set('custom-inc', customFC); set('workers', workerFC); set('facilities', facilityFC)
   }, [])
 
   // ── Fetch board data ───────────────────────────────────────────────────────
@@ -290,13 +341,13 @@ export default function NgoBoardPage() {
       const res = await fetch(`/api/ngo/board?days=${daysRef.current}`)
       if (!res.ok) { setLoadError(true); setLoaded(true); return }
       const data = await res.json()
-      setLoadError(false); setLoaded(true)
+      setLoadError(false); setLoaded(true); setUpdatedAt(Date.now())
       const inc: Incident[] = data.incidents ?? []
       const tms: TeamPin[] = data.teams ?? []
       const pnc: Panic[] = data.panics ?? []
       const cinc: CustomIncident[] = data.custom_incidents ?? []
       const wrk: Worker[] = data.workers ?? []
-      dataRef.current = { incidents: inc, teams: tms, area: data.operational_area, panics: pnc, customIncidents: cinc, workers: wrk }
+      dataRef.current = { incidents: inc, teams: tms, area: data.operational_area, panics: pnc, customIncidents: cinc, workers: wrk, facilities: dataRef.current?.facilities ?? [] }
       setIncidents(inc)
       setTeams(tms)
       setPanics(pnc)
@@ -369,8 +420,35 @@ export default function NgoBoardPage() {
     }
   }, [fetchBoard])
 
+  // Facilities overlay data — fetched separately (owned by the Facilities page), so the
+  // board API stays untouched. Refreshes on the same cadence; merged into dataRef.
+  useEffect(() => {
+    let stop = false
+    const loadFacilities = async () => {
+      try {
+        const r = await fetch('/api/ngo/facilities', { cache: 'no-store' })
+        if (stop || !r.ok) return
+        const d = await r.json()
+        const facs: FacilityPin[] = d.facilities ?? []
+        setFacilities(facs)
+        if (dataRef.current) dataRef.current.facilities = facs
+        else dataRef.current = { incidents: [], teams: [], area: null, panics: [], customIncidents: [], workers: [], facilities: facs }
+        renderSources()
+      } catch { /* offline — keep last */ }
+    }
+    loadFacilities()
+    const id = setInterval(loadFacilities, 60000)
+    return () => { stop = true; clearInterval(id) }
+  }, [renderSources])
+
   // When the map becomes ready, paint the latest data onto it.
   useEffect(() => { if (mapLoaded) renderSources() }, [mapLoaded, renderSources])
+
+  // 1s tick keeps the "updated Xs ago" freshness label live (paused when hidden).
+  useEffect(() => {
+    const id = setInterval(() => { if (document.visibilityState === 'visible') setAgoTick((n) => n + 1) }, 1000)
+    return () => clearInterval(id)
+  }, [])
 
   // Pulse the coverage-gap and panic glows.
   useEffect(() => {
@@ -517,17 +595,23 @@ export default function NgoBoardPage() {
       {/* Dismiss-proof panic strip — always on top of the board while any panic is active */}
       {panics.length > 0 && (
         <div onClick={() => { setPanelOpen(true); const u = panics.find((p) => !p.acknowledged_at) ?? panics[0]; locatePanic(u) }} style={panicStrip}>
-          🆘 {panics.length} active panic{panics.length === 1 ? '' : 's'}
-          {panics.some((p) => !p.acknowledged_at) ? ` · ${panics.filter((p) => !p.acknowledged_at).length} unacknowledged` : ' · all acknowledged'} — tap to respond
+          <span>🆘 {panics.length} active panic{panics.length === 1 ? '' : 's'}
+            {panics.some((p) => !p.acknowledged_at) ? ` · ${panics.filter((p) => !p.acknowledged_at).length} unacknowledged` : ' · all acknowledged'} — tap to respond</span>
+          <button type="button" onClick={(e) => { e.stopPropagation(); toggleMute() }} title={muted ? 'New-panic sound off' : 'New-panic sound on'}
+            style={{ marginInlineStart: 10, background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.4)', color: '#fff', borderRadius: 6, fontSize: 12, padding: '2px 8px', cursor: 'pointer', fontFamily: 'system-ui', flexShrink: 0 }}>{muted ? '🔇' : '🔔'}</button>
         </div>
       )}
 
-      {/* Loading / refresh-error chip (top-left) */}
+      {/* Loading / refresh-error chip (top-left) + a live "updated Xs ago" so a silently-polling
+          board never looks current when it's actually stale (e.g. offline). */}
       {!loaded && <div style={statusChip}>Loading…</div>}
       {loaded && loadError && (
         <div style={{ ...statusChip, color: '#f85149', borderColor: 'rgba(248,81,73,0.4)' }}>
-          Couldn’t refresh <button type="button" onClick={fetchBoard} style={chipRetry}>Retry</button>
+          {typeof navigator !== 'undefined' && !navigator.onLine ? 'Offline' : 'Couldn’t refresh'} · updated {freshAgo(updatedAt, agoTick)} <button type="button" onClick={fetchBoard} style={chipRetry}>Retry</button>
         </div>
+      )}
+      {loaded && !loadError && updatedAt != null && (
+        <div style={{ ...statusChip, color: '#8b949e' }}>updated {freshAgo(updatedAt, agoTick)}</div>
       )}
 
       {/* Base-map style switcher + worker-pins toggle */}
@@ -538,6 +622,9 @@ export default function NgoBoardPage() {
         <div style={{ width: 1, background: '#21262d', margin: '0 2px' }} />
         <button type="button" onClick={() => { const next = !showWorkers; setShowWorkers(next); showWorkersRef.current = next; renderSources() }} style={styleBtn(showWorkers)}>
           Workers{workers.length ? ` (${workers.length})` : ''}
+        </button>
+        <button type="button" onClick={() => { const next = !showFacilities; setShowFacilities(next); showFacilitiesRef.current = next; renderSources() }} style={styleBtn(showFacilities)}>
+          Facilities{facilities.length ? ` (${facilities.length})` : ''}
         </button>
       </div>
 
@@ -622,17 +709,38 @@ export default function NgoBoardPage() {
             </div>
             {rollCall ? (
               <>
-                <div style={{ fontSize: 12, color: '#8b949e', margin: '8px 0' }}>
-                  <span style={{ color: '#3fb950' }}>{rollCall.safe_count} safe</span> / {rollCall.total} · {timeAgo(rollCall.created_at)}
+                {/* Headcount: X of Y safe (Y excludes off-duty exempt). Off-duty workers are
+                    NEVER counted as missing. awaiting (on-duty, no answer) ≠ unsafe. */}
+                <div style={{ fontSize: 12, color: '#8b949e', margin: '8px 0 4px' }}>
+                  <span style={{ color: '#3fb950', fontWeight: 600 }}>{rollCall.safe_count} of {rollCall.total} safe</span>
+                  {rollCall.awaiting_count > 0 && <span style={{ color: '#8b949e' }}> · {rollCall.awaiting_count} awaiting</span>}
+                  {rollCall.unsafe_count > 0 && <span style={{ color: '#f85149' }}> · {rollCall.unsafe_count} unsafe</span>}
+                  {' · '}{timeAgo(rollCall.created_at)}
                 </div>
+                {rollCall.total > 0 && (
+                  <div style={{ height: 6, borderRadius: 999, background: '#21262d', overflow: 'hidden', marginBottom: 8 }}>
+                    <div style={{ height: '100%', width: `${Math.round((rollCall.safe_count / rollCall.total) * 100)}%`, background: '#3fb950', transition: 'width 0.3s' }} />
+                  </div>
+                )}
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {rollCall.members.map((m) => (
-                    <span key={m.id} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 999, background: m.safe ? 'rgba(63,185,80,0.15)' : 'rgba(248,81,73,0.15)', color: m.safe ? '#3fb950' : '#f85149' }}>
-                      {m.safe ? '✓' : '○'} {m.name}
-                    </span>
-                  ))}
+                  {rollCall.members.filter((m) => m.state !== 'off_duty').map((m) => {
+                    const c = m.state === 'safe' ? '#3fb950' : m.state === 'unsafe' ? '#f85149' : '#8b949e'
+                    const icon = m.state === 'safe' ? '✓' : m.state === 'unsafe' ? '⚠' : '○'
+                    return (
+                      <span key={m.id} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 999, background: `${c}26`, color: c }}>
+                        {icon} {m.name}{m.state === 'awaiting' ? ' · awaiting' : ''}
+                      </span>
+                    )
+                  })}
+                  {rollCall.total === 0 && rollCall.off_duty_count > 0 && <span style={{ fontSize: 11, color: '#8b949e' }}>All field coordinators off duty.</span>}
                   {rollCall.members.length === 0 && <span style={{ fontSize: 11, color: '#8b949e' }}>No field coordinators.</span>}
                 </div>
+                {/* Off-duty = exempt, shown separately so they're never mistaken for missing. */}
+                {rollCall.off_duty_count > 0 && (
+                  <div style={{ fontSize: 11, color: '#a371f7', marginTop: 8 }}>
+                    🌙 Off duty (exempt): {rollCall.members.filter((m) => m.state === 'off_duty').map((m) => m.name).join(', ')}
+                  </div>
+                )}
               </>
             ) : (
               <div style={{ fontSize: 12, color: '#8b949e', marginTop: 6 }}>No active roll call.</div>
@@ -751,13 +859,14 @@ export default function NgoBoardPage() {
         <div onClick={() => setAssignIncFor(null)} style={modalBackdrop}>
           <div onClick={(e) => e.stopPropagation()} style={{ ...modalBox, width: 360 }}>
             <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Assign a team — {assignIncFor.title}</div>
-            <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 12 }}>{assignIncFor.address || `${assignIncFor.lat.toFixed(4)}, ${assignIncFor.lon.toFixed(4)}`} · team alerted by push + SMS</div>
+            <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 12 }}>{assignIncFor.address || `${assignIncFor.lat.toFixed(4)}, ${assignIncFor.lon.toFixed(4)}`} · team alerted by push</div>
             <div style={{ maxHeight: 280, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
               {incTeams.length === 0 && <div style={{ fontSize: 13, color: '#8b949e' }}>No teams.</div>}
               {incTeams.map((t) => (
                 <button key={t.id} type="button" disabled={incBusy} onClick={() => assignIncidentTeam(t.id)} style={teamRow}>
                   <span style={{ fontWeight: 600 }}>{t.name}</span>
                   <span style={{ fontSize: 11, color: '#8b949e', marginLeft: 8 }}>{t.type} · {t.status}</span>
+                  {t.notifiable_count === 0 && <span style={{ fontSize: 11, color: '#d29922', marginLeft: 8 }}>⚠ no app access</span>}
                 </button>
               ))}
             </div>
@@ -772,7 +881,7 @@ export default function NgoBoardPage() {
           <div onClick={(e) => e.stopPropagation()} style={{ ...modalBox, width: 360 }}>
             <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Send a team to {panicDispatchFor.name}</div>
             <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 12 }}>
-              {panicDispatchFor.lat != null && panicDispatchFor.lon != null ? `Last seen ${panicDispatchFor.lat.toFixed(4)}, ${panicDispatchFor.lon.toFixed(4)}` : 'No location reported'} · the team is alerted by push + SMS.
+              {panicDispatchFor.lat != null && panicDispatchFor.lon != null ? `Last seen ${panicDispatchFor.lat.toFixed(4)}, ${panicDispatchFor.lon.toFixed(4)}` : 'No location reported'} · the team is alerted by push.
             </div>
             <div style={{ maxHeight: 280, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
               {panicTeams.length === 0 && <div style={{ fontSize: 13, color: '#8b949e' }}>No teams.</div>}
@@ -780,6 +889,7 @@ export default function NgoBoardPage() {
                 <button key={t.id} type="button" disabled={panicBusy} onClick={() => sendPanicTeam(t.id)} style={teamRow}>
                   <span style={{ fontWeight: 600 }}>{t.name}</span>
                   <span style={{ fontSize: 11, color: '#8b949e', marginLeft: 8 }}>{t.type} · {t.status}</span>
+                  {t.notifiable_count === 0 && <span style={{ fontSize: 11, color: '#d29922', marginLeft: 8 }}>⚠ no app access</span>}
                 </button>
               ))}
             </div>
@@ -838,6 +948,7 @@ export default function NgoBoardPage() {
                   <div style={{ fontSize: 11, color: '#8b949e', marginTop: 2 }}>
                     {t.type} · {t.status}{t.busy && <span style={{ color: '#d29922' }}> · busy</span>}
                   </div>
+                  {t.notifiable_count === 0 && <div style={{ fontSize: 11, color: '#d29922', marginTop: 2 }}>⚠ No members with app access — they won’t be notified</div>}
                 </button>
               ))}
             </div>
@@ -853,6 +964,7 @@ const panicStrip: React.CSSProperties = {
   position: 'absolute', top: 0, left: 0, right: 0, zIndex: 9,
   background: '#da3633', color: '#fff', fontSize: 13, fontWeight: 700, textAlign: 'center',
   padding: '8px 12px', cursor: 'pointer', fontFamily: 'system-ui',
+  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
   boxShadow: '0 2px 10px rgba(0,0,0,0.4)',
 }
 const panel: React.CSSProperties = {

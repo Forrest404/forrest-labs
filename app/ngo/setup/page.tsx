@@ -14,6 +14,14 @@ declare global {
 type Pt = [number, number]
 const LEBANON_CENTER: Pt = [35.86, 33.87]
 
+type Polygon = { type: 'Polygon'; coordinates: number[][][] }
+// True only for an actual GeoJSON Polygon with a usable ring. Guards against the
+// free-text {description} note the column may hold before an area is drawn.
+function isPolygon(area: unknown): area is Polygon {
+  const a = area as Polygon | null
+  return !!a && a.type === 'Polygon' && Array.isArray(a.coordinates) && Array.isArray(a.coordinates[0]) && a.coordinates[0].length >= 4
+}
+
 export default function NgoSetupPage() {
   const mapContainer = useRef<HTMLDivElement | null>(null)
   const map = useRef<any>(null)
@@ -77,10 +85,13 @@ export default function NgoSetupPage() {
   }, [])
 
   // ── Load saved area ───────────────────────────────────────────────────────
+  // Only accept a real GeoJSON Polygon. The column can also hold a free-text
+  // {description} note from signup; treating that as a polygon would crash the
+  // renderer below (saved.coordinates would be undefined).
   useEffect(() => {
     fetch('/api/ngo/org/area')
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (d?.area) setSaved(d.area) })
+      .then((d) => { if (isPolygon(d?.area)) setSaved(d.area) })
       .catch(() => {})
   }, [])
 
@@ -88,7 +99,7 @@ export default function NgoSetupPage() {
   useEffect(() => {
     if (!mapLoaded || !map.current) return
     const m = map.current
-    const data = saved
+    const data = isPolygon(saved)
       ? { type: 'Feature', geometry: saved, properties: {} }
       : { type: 'FeatureCollection', features: [] }
     if (m.getSource('saved-area')) {
@@ -99,7 +110,7 @@ export default function NgoSetupPage() {
       m.addLayer({ id: 'saved-area-line', type: 'line', source: 'saved-area', paint: { 'line-color': '#3fb950', 'line-width': 2 } })
     }
     // Fit to the saved area once.
-    if (saved) {
+    if (isPolygon(saved)) {
       const ring = saved.coordinates[0]
       const lons = ring.map((p) => p[0])
       const lats = ring.map((p) => p[1])

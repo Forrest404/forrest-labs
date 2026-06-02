@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { label: 'Reports', href: '/admin/reports', exact: false, icon: 'doc' },
   { label: 'Audit Log', href: '/admin/audit', exact: false, icon: 'list' },
   { label: 'Intelligence', href: '/admin/intelligence', exact: false, icon: 'brain' },
+  { label: 'Fraud & Abuse', href: '/admin/fraud', exact: false, icon: 'triangle' },
   { label: 'Map', href: '/admin/map', exact: false, icon: 'map' },
   { label: 'Triage', href: '/admin/triage', exact: false, icon: 'queue' },
   { label: 'Command', href: '/admin/command', exact: false, icon: 'command' },
@@ -17,6 +18,7 @@ const NAV_ITEMS = [
   { label: 'Export', href: '/admin/export', exact: false, icon: 'export' },
   { label: 'Cases', href: '/admin/cases', exact: false, icon: 'cases' },
   { label: 'Health', href: '/admin/health', exact: false, icon: 'health' },
+  { label: 'Security', href: '/admin/security', exact: false, icon: 'health' },
   { label: 'Demo script', href: '/admin/demo', exact: false, icon: 'play' },
 ] as const
 
@@ -336,6 +338,26 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           }}
         >
           Live map ↗
+        </div>
+
+        {/* Platform-operator console (separate /platform area; same admin login). */}
+        <div
+          onClick={() => router.push('/platform')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 9,
+            height: 34,
+            padding: '0 10px',
+            borderRadius: 6,
+            fontSize: 13,
+            cursor: 'pointer',
+            marginBottom: 2,
+            color: '#a371f7',
+            background: 'transparent',
+          }}
+        >
+          Platform console →
         </div>
 
         {/* Spacer */}

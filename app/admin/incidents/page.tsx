@@ -134,6 +134,22 @@ function IncidentsInner() {
 
   useEffect(() => { fetchClusters(filter) }, [filter, fetchClusters])
 
+  // Live refresh: silently re-poll the current filter every 20s. The admin API is
+  // service-role so it sees every status (a browser realtime subscription can't — the
+  // clusters read policy only exposes confirmed rows to the anon key).
+  useEffect(() => {
+    const id = setInterval(async () => {
+      try {
+        const res = await fetch('/api/admin/incidents?filter=' + filter + '&limit=50')
+        if (!res.ok) return
+        const data = (await res.json()) as { clusters: ClusterSummary[]; total: number }
+        setClusters(data.clusters ?? [])
+        setTotal(data.total ?? 0)
+      } catch { /* keep current list */ }
+    }, 20000)
+    return () => clearInterval(id)
+  }, [filter])
+
   // Fetch cluster detail
   async function fetchClusterDetail(id: string) {
     setDetailLoading(true)

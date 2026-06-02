@@ -2,6 +2,20 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { getNgoSession } from '@/lib/ngo-auth'
 import { resolveTeamId } from '@/lib/ngo-safety'
+import { notifyOrgRoles } from '@/lib/ngo-notify'
+
+// Field → HQ: tell leaders an on-scene report was filed (normal urgency → honours each
+// leader's prefs / quiet-hours). Best-effort; never fails the save.
+async function notifyReportFiled(supabase: ReturnType<typeof createServiceClient>, dispatch: { org_id: string; team_id: string }) {
+  try {
+    const { data: team } = await supabase.from('ngo_teams').select('name').eq('id', dispatch.team_id).maybeSingle()
+    await notifyOrgRoles(supabase, dispatch.org_id, ['org_admin', 'team_leader'], {
+      event: 'dispatch_update',
+      title: 'On-scene report filed',
+      body: `${team?.name ?? 'A team'} filed an on-scene report.`,
+    })
+  } catch { /* notification is best-effort */ }
+}
 
 // On-scene report — three fields only: people_assisted, services, new_hazards.
 // Filed (POST) and corrected (PUT) by the field coordinator on the team or a leader/admin.
@@ -45,6 +59,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const { error } = await supabase.from('on_scene_reports').insert({ dispatch_id: id, ...fields })
   if (error) return NextResponse.json({ error: 'Could not save report' }, { status: 500 })
+  await notifyReportFiled(supabase, auth.dispatch!)
   return NextResponse.json({ success: true })
 }
 
@@ -66,6 +81,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     // Nothing to edit yet — create it.
     const { error } = await supabase.from('on_scene_reports').insert({ dispatch_id: id, ...fields })
     if (error) return NextResponse.json({ error: 'Could not save report' }, { status: 500 })
+    await notifyReportFiled(supabase, auth.dispatch!)
     return NextResponse.json({ success: true, created: true })
   }
   const { error } = await supabase.from('on_scene_reports').update(fields).eq('id', existing.id)

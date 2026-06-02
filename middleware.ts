@@ -7,6 +7,12 @@ const PUBLIC_PATHS = ['/admin/login', '/api/admin/auth/login']
 const NGO_PUBLIC_PATHS = [
   '/ngo/login',
   '/ngo/signup',
+  // Token-gated public pages + endpoints (invite accept, password reset). The token is
+  // the credential; the SEND endpoint (/api/ngo/users/invite) stays session-gated.
+  '/ngo/invite',
+  '/ngo/reset',
+  '/api/ngo/auth/invite',
+  '/api/ngo/auth/reset',
   '/api/ngo/auth/login',
   '/api/ngo/auth/signup',
   // Scheduler-invoked; gated by their own ?key=REVIEW_SECRET_KEY check, so they must
@@ -15,6 +21,7 @@ const NGO_PUBLIC_PATHS = [
   // duress alerts never auto-widened (finding M1).
   '/api/ngo/safety/escalate',
   '/api/ngo/safety/panic-escalate',
+  '/api/ngo/notify/incident-scan',
 ]
 
 function getJwtSecret(): Uint8Array {
@@ -26,8 +33,24 @@ function getJwtSecret(): Uint8Array {
   return new TextEncoder().encode(secret)
 }
 
+// Broad body-size backstop: reject an oversized JSON write to any matched API route before
+// it reaches the handler. Dashboard JSON bodies are small; 256 KB is generous (covers
+// GeoJSON operational areas) while stopping memory-abuse. Multipart uploads (/api/media)
+// are not on this matcher and keep their own 50 MB cap.
+const MAX_API_BODY = 256 * 1024
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
+
+  if (
+    pathname.startsWith('/api/') &&
+    (request.method === 'POST' || request.method === 'PUT' || request.method === 'PATCH')
+  ) {
+    const len = Number(request.headers.get('content-length') ?? '')
+    if (Number.isFinite(len) && len > MAX_API_BODY) {
+      return NextResponse.json({ error: 'Request body too large' }, { status: 413 })
+    }
+  }
 
   // Platform-operator console: gated by the SAME admin cookie as /admin (it is a
   // tier above all NGOs; NGO users never hold fl_admin_session). Treated exactly
@@ -104,11 +127,15 @@ export async function middleware(request: NextRequest) {
     const { payload } = await jwtVerify(ngoToken, getJwtSecret())
     if (payload.type !== 'ngo') throw new Error('wrong token type')
 
-    // Role routing: field coordinators are limited to their mobile surface.
+    // Role routing: field coordinators are limited to their mobile surface, PLUS their
+    // own account page (/ngo/settings renders only "My account" for them — own data only,
+    // no org map/other teams, so it stays within the device-capture threat model).
     if (
       payload.role === 'field_coordinator' &&
       pathname.startsWith('/ngo/') &&
-      !pathname.startsWith('/ngo/field')
+      !pathname.startsWith('/ngo/field') &&
+      !pathname.startsWith('/ngo/settings') &&
+      !pathname.startsWith('/ngo/privacy')
     ) {
       return NextResponse.redirect(new URL('/ngo/field', request.url))
     }

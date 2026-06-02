@@ -63,6 +63,13 @@ export default function PlatformLayout({ children }: { children: ReactNode }) {
               </div>
             )
           })}
+          {/* Back to the civilian admin console (separate /admin area; same login). */}
+          <div
+            onClick={() => router.push('/admin')}
+            style={{ padding: '8px 12px', borderRadius: 6, fontSize: 13, cursor: 'pointer', color: '#8b949e', marginTop: 4 }}
+          >
+            Admin console →
+          </div>
         </nav>
 
         <div style={{ padding: '12px 16px 0', borderTop: '1px solid #21262d' }}>
