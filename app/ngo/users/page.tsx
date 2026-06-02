@@ -9,9 +9,9 @@ const ROLES = [
 ]
 const ROLE_LABEL: Record<string, string> = { org_admin: 'Org admin', team_leader: 'Team leader', field_coordinator: 'Field coordinator' }
 
-interface User { id: string; full_name: string | null; email: string; phone: string | null; role: string; status: string; login_code: string | null }
+interface User { id: string; full_name: string | null; email: string; phone: string | null; role: string; status: string; login_code: string | null; team_id: string | null }
 type AddForm = { full_name: string; email: string; phone: string; role: string; password: string }
-type EditForm = { id: string; full_name: string; phone: string; role: string; status: string; password: string; regenerate: boolean }
+type EditForm = { id: string; full_name: string; phone: string; role: string; status: string; password: string; regenerate: boolean; team_id: string }
 
 export default function NgoUsersPage() {
   const [users, setUsers] = useState<User[]>([])
@@ -70,6 +70,7 @@ export default function NgoUsersPage() {
       const payload: Record<string, unknown> = { full_name: edit.full_name, phone: edit.phone, role: edit.role, status: edit.status }
       if (edit.password) payload.password = edit.password
       if (edit.regenerate) payload.regenerate_code = true
+      if (edit.team_id) payload.team_id = edit.team_id // '' = leave team unchanged; server no-ops if already on it
       const res = await fetch(`/api/ngo/users/${edit.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
       const data = await res.json().catch(() => ({}))
       if (res.ok) { const name = edit.full_name; setEdit(null); await load(); if (data.login_code) setShare({ name, code: data.login_code }); else setMsg('User updated.') }
@@ -118,12 +119,14 @@ export default function NgoUsersPage() {
     else setError(data.error ?? 'Could not remove user.')
   }
 
-  // Load teams for the invite modal's optional team picker.
+  // Load teams for the invite modal's optional picker AND the edit modal's team selector.
   useEffect(() => {
-    if (!invite) return
+    if (!invite && !edit) return
     fetch('/api/ngo/teams', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : { teams: [] }))
       .then((d) => setTeams(d.teams ?? [])).catch(() => {})
-  }, [invite])
+    // Depend on open-state only (not the form objects) so typing doesn't refetch each keystroke.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [!!invite, edit?.id])
 
   async function sendInvite() {
     if (!invite) return
@@ -185,7 +188,7 @@ export default function NgoUsersPage() {
                 )}
               </div>
               <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                <button type="button" onClick={() => setEdit({ id: u.id, full_name: u.full_name ?? '', phone: u.phone ?? '', role: u.role, status: u.status, password: '', regenerate: false })} style={miniBtn}>Edit</button>
+                <button type="button" onClick={() => setEdit({ id: u.id, full_name: u.full_name ?? '', phone: u.phone ?? '', role: u.role, status: u.status, password: '', regenerate: false, team_id: u.team_id ?? '' })} style={miniBtn}>Edit</button>
                 <button type="button" onClick={() => toggleStatus(u)} style={miniBtn}>{u.status === 'active' ? 'Suspend' : 'Reactivate'}</button>
                 <button type="button" onClick={() => signOutDevices(u)} style={miniBtn}>Sign out devices</button>
                 <button type="button" onClick={() => removeUser(u)} style={{ ...miniBtn, color: '#f85149', borderColor: 'rgba(248,81,73,0.4)' }}>Remove</button>
@@ -244,6 +247,12 @@ export default function NgoUsersPage() {
             <select style={field} value={edit.status} onChange={(e) => setEdit({ ...edit, status: e.target.value })}>
               <option value="active">Active</option>
               <option value="suspended">Suspended</option>
+            </select>
+          </L>
+          <L label="Team">
+            <select style={field} value={edit.team_id} onChange={(e) => setEdit({ ...edit, team_id: e.target.value })}>
+              <option value="">{edit.team_id ? 'Keep current team' : 'No team'}</option>
+              {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
           </L>
           {edit.role === 'field_coordinator'

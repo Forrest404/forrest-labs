@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { getNgoSession, requireRole, hashSecret, generateLoginCode, isValidPin, type NgoRole } from '@/lib/ngo-auth'
+import { notifyUsers } from '@/lib/ngo-notify'
 
 const ROLES: NgoRole[] = ['org_admin', 'team_leader', 'field_coordinator']
 
@@ -29,12 +30,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     return NextResponse.json({ error: 'Not authorised' }, { status: 403 })
   }
   const { id } = await params
-  let body: { full_name?: string; phone?: string; role?: string; status?: string; password?: string; pin?: string; regenerate_code?: boolean; revoke_sessions?: boolean }
+  let body: { full_name?: string; phone?: string; role?: string; status?: string; password?: string; pin?: string; regenerate_code?: boolean; revoke_sessions?: boolean; team_id?: string }
   try { body = await request.json() } catch { return NextResponse.json({ error: 'Invalid request' }, { status: 400 }) }
+  // Non-empty team_id requests a team assignment/move; '' or absent = leave team unchanged
+  // (unassigning is done from the Teams page, not here).
+  const teamId = body.team_id ? String(body.team_id) : undefined
 
   const supabase = createServiceClient()
   const { data: target } = await supabase
-    .from('ngo_users').select('id, role, status, login_code').eq('id', id).eq('org_id', session!.orgId).maybeSingle()
+    .from('ngo_users').select('id, full_name, role, status, login_code').eq('id', id).eq('org_id', session!.orgId).maybeSingle()
   if (!target) return NextResponse.json({ error: 'User not found' }, { status: 404 })
 
   const update: Record<string, unknown> = {}
@@ -83,17 +87,38 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     update.token_version = (cur as any).token_version + 1
   }
 
-  if (Object.keys(update).length === 0) return NextResponse.json({ error: 'Nothing to update' }, { status: 400 })
+  if (Object.keys(update).length === 0 && teamId === undefined) return NextResponse.json({ error: 'Nothing to update' }, { status: 400 })
 
   if (await wouldOrphanOrg(supabase, session!.orgId, target as any, { role: update.role as string, status: update.status as string })) {
     return NextResponse.json({ error: 'This is the org’s only active admin — assign another admin first.' }, { status: 409 })
   }
 
-  const { error } = await supabase.from('ngo_users').update(update).eq('id', id).eq('org_id', session!.orgId)
-  if (error) {
-    if ((error as any)?.code === '23505') return NextResponse.json({ error: 'Email already in use' }, { status: 409 })
-    return NextResponse.json({ error: 'Could not update user' }, { status: 500 })
+  if (Object.keys(update).length > 0) {
+    const { error } = await supabase.from('ngo_users').update(update).eq('id', id).eq('org_id', session!.orgId)
+    if (error) {
+      if ((error as any)?.code === '23505') return NextResponse.json({ error: 'Email already in use' }, { status: 409 })
+      return NextResponse.json({ error: 'Could not update user' }, { status: 500 })
+    }
   }
+
+  // Team assignment (N-3): move the user to a different team. Mirrors the teams-page transfer —
+  // update their existing roster row (create one if they're on no team; no-op if already there)
+  // — and fire the same 'team_change' alert. Org-scoped: the target team must be in this org.
+  if (teamId !== undefined) {
+    const { data: team } = await supabase.from('ngo_teams').select('id, name').eq('id', teamId).eq('org_id', session!.orgId).maybeSingle()
+    if (!team) return NextResponse.json({ error: 'Team not found' }, { status: 404 })
+    const { data: rows } = await supabase.from('team_members').select('id, team_id').eq('ngo_user_id', id).order('created_at', { ascending: true })
+    if (!(rows ?? []).some((r: any) => r.team_id === teamId)) {
+      if (rows && rows.length > 0) {
+        await supabase.from('team_members').update({ team_id: teamId }).eq('id', rows[0].id)
+      } else {
+        const name = (update.full_name as string) ?? (target as any).full_name ?? 'Member'
+        await supabase.from('team_members').insert({ team_id: teamId, ngo_user_id: id, name, role: (update.role as string) ?? target.role })
+      }
+      try { await notifyUsers(supabase, session!.orgId, [id], { event: 'team_change', title: 'Team changed', body: `You've been moved to ${team.name}.` }) } catch { /* notify is best-effort */ }
+    }
+  }
+
   return NextResponse.json({ success: true, login_code: newCode })
 }
 

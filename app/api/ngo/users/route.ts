@@ -17,8 +17,18 @@ export async function GET(request: NextRequest) {
     .eq('org_id', session!.orgId)
     .order('created_at', { ascending: true })
   if (error) return NextResponse.json({ error: 'Could not load users' }, { status: 500 })
-  // Mark whether each row has a usable credential, and who the caller is.
-  return NextResponse.json({ users: data ?? [], me: session!.userId })
+  // Attach each user's current team (their earliest team_members row) so the edit modal can
+  // preselect it. One query for all listed users.
+  const users = data ?? []
+  const ids = users.map((u: any) => u.id)
+  const teamByUser: Record<string, string> = {}
+  if (ids.length) {
+    const { data: tm } = await supabase
+      .from('team_members').select('ngo_user_id, team_id, created_at')
+      .in('ngo_user_id', ids).order('created_at', { ascending: true })
+    for (const r of tm ?? []) { if (r.ngo_user_id && !(r.ngo_user_id in teamByUser)) teamByUser[r.ngo_user_id] = r.team_id }
+  }
+  return NextResponse.json({ users: users.map((u: any) => ({ ...u, team_id: teamByUser[u.id] ?? null })), me: session!.userId })
 }
 
 export async function POST(request: NextRequest) {
