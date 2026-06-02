@@ -169,6 +169,11 @@ export default function NgoSettingsPage() {
 
   return (
     <div style={wrap}>
+      {/* Field coordinators reach Settings via the field-screen "Account" link and have no
+          sidebar — give them an obvious one-tap way back to their field page. */}
+      {role === 'field_coordinator' && (
+        <a href="/ngo/field" style={{ display: 'inline-block', marginBottom: 14, color: '#58a6ff', textDecoration: 'none', fontSize: 14, fontWeight: 600 }}>← Back to field</a>
+      )}
       <h1 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>Settings</h1>
       <div style={{ fontSize: 13, color: '#8b949e', marginTop: 2, marginBottom: 18 }}>Manage your account{isAdmin ? ', organisation, safety and data' : role === 'team_leader' ? ' and safety configuration' : ''}.</div>
 
