@@ -264,6 +264,16 @@ export default function MapPage() {
   useEffect(() => { sentinelVisibleRef.current = sentinelVisible }, [sentinelVisible])
   useEffect(() => { warningClustersRef.current = warningClusters }, [warningClusters])
 
+  // ── Deep-link target parsed once on mount (consumed below, after fetchLocationName) ──
+  const pendingDeepLink = useRef<{ type: 'incident' | 'warning'; id: string } | null>(null)
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search)
+    const inc = p.get('incident')
+    const wrn = p.get('warning')
+    if (inc) pendingDeepLink.current = { type: 'incident', id: inc }
+    else if (wrn) pendingDeepLink.current = { type: 'warning', id: wrn }
+  }, [])
+
   // ── Helpers ──────────────────────────────────────────────────────────────
 
   function timeAgo(dateStr: string): string {
@@ -329,6 +339,28 @@ export default function MapPage() {
       })
     }
   }, [])
+
+  // Open the deep-linked incident/warning panel once its data has loaded (?incident=/?warning=).
+  useEffect(() => {
+    const dl = pendingDeepLink.current
+    if (!dl || !mapLoaded) return
+    if (dl.type === 'incident') {
+      const c = clusters.find((x) => x.id === dl.id)
+      if (!c) return // not loaded yet (or filtered/unknown) — retry on the next data change
+      pendingDeepLink.current = null
+      setSelectedWarning(null)
+      setSelectedCluster(c)
+      fetchLocationName(c.centroid_lat, c.centroid_lon, c.id)
+      if (map.current) map.current.flyTo({ center: [c.centroid_lon, c.centroid_lat], zoom: 14, duration: 1200 })
+    } else {
+      const w = warningClusters.find((x) => x.id === dl.id)
+      if (!w) return
+      pendingDeepLink.current = null
+      setSelectedCluster(null)
+      setSelectedWarning(w)
+      if (map.current) map.current.flyTo({ center: [w.centroid_lon, w.centroid_lat], zoom: 14, duration: 1200 })
+    }
+  }, [clusters, warningClusters, mapLoaded, fetchLocationName])
 
   // Forward geocode (place/address search) — bounded to Lebanon so results are local. Reuses the
   // same public Mapbox token already used for reverse geocoding (no new secret/route).
@@ -1349,7 +1381,14 @@ export default function MapPage() {
   // ── Share handler ─────────────────────────────────────────────────────
 
   const handleShare = useCallback(async () => {
-    const url = window.location.origin + '/map'
+    // Deep-link to the OPEN incident/warning so the recipient lands on it (the id opens the
+    // panel once data loads; lat/lon/zoom fly there immediately, even before data arrives).
+    let url = window.location.origin + '/map'
+    if (selectedCluster) {
+      url += `?incident=${selectedCluster.id}&lat=${selectedCluster.centroid_lat}&lon=${selectedCluster.centroid_lon}&zoom=14`
+    } else if (selectedWarning) {
+      url += `?warning=${selectedWarning.id}&lat=${selectedWarning.centroid_lat}&lon=${selectedWarning.centroid_lon}&zoom=14`
+    }
     if (navigator.share) {
       try {
         await navigator.share({ title: 'NOUR — Live Map', url })
@@ -1365,7 +1404,7 @@ export default function MapPage() {
         // clipboard unavailable
       }
     }
-  }, [])
+  }, [selectedCluster, selectedWarning])
 
   // ── Derived values ────────────────────────────────────────────────────
 
