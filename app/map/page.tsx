@@ -202,6 +202,14 @@ export default function MapPage() {
   const [showFullReasoning, setShowFullReasoning] = useState(false)
   const [shareLabel, setShareLabel] = useState('Share this alert')
 
+  // ── Search / locate state ─────────────────────────────────────────────────
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<{ name: string; lat: number; lon: number }[]>([])
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [locating, setLocating] = useState(false)
+  const [geoError, setGeoError] = useState<string | null>(null)
+  const userMarker = useRef<any>(null)
+
   // ── New state ────────────────────────────────────────────────────────────
   const [mapStyle, setMapStyle] = useState('mapbox://styles/mapbox/dark-v11')
   const [showControls, setShowControls] = useState(true)
@@ -307,6 +315,56 @@ export default function MapPage() {
         return { ...prev, [clusterId]: 'Unknown location' }
       })
     }
+  }, [])
+
+  // Forward geocode (place/address search) — bounded to Lebanon so results are local. Reuses the
+  // same public Mapbox token already used for reverse geocoding (no new secret/route).
+  const runSearch = useCallback(async (q: string) => {
+    const query = q.trim()
+    if (query.length < 2) { setSearchResults([]); return }
+    const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
+    const url =
+      `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json` +
+      `?access_token=${token}&country=lb&bbox=35.10,33.05,36.62,34.69&limit=5&language=en,ar&types=place,locality,neighborhood,address,poi`
+    try {
+      const res = await fetch(url)
+      const data = await res.json() as { features?: { place_name: string; center: [number, number] }[] }
+      setSearchResults((data.features ?? []).map((f) => ({ name: f.place_name, lon: f.center[0], lat: f.center[1] })))
+    } catch { setSearchResults([]) }
+  }, [])
+
+  // Debounce the search so we don't hit the geocoder on every keystroke.
+  useEffect(() => {
+    if (!searchOpen) return
+    const id = setTimeout(() => { runSearch(searchQuery) }, 300)
+    return () => clearTimeout(id)
+  }, [searchQuery, searchOpen, runSearch])
+
+  const flyToResult = useCallback((r: { name: string; lat: number; lon: number }) => {
+    if (map.current) map.current.flyTo({ center: [r.lon, r.lat], zoom: 13, duration: 1200 })
+    setSearchQuery(r.name)
+    setSearchResults([])
+    setSearchOpen(false)
+  }, [])
+
+  // "Near me" — recenter on the user's GPS and drop a marker. Battery-light: a one-shot fix,
+  // never continuous tracking. Fails gracefully (denied / unavailable / timeout).
+  const locateMe = useCallback(() => {
+    setGeoError(null)
+    if (typeof navigator === 'undefined' || !navigator.geolocation) { setGeoError('Location isn’t available on this device.'); return }
+    setLocating(true)
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLocating(false)
+        const { latitude, longitude } = pos.coords
+        if (!map.current || !window.mapboxgl) return
+        map.current.flyTo({ center: [longitude, latitude], zoom: 14, duration: 1200 })
+        try { userMarker.current?.remove() } catch { /* ignore */ }
+        userMarker.current = new window.mapboxgl.Marker({ color: '#58a6ff' }).setLngLat([longitude, latitude]).addTo(map.current)
+      },
+      () => { setLocating(false); setGeoError('Couldn’t get your location. Check location permission.') },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 },
+    )
   }, [])
 
   const updateMapSource = useCallback((clusterData: Cluster[]) => {
@@ -1568,6 +1626,81 @@ export default function MapPage() {
         >
           {isMobile ? 'Report' : 'Report incident'}
         </a>
+      </div>
+
+      {/* ── Search a place + "find my location" (top-left) ──────────────── */}
+      <div
+        style={{
+          position: 'absolute',
+          top: isMobile ? (showBanner ? 94 : 56) : (showBanner ? 56 + 38 + 8 : 56 + 8),
+          left: 12,
+          width: isMobile ? 'calc(100vw - 64px)' : 280,
+          maxWidth: 'calc(100vw - 24px)',
+          zIndex: 6,
+          display: isMobile && newsOpen ? 'none' : 'flex',
+          flexDirection: 'column',
+          gap: 6,
+          transition: 'top 0.3s',
+        }}
+      >
+        <div style={{ display: 'flex', gap: 6 }}>
+          <div style={{ flex: 1, position: 'relative' }}>
+            <input
+              value={searchQuery}
+              onChange={(e) => { setSearchQuery(e.target.value); setSearchOpen(true); setGeoError(null) }}
+              onFocus={() => setSearchOpen(true)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && searchResults[0]) flyToResult(searchResults[0])
+                else if (e.key === 'Escape') { setSearchOpen(false); setSearchResults([]) }
+              }}
+              placeholder="Search a place in Lebanon…"
+              aria-label="Search a place in Lebanon"
+              style={{
+                width: '100%', boxSizing: 'border-box', height: 38, padding: '0 30px 0 12px',
+                background: 'rgba(10,10,15,0.9)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
+                border: '0.5px solid rgba(255,255,255,0.15)', borderRadius: 10, color: '#fff', fontSize: 14,
+                fontFamily: 'system-ui', outline: 'none',
+              }}
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => { setSearchQuery(''); setSearchResults([]); setSearchOpen(false) }}
+                aria-label="Clear search"
+                style={{ position: 'absolute', right: 4, top: 6, width: 26, height: 26, borderRadius: 6, background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: 18, lineHeight: '26px' }}
+              >×</button>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={locateMe}
+            disabled={locating}
+            aria-label="Find my location"
+            title="Find my location"
+            style={{ flexShrink: 0, width: 38, height: 38, borderRadius: 10, background: 'rgba(10,10,15,0.9)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', border: '0.5px solid rgba(255,255,255,0.15)', color: locating ? '#8b949e' : '#58a6ff', cursor: locating ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+              <circle cx="8" cy="8" r="3.2" stroke="currentColor" strokeWidth="1.4" />
+              <line x1="8" y1="0.5" x2="8" y2="3" stroke="currentColor" strokeWidth="1.4" />
+              <line x1="8" y1="13" x2="8" y2="15.5" stroke="currentColor" strokeWidth="1.4" />
+              <line x1="0.5" y1="8" x2="3" y2="8" stroke="currentColor" strokeWidth="1.4" />
+              <line x1="13" y1="8" x2="15.5" y2="8" stroke="currentColor" strokeWidth="1.4" />
+            </svg>
+          </button>
+        </div>
+        {searchOpen && searchResults.length > 0 && (
+          <div style={{ background: 'rgba(10,10,15,0.95)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', border: '0.5px solid rgba(255,255,255,0.12)', borderRadius: 10, overflow: 'hidden' }}>
+            {searchResults.map((r, i) => (
+              <button
+                key={`${r.lat},${r.lon},${i}`}
+                type="button"
+                onClick={() => flyToResult(r)}
+                style={{ display: 'block', width: '100%', textAlign: 'left', padding: '9px 12px', background: 'transparent', border: 'none', borderTop: i ? '0.5px solid rgba(255,255,255,0.07)' : 'none', color: '#e6edf3', fontSize: 13, cursor: 'pointer', fontFamily: 'system-ui' }}
+              >{r.name}</button>
+            ))}
+          </div>
+        )}
+        {geoError && <div style={{ background: 'rgba(248,81,73,0.15)', border: '0.5px solid rgba(248,81,73,0.4)', color: '#f85149', borderRadius: 8, padding: '6px 10px', fontSize: 12 }}>{geoError}</div>}
       </div>
 
       {/* ── Mobile controls toggle button ──────────────────────────────── */}
