@@ -187,6 +187,39 @@ function formatScrubTime(d: Date): string {
 
 // ─── Map page ─────────────────────────────────────────────────────────────────
 
+// Public-map UI strings (EN/FR/AR). Shared language pref key 'fl_lang' with the rest of the
+// site. The basemap labels themselves are localised separately via map.setLanguage().
+type MapLang = 'en' | 'fr' | 'ar'
+const MAP_STRINGS: Record<MapLang, Record<string, string>> = {
+  en: {
+    search_ph: 'Search a place in Lebanon…', clear: 'Clear search', locate: 'Find my location',
+    geo_unavailable: 'Location isn’t available on this device.',
+    geo_failed: 'Couldn’t get your location. Check location permission.',
+    report: 'Report incident', report_short: 'Report', news: 'News', live: 'LIVE', official: 'OFFICIAL',
+    legend_strikes: 'Strikes', legend_warnings: 'Warnings',
+    st_official: 'Officially verified', st_news: 'News verified', st_civilian: 'Civilian confirmed', st_auto: 'AI auto-confirmed',
+    warn_active: 'Active evacuation', warn_clear: 'All clear reported',
+  },
+  fr: {
+    search_ph: 'Rechercher un lieu au Liban…', clear: 'Effacer', locate: 'Ma position',
+    geo_unavailable: 'La localisation n’est pas disponible sur cet appareil.',
+    geo_failed: 'Impossible d’obtenir votre position. Vérifiez l’autorisation de localisation.',
+    report: 'Signaler', report_short: 'Signaler', news: 'Actus', live: 'EN DIRECT', official: 'OFFICIEL',
+    legend_strikes: 'Frappes', legend_warnings: 'Avertissements',
+    st_official: 'Vérifié officiellement', st_news: 'Vérifié par les médias', st_civilian: 'Confirmé par des civils', st_auto: 'Auto-confirmé (IA)',
+    warn_active: 'Évacuation active', warn_clear: 'Fin d’alerte signalée',
+  },
+  ar: {
+    search_ph: 'ابحث عن مكان في لبنان…', clear: 'مسح', locate: 'موقعي',
+    geo_unavailable: 'الموقع غير متاح على هذا الجهاز.',
+    geo_failed: 'تعذّر تحديد موقعك. تحقّق من إذن الموقع.',
+    report: 'الإبلاغ عن حادثة', report_short: 'إبلاغ', news: 'الأخبار', live: 'مباشر', official: 'رسمي',
+    legend_strikes: 'الضربات', legend_warnings: 'التحذيرات',
+    st_official: 'مؤكد رسمياً', st_news: 'مؤكد إخبارياً', st_civilian: 'مؤكد من المدنيين', st_auto: 'مؤكد آلياً (ذكاء اصطناعي)',
+    warn_active: 'إخلاء نشط', warn_clear: 'تم الإبلاغ عن انتهاء الخطر',
+  },
+}
+
 export default function MapPage() {
   // ── Existing state ───────────────────────────────────────────────────────
   const [mapLoaded, setMapLoaded] = useState(false)
@@ -213,6 +246,25 @@ export default function MapPage() {
   // ── Freshness indicator ───────────────────────────────────────────────────
   const [lastUpdated, setLastUpdated] = useState<number | null>(null)
   const [, setFreshTick] = useState(0) // 1s tick keeps the "updated Xs ago" label live
+
+  // ── Language (shared 'fl_lang'); basemap labels localised via map.setLanguage() ───────────
+  const [lang, setLang] = useState<MapLang>('en')
+  const langRef = useRef<MapLang>('en')
+  useEffect(() => { langRef.current = lang }, [lang])
+  const isRtl = lang === 'ar'
+  const t = useCallback((k: string) => MAP_STRINGS[lang]?.[k] ?? MAP_STRINGS.en[k] ?? k, [lang])
+  useEffect(() => {
+    try { const s = localStorage.getItem('fl_lang'); if (s === 'en' || s === 'fr' || s === 'ar') setLang(s) } catch { /* storage off */ }
+  }, [])
+  const changeLang = useCallback((l: MapLang) => {
+    setLang(l)
+    try { localStorage.setItem('fl_lang', l) } catch { /* storage off */ }
+    try { map.current?.setLanguage(l) } catch { /* setLanguage unsupported on this style/version */ }
+  }, [])
+  // Re-apply when the language state settles (e.g. read from storage on mount, once style ready).
+  useEffect(() => {
+    try { map.current?.setLanguage(lang) } catch { /* ignore */ }
+  }, [lang])
 
   // ── New state ────────────────────────────────────────────────────────────
   const [mapStyle, setMapStyle] = useState('mapbox://styles/mapbox/dark-v11')
@@ -396,7 +448,7 @@ export default function MapPage() {
   // never continuous tracking. Fails gracefully (denied / unavailable / timeout).
   const locateMe = useCallback(() => {
     setGeoError(null)
-    if (typeof navigator === 'undefined' || !navigator.geolocation) { setGeoError('Location isn’t available on this device.'); return }
+    if (typeof navigator === 'undefined' || !navigator.geolocation) { setGeoError(t('geo_unavailable')); return }
     setLocating(true)
     navigator.geolocation.getCurrentPosition(
       (pos) => {
@@ -407,10 +459,10 @@ export default function MapPage() {
         try { userMarker.current?.remove() } catch { /* ignore */ }
         userMarker.current = new window.mapboxgl.Marker({ color: '#58a6ff' }).setLngLat([longitude, latitude]).addTo(map.current)
       },
-      () => { setLocating(false); setGeoError('Couldn’t get your location. Check location permission.') },
+      () => { setLocating(false); setGeoError(t('geo_failed')) },
       { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 },
     )
-  }, [])
+  }, [t])
 
   const updateMapSource = useCallback((clusterData: Cluster[]) => {
     if (!map.current) return
@@ -1122,10 +1174,12 @@ export default function MapPage() {
         updateWarningSource(warningClustersRef.current)
         attachMapHandlers()
         reAddOptionalLayers()
+        try { map.current.setLanguage(langRef.current) } catch { /* keep style default */ }
       })
 
       map.current.on('load', () => {
         setMapLoaded(true)
+        try { map.current.setLanguage(langRef.current) } catch { /* keep style default */ }
         loadClusters()
         setupRealtimeSubscription()
         attachMapHandlers()
@@ -1452,6 +1506,7 @@ export default function MapPage() {
 
   return (
     <div
+      dir={isRtl ? 'rtl' : 'ltr'}
       style={{
         position: 'relative',
         width: '100vw',
@@ -1579,7 +1634,7 @@ export default function MapPage() {
               fontWeight: 600,
             }}
           >
-            {recentCluster?.status === 'official_verified' ? 'OFFICIAL' : 'LIVE'}
+            {recentCluster?.status === 'official_verified' ? t('official') : t('live')}
           </span>
         </div>
 
@@ -1650,7 +1705,7 @@ export default function MapPage() {
             <rect x="1" y="2" width="12" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
             <path d="M3.5 5h7M3.5 7.5h7M3.5 10h4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
           </svg>
-          <span style={{ display: isMobile ? 'none' : 'inline' }}>News</span>
+          <span style={{ display: isMobile ? 'none' : 'inline' }}>{t('news')}</span>
           {articles.length > 0 && (
             <span style={{
               background: '#ef4444',
@@ -1667,6 +1722,26 @@ export default function MapPage() {
             </span>
           )}
         </button>
+
+        {/* Language toggle (shared 'fl_lang'; also switches the basemap labels) */}
+        <div style={{ display: 'flex', border: '0.5px solid rgba(255,255,255,0.15)', borderRadius: 8, overflow: 'hidden', flexShrink: 0 }}>
+          {(['en', 'fr', 'ar'] as MapLang[]).map((l) => (
+            <button
+              key={l}
+              type="button"
+              onClick={() => changeLang(l)}
+              aria-label={`Language: ${l === 'ar' ? 'Arabic' : l === 'fr' ? 'French' : 'English'}`}
+              aria-pressed={lang === l}
+              style={{
+                background: lang === l ? 'rgba(239,68,68,0.25)' : 'transparent',
+                color: lang === l ? '#fff' : 'rgba(255,255,255,0.6)',
+                border: 'none', cursor: 'pointer', fontFamily: 'system-ui',
+                fontSize: 11, fontWeight: 600, padding: isMobile ? '0 7px' : '0 8px',
+                minHeight: isMobile ? 44 : 30, lineHeight: 1,
+              }}
+            >{l === 'ar' ? 'ع' : l.toUpperCase()}</button>
+          ))}
+        </div>
 
         {/* Report button */}
         <a
@@ -1686,7 +1761,7 @@ export default function MapPage() {
             whiteSpace: 'nowrap',
           }}
         >
-          {isMobile ? 'Report' : 'Report incident'}
+          {isMobile ? t('report_short') : t('report')}
         </a>
       </div>
 
@@ -1715,8 +1790,8 @@ export default function MapPage() {
                 if (e.key === 'Enter' && searchResults[0]) flyToResult(searchResults[0])
                 else if (e.key === 'Escape') { setSearchOpen(false); setSearchResults([]) }
               }}
-              placeholder="Search a place in Lebanon…"
-              aria-label="Search a place in Lebanon"
+              placeholder={t('search_ph')}
+              aria-label={t('search_ph')}
               style={{
                 width: '100%', boxSizing: 'border-box', height: 38, padding: '0 30px 0 12px',
                 background: 'rgba(10,10,15,0.9)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
@@ -1728,7 +1803,7 @@ export default function MapPage() {
               <button
                 type="button"
                 onClick={() => { setSearchQuery(''); setSearchResults([]); setSearchOpen(false) }}
-                aria-label="Clear search"
+                aria-label={t('clear')}
                 style={{ position: 'absolute', right: 4, top: 6, width: 26, height: 26, borderRadius: 6, background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: 18, lineHeight: '26px' }}
               >×</button>
             )}
@@ -1737,8 +1812,8 @@ export default function MapPage() {
             type="button"
             onClick={locateMe}
             disabled={locating}
-            aria-label="Find my location"
-            title="Find my location"
+            aria-label={t('locate')}
+            title={t('locate')}
             style={{ flexShrink: 0, width: 38, height: 38, borderRadius: 10, background: 'rgba(10,10,15,0.9)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', border: '0.5px solid rgba(255,255,255,0.15)', color: locating ? '#8b949e' : '#58a6ff', cursor: locating ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
@@ -2097,34 +2172,34 @@ export default function MapPage() {
         }}
       >
         {/* STRIKES section */}
-        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>Strikes</div>
+        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>{t('legend_strikes')}</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'rgba(255,255,255,0.7)', marginBottom: 5 }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#a371f7', flexShrink: 0, marginLeft: 6, marginRight: 6 }} />
-          Officially verified (OCHA/MoPH)
+          {t('st_official')}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'rgba(255,255,255,0.7)', marginBottom: 5 }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#58a6ff', flexShrink: 0, marginLeft: 6, marginRight: 6 }} />
-          News verified
+          {t('st_news')}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'rgba(255,255,255,0.7)', marginBottom: 5 }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444', flexShrink: 0, marginLeft: 6, marginRight: 6 }} />
-          Civilian confirmed
+          {t('st_civilian')}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#f97316', flexShrink: 0, marginLeft: 6, marginRight: 6 }} />
-          AI auto-confirmed
+          {t('st_auto')}
         </div>
         {/* Divider */}
         <div style={{ borderTop: '0.5px solid rgba(255,255,255,0.1)', margin: '8px 0' }} />
         {/* WARNINGS section */}
-        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>Warnings</div>
+        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>{t('legend_warnings')}</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'rgba(255,255,255,0.7)', marginBottom: 5 }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#f97316', flexShrink: 0, marginLeft: 6, marginRight: 6, boxShadow: '0 0 0 2px rgba(249,115,22,0.3)' }} />
-          Active evacuation warning
+          {t('warn_active')}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', flexShrink: 0, marginLeft: 6, marginRight: 6 }} />
-          All clear reported
+          {t('warn_clear')}
         </div>
       </div>
 
