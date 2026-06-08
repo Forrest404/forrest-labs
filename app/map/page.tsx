@@ -210,6 +210,10 @@ export default function MapPage() {
   const [geoError, setGeoError] = useState<string | null>(null)
   const userMarker = useRef<any>(null)
 
+  // ── Freshness indicator ───────────────────────────────────────────────────
+  const [lastUpdated, setLastUpdated] = useState<number | null>(null)
+  const [, setFreshTick] = useState(0) // 1s tick keeps the "updated Xs ago" label live
+
   // ── New state ────────────────────────────────────────────────────────────
   const [mapStyle, setMapStyle] = useState('mapbox://styles/mapbox/dark-v11')
   const [showControls, setShowControls] = useState(true)
@@ -270,6 +274,15 @@ export default function MapPage() {
     if (mins < 60) return `${mins}m ago`
     if (hours < 24) return `${hours}h ago`
     return `${Math.floor(hours / 24)}d ago`
+  }
+
+  // Live "updated Xs ago" for the freshness label (from a ms timestamp set on each data refresh).
+  function freshAgo(ms: number): string {
+    const s = Math.floor((Date.now() - ms) / 1000)
+    if (s < 5) return 'just now'
+    if (s < 60) return `${s}s ago`
+    const m = Math.floor(s / 60)
+    return m < 60 ? `${m}m ago` : `${Math.floor(m / 60)}h ago`
   }
 
   function formatEventType(type: string): string {
@@ -892,6 +905,7 @@ export default function MapPage() {
     const warnRows = (warnData ?? []) as WarningCluster[]
     setWarningClusters(warnRows)
     updateWarningSource(warnRows)
+    setLastUpdated(Date.now())
   }, [updateMapSource, updateWarningSource])
 
   const setupRealtimeSubscription = useCallback(() => {
@@ -920,6 +934,7 @@ export default function MapPage() {
               updateMapSource(updated)
               return updated
             })
+            setLastUpdated(Date.now())
           }
         }
       )
@@ -947,11 +962,18 @@ export default function MapPage() {
               updateWarningSource(updated)
               return updated
             })
+            setLastUpdated(Date.now())
           }
         }
       )
       .subscribe()
   }, [updateMapSource, updateWarningSource])
+
+  // 1s tick keeps the "updated Xs ago" freshness label live (paused when the tab is hidden).
+  useEffect(() => {
+    const id = setInterval(() => { if (document.visibilityState === 'visible') setFreshTick((n) => n + 1) }, 1000)
+    return () => clearInterval(id)
+  }, [])
 
   // ── All clear handler ──────────────────────────────────────────────────
 
@@ -1555,6 +1577,7 @@ export default function MapPage() {
             {recentCluster
               ? `${locationNames[recentCluster.id] ?? 'Loading location...'} · ${recentCluster.report_count} reports · ${timeAgo(recentCluster.created_at)}`
               : 'Monitoring active — no confirmed incidents'}
+            {lastUpdated && <span style={{ color: 'rgba(255,255,255,0.4)' }}> · updated {freshAgo(lastUpdated)}</span>}
           </div>
         </div>
 
