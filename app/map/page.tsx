@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { RealtimePostgresChangesPayload } from '@supabase/realtime-js'
 
@@ -199,6 +199,7 @@ const MAP_STRINGS: Record<MapLang, Record<string, string>> = {
     legend_strikes: 'Strikes', legend_warnings: 'Warnings',
     st_official: 'Officially verified', st_news: 'News verified', st_civilian: 'Civilian confirmed', st_auto: 'AI auto-confirmed',
     warn_active: 'Active evacuation', warn_clear: 'All clear reported',
+    list: 'List', incidents: 'Incidents', no_incidents: 'No incidents match the current filters.', reports: 'reports', updated: 'updated',
   },
   fr: {
     search_ph: 'Rechercher un lieu au Liban…', clear: 'Effacer', locate: 'Ma position',
@@ -208,6 +209,7 @@ const MAP_STRINGS: Record<MapLang, Record<string, string>> = {
     legend_strikes: 'Frappes', legend_warnings: 'Avertissements',
     st_official: 'Vérifié officiellement', st_news: 'Vérifié par les médias', st_civilian: 'Confirmé par des civils', st_auto: 'Auto-confirmé (IA)',
     warn_active: 'Évacuation active', warn_clear: 'Fin d’alerte signalée',
+    list: 'Liste', incidents: 'Incidents', no_incidents: 'Aucun incident ne correspond aux filtres actuels.', reports: 'signalements', updated: 'mis à jour',
   },
   ar: {
     search_ph: 'ابحث عن مكان في لبنان…', clear: 'مسح', locate: 'موقعي',
@@ -217,6 +219,7 @@ const MAP_STRINGS: Record<MapLang, Record<string, string>> = {
     legend_strikes: 'الضربات', legend_warnings: 'التحذيرات',
     st_official: 'مؤكد رسمياً', st_news: 'مؤكد إخبارياً', st_civilian: 'مؤكد من المدنيين', st_auto: 'مؤكد آلياً (ذكاء اصطناعي)',
     warn_active: 'إخلاء نشط', warn_clear: 'تم الإبلاغ عن انتهاء الخطر',
+    list: 'قائمة', incidents: 'الحوادث', no_incidents: 'لا توجد حوادث مطابقة للمرشّحات الحالية.', reports: 'بلاغات', updated: 'آخر تحديث',
   },
 }
 
@@ -286,6 +289,7 @@ export default function MapPage() {
   // ── News feed state ────────────────────────────────────────────────────
   const [articles, setArticles] = useState<NewsArticle[]>([])
   const [newsOpen, setNewsOpen] = useState(false)
+  const [listOpen, setListOpen] = useState(false)
   const [newsLoading, setNewsLoading] = useState(true)
 
   // ── Time-travel state ─────────────────────────────────────────────────
@@ -1217,19 +1221,15 @@ export default function MapPage() {
     }
   }, [loadClusters, setupRealtimeSubscription, attachMapHandlers, reAddOptionalLayers, startPulseAnimation, startWarningPulse])
 
-  // ── Effect 2: filter ──────────────────────────────────────────────────
-
-  useEffect(() => {
-    if (!map.current || !map.current.getSource('clusters-dots')) return
-
+  // ── The clusters currently shown on the map (filters + time-travel). Shared by the map
+  //    source AND the incident list so the two always match. ────────────────────────────────
+  const visibleClusters = useMemo(() => {
     const now = Date.now()
     const scrubMs = scrubDate.getTime()
     const timeWindow = TIME_RANGES.find((r) => r.id === timeRange)
     const period = OPERATION_PERIODS.find((p) => p.id === operationFilter)
-
-    const filtered = clusters.filter((c) => {
+    return clusters.filter((c) => {
       const t = new Date(c.created_at).getTime()
-
       if (timeEnabled && t > scrubMs) return false
       if (timeWindow && now - t > timeWindow.ms) return false
       if (statusFilter === 'confirmed' && c.status !== 'confirmed') return false
@@ -1238,12 +1238,15 @@ export default function MapPage() {
         if (period.end && t >= period.end.getTime()) return false
       }
       if (eventTypeFilter !== 'all' && !c.dominant_event_types?.includes(eventTypeFilter)) return false
-
       return true
     })
+  }, [clusters, timeRange, statusFilter, operationFilter, eventTypeFilter, scrubDate, timeEnabled])
 
-    updateMapSource(filtered)
-  }, [timeRange, statusFilter, operationFilter, eventTypeFilter, clusters, scrubDate, timeEnabled, updateMapSource])
+  // ── Effect 2: filter → map source ──────────────────────────────────────
+  useEffect(() => {
+    if (!map.current || !map.current.getSource('clusters-dots')) return
+    updateMapSource(visibleClusters)
+  }, [visibleClusters, updateMapSource])
 
   // ── Effect 3: reset panel state when selection changes ────────────────
 
@@ -1460,6 +1463,18 @@ export default function MapPage() {
     }
   }, [selectedCluster, selectedWarning])
 
+  // Open an incident from the list — mirrors the map-dot click (select + fly + load name).
+  const selectFromList = useCallback((c: Cluster) => {
+    setSelectedWarning(null)
+    setSelectedCluster(c)
+    fetchLocationName(c.centroid_lat, c.centroid_lon, c.id)
+    if (map.current) map.current.flyTo({ center: [c.centroid_lon, c.centroid_lat], zoom: 14, duration: 1200 })
+    if (isMobile) setListOpen(false)
+  }, [fetchLocationName, isMobile])
+
+  const STATUS_HEX: Record<string, string> = { official_verified: '#a371f7', news_verified: '#58a6ff', confirmed: '#ef4444', auto_confirmed: '#f97316' }
+  const statusKey = (s: string) => (s === 'official_verified' ? 'st_official' : s === 'news_verified' ? 'st_news' : s === 'confirmed' ? 'st_civilian' : 'st_auto')
+
   // ── Derived values ────────────────────────────────────────────────────
 
   const recentCluster = clusters[0] ?? null
@@ -1671,14 +1686,49 @@ export default function MapPage() {
             {recentCluster
               ? `${locationNames[recentCluster.id] ?? 'Loading location...'} · ${recentCluster.report_count} reports · ${timeAgo(recentCluster.created_at)}`
               : 'Monitoring active — no confirmed incidents'}
-            {lastUpdated && <span style={{ color: 'rgba(255,255,255,0.4)' }}> · updated {freshAgo(lastUpdated)}</span>}
+            {lastUpdated && <span style={{ color: 'rgba(255,255,255,0.4)' }}> · {t('updated')} {freshAgo(lastUpdated)}</span>}
           </div>
         </div>
+
+        {/* Incident list button */}
+        <button
+          type="button"
+          onClick={() => { setListOpen((v) => !v); setNewsOpen(false) }}
+          aria-label={`Toggle incident list, ${visibleClusters.length} incidents`}
+          aria-pressed={listOpen}
+          style={{
+            background: listOpen ? 'rgba(239,68,68,0.18)' : 'rgba(255,255,255,0.08)',
+            border: listOpen ? '0.5px solid rgba(239,68,68,0.4)' : '0.5px solid rgba(255,255,255,0.15)',
+            color: listOpen ? '#ef4444' : '#ffffff',
+            minWidth: isMobile ? 44 : undefined,
+            minHeight: isMobile ? 44 : 32,
+            padding: isMobile ? '0 10px' : '7px 12px',
+            borderRadius: 8,
+            fontSize: 13,
+            fontWeight: 500,
+            cursor: 'pointer',
+            flexShrink: 0,
+            whiteSpace: 'nowrap',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+            fontFamily: 'system-ui',
+            touchAction: 'manipulation',
+          }}
+        >
+          <svg width={isMobile ? 16 : 12} height={isMobile ? 16 : 12} viewBox="0 0 14 14" fill="none" aria-hidden>
+            <circle cx="2" cy="3" r="1.2" fill="currentColor" /><path d="M5 3h7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+            <circle cx="2" cy="7" r="1.2" fill="currentColor" /><path d="M5 7h7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+            <circle cx="2" cy="11" r="1.2" fill="currentColor" /><path d="M5 11h7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+          </svg>
+          <span style={{ display: isMobile ? 'none' : 'inline' }}>{t('list')}</span>
+        </button>
 
         {/* News feed button */}
         <button
           type="button"
-          onClick={() => setNewsOpen((v) => !v)}
+          onClick={() => { setNewsOpen((v) => !v); setListOpen(false) }}
           aria-label={`Toggle intelligence feed${articles.length > 0 ? `, ${articles.length} articles` : ''}`}
           style={{
             background: newsOpen ? 'rgba(88,166,255,0.18)' : 'rgba(255,255,255,0.08)',
@@ -2789,6 +2839,70 @@ export default function MapPage() {
           </button>
         </div>
       )}
+
+      {/* ── Incident list drawer ───────────────────────────────────────── */}
+      {listOpen && isMobile && (
+        <div
+          onClick={() => setListOpen(false)}
+          style={{ position: 'absolute', top: showBanner ? 94 : 56, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 14, touchAction: 'none' }}
+        />
+      )}
+      <aside
+        aria-hidden={!listOpen}
+        aria-label={t('incidents')}
+        style={{
+          position: 'absolute',
+          top: isMobile ? (showBanner ? 94 : 56) : (showBanner ? 38 : 0),
+          bottom: 0,
+          left: 0,
+          width: isMobile ? 'min(94vw, 420px)' : 380,
+          maxWidth: '100vw',
+          background: 'rgba(10,10,15,0.97)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          borderRight: '0.5px solid rgba(255,255,255,0.08)',
+          transform: listOpen ? 'translateX(0)' : 'translateX(-110%)',
+          transition: 'transform 0.28s ease, top 0.3s',
+          zIndex: 15,
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: 0,
+          boxShadow: listOpen ? '4px 0 24px rgba(0,0,0,0.35)' : 'none',
+        }}
+      >
+        <div style={{ padding: isMobile ? '14px 14px 12px' : '14px 16px 12px', borderBottom: '0.5px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 11, color: '#ef4444', letterSpacing: '0.12em', fontWeight: 600, marginBottom: 2, textTransform: 'uppercase' }}>{t('incidents')}</div>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>{visibleClusters.length}{lastUpdated ? ` · ${t('updated')} ${freshAgo(lastUpdated)}` : ''}</div>
+          </div>
+          <button type="button" onClick={() => setListOpen(false)} aria-label="Close list" style={{ background: 'rgba(255,255,255,0.08)', border: '0.5px solid rgba(255,255,255,0.15)', color: '#fff', borderRadius: 8, width: 32, height: 32, cursor: 'pointer', flexShrink: 0, fontSize: 18, lineHeight: '30px' }}>×</button>
+        </div>
+        <div style={{ overflowY: 'auto', flex: 1, minHeight: 0 }}>
+          {visibleClusters.length === 0 && <div style={{ padding: 20, fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>{t('no_incidents')}</div>}
+          {visibleClusters.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => selectFromList(c)}
+              style={{
+                display: 'flex', alignItems: 'flex-start', gap: 10, width: '100%', textAlign: isRtl ? 'right' : 'left',
+                background: selectedCluster?.id === c.id ? 'rgba(239,68,68,0.10)' : 'transparent', border: 'none',
+                borderBottom: '0.5px solid rgba(255,255,255,0.06)', padding: '12px 14px', cursor: 'pointer', fontFamily: 'system-ui',
+              }}
+            >
+              <span style={{ width: 9, height: 9, borderRadius: '50%', background: STATUS_HEX[c.status] ?? '#8b949e', flexShrink: 0, marginTop: 4 }} />
+              <span style={{ minWidth: 0, flex: 1 }}>
+                <span style={{ display: 'block', color: '#e6edf3', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {locationNames[c.id] ?? (c.dominant_event_types?.[0] ? formatEventType(c.dominant_event_types[0]) : `${c.centroid_lat.toFixed(3)}, ${c.centroid_lon.toFixed(3)}`)}
+                </span>
+                <span style={{ display: 'block', color: 'rgba(255,255,255,0.55)', fontSize: 12, marginTop: 2 }}>
+                  {t(statusKey(c.status))} · {c.report_count} {t('reports')} · {timeAgo(c.created_at)}
+                </span>
+              </span>
+            </button>
+          ))}
+        </div>
+      </aside>
 
       {/* ── Intelligence feed drawer ───────────────────────────────────── */}
       {newsOpen && isMobile && (
