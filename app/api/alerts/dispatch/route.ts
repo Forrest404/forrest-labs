@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { cronAuthOk } from '@/lib/cron-auth'
-import { sendPush } from '@/lib/ngo-notify'
 
 // Scheduled (pg_cron) civilian area-alert dispatcher. Authenticated by the shared
 // REVIEW_SECRET_KEY (x-cron-key header or ?key=). For each newly-verified incident / active
@@ -10,7 +9,22 @@ import { sendPush } from '@/lib/ngo-notify'
 // constraint on alert_notifications. READ-ONLY on the civilian pipeline (clusters/warnings).
 
 const APP_URL = (process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.noursystems.org').replace(/\/+$/, '')
+const NTFY_BASE_URL = (process.env.NTFY_BASE_URL ?? 'https://ntfy.sh').replace(/\/+$/, '')
 const LOOKBACK_MS = 20 * 60 * 1000 // generous vs the ~5-min cadence; dedup handles overlaps
+
+// Civilian ntfy publish. Unlike the NGO sendPush(), this does NOT scrub coordinates/map-links:
+// the alert is about an ALREADY-PUBLIC verified incident and the whole point is a working
+// deep-link to it, so the NGO privacy backstop (which would strip the link) must not apply.
+async function publishNtfy(topic: string, m: { title: string; body: string; priority: number; tags: string }): Promise<boolean> {
+  try {
+    const res = await fetch(NTFY_BASE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ topic, title: m.title, message: m.body, priority: m.priority, tags: m.tags.split(',').map((s) => s.trim()).filter(Boolean) }),
+    })
+    return res.ok
+  } catch { return false }
+}
 
 function haversineM(aLat: number, aLon: number, bLat: number, bLon: number): number {
   const R = 6371000, toRad = (d: number) => (d * Math.PI) / 180
@@ -31,7 +45,7 @@ function buildMsg(refType: 'incident' | 'warning', lang: Lang, link: string) {
   return {
     title: isWarn ? s.wt : s.it,
     body: `${isWarn ? s.wb : s.ib} ${link}`,
-    priority: (isWarn ? 'urgent' : 'default') as 'urgent' | 'default',
+    priority: isWarn ? 5 : 3, // ntfy: 5=urgent, 3=default
     tags: isWarn ? 'rotating_light' : 'warning',
   }
 }
@@ -78,9 +92,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         .insert({ subscription_id: sub.id, ref_type: ev.ref, ref_id: ev.id })
       if (dErr) continue
 
-      const link = `${APP_URL}/map?${ev.ref === 'warning' ? 'warning' : 'incident'}=${ev.id}&lat=${ev.lat}&lon=${ev.lon}&zoom=14`
-      const r = await sendPush(sub.topic, buildMsg(ev.ref, (sub.lang as Lang) ?? 'en', link))
-      if (r.ok) {
+      // Deep-link by id only (no lat/lon needed — the map opens + flies to the incident from
+      // ?incident=/?warning= once data loads), keeping the URL clean.
+      const link = `${APP_URL}/map?${ev.ref === 'warning' ? 'warning' : 'incident'}=${ev.id}`
+      const ok = await publishNtfy(sub.topic, buildMsg(ev.ref, (sub.lang as Lang) ?? 'en', link))
+      if (ok) {
         sent++
         await supabase.from('alert_subscriptions').update({ last_notified_at: new Date().toISOString() }).eq('id', sub.id)
       }
