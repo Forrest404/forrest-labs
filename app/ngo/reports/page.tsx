@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { useConfirm, useToast } from '@/lib/ngo-ui'
+import { useConfirm, useToast, SkeletonRows } from '@/lib/ngo-ui'
 import { useNgoLang, makeT } from '@/lib/use-ngo-lang'
 
 const LANG = {
@@ -165,7 +165,7 @@ export default function NgoReportsPage() {
       {/* (b) Saved reports */}
       <section style={card}>
         <div style={cardTitle}>{t('saved')}</div>
-        {!listLoaded && <div style={muted}>{t('loading')}</div>}
+        {!listLoaded && <SkeletonRows rows={3} height={52} />}
         {listError && <div style={errBox}>{t('load_fail')} <button type="button" onClick={loadList} style={retryBtn}>{t('retry')}</button></div>}
         {listLoaded && !listError && reports.length === 0 && <div style={emptyBox}>{t('empty')}</div>}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

@@ -61,6 +61,9 @@ export function NgoUiProvider({ children }: { children: ReactNode }) {
       <ToastCtx.Provider value={toast}>
         {children}
 
+        {/* Shimmer keyframes for <SkeletonRows>, injected once for all authed pages. */}
+        <style>{`.ngo-skeleton{background:linear-gradient(90deg,#161b22 25%,#1c2330 37%,#161b22 63%);background-size:400% 100%;animation:ngoShimmer 1.4s ease infinite;border:1px solid #21262d}@keyframes ngoShimmer{0%{background-position:100% 0}100%{background-position:0 0}}`}</style>
+
         {/* Toaster — fixed, bottom-centre, above modals; non-interactive */}
         <div style={toastWrap} aria-live="polite" role="status">
           {toasts.map((t) => (
@@ -100,3 +103,12 @@ const btnBase: CSSProperties = { flex: 1, height: 38, borderRadius: 6, fontSize:
 const btnCancel: CSSProperties = { ...btnBase, background: 'rgba(255,255,255,0.04)', border: '1px solid #21262d', color: '#8b949e' }
 const btnConfirm: CSSProperties = { ...btnBase, background: 'rgba(88,166,255,0.1)', border: '1px solid rgba(88,166,255,0.35)', color: '#58a6ff' }
 const btnDanger: CSSProperties = { ...btnBase, background: 'rgba(248,81,73,0.1)', border: '1px solid rgba(248,81,73,0.4)', color: '#f85149' }
+
+/** Shimmer placeholder rows for a list's loading state (replaces bare "Loading…" text). */
+export function SkeletonRows({ rows = 3, height = 64 }: { rows?: number; height?: number }) {
+  return (
+    <div style={{ display: 'grid', gap: 8 }} aria-busy="true" aria-live="polite">
+      {Array.from({ length: rows }).map((_, i) => <div key={i} className="ngo-skeleton" style={{ height, borderRadius: 10 }} />)}
+    </div>
+  )
+}

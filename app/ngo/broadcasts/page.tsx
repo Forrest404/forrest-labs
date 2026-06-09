@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useNgoLang, makeT } from '@/lib/use-ngo-lang'
+import { SkeletonRows } from '@/lib/ngo-ui'
 
 const LANG = {
   en: { title: 'Broadcast', sub: 'One-way urgent notices to your field staff. Reaches them by push. For back-and-forth, use your linked Signal/WhatsApp group.', e_load: 'Could not load broadcasts.', e_msg: 'Enter a message.', e_team: 'Choose a team.', already: 'Already sent.', sent_to: 'Sent to', recipient: 'recipient', recipients: 'recipients', e_send: 'Could not send.', e_send_net: 'Could not send. Please try again.', updated: 'Broadcast updated in the app — no new alert was sent.', e_update: 'Could not update.', withdrawn: 'Broadcast withdrawn — removed from the feed.', e_withdraw: 'Could not withdraw.', aud_leaders: 'all %n leaders', aud_field: 'all %n field staff', aud_team: 'team %name (%c)', this_team: 'this team', ph_msg: 'Short operational message…', send_to_l: 'Send to', r_all: 'All field staff', r_team: 'A specific team', choose_team: 'Choose a team…', r_leaders: 'All leaders', urgency: 'Urgency', routine: 'Routine', urgent_opt: 'Urgent (asks for acknowledgement)', send_btn: 'Send broadcast', cant_unsend: 'A broadcast can’t be unsent. Coordinates are stripped automatically.', confirm_title_urgent: 'Send an urgent broadcast?', confirm_title: 'Send broadcast?', confirm_to: 'This will be sent to', confirm_cant: 'It can’t be unsent.', cancel: 'Cancel', send_to_n: 'Send to', sending: 'Sending…', edit_title: 'Edit broadcast', edit_note: 'Corrects the message shown in the app. The original push already went out — editing does not send a new alert.', save: 'Save', saving: 'Saving…', withdraw_title: 'Withdraw this broadcast?', withdraw_note: 'It will be removed from the in-app feed for everyone. This does not un-send the original push — recipients may have already seen it. To fix a mistake, withdraw and send a corrected broadcast.', withdraw: 'Withdraw', withdrawing: 'Withdrawing…', history: 'History', loading: 'Loading…', empty: 'No broadcasts yet.', urgent_badge: 'URGENT', delivered: 'Delivered', acknowledged: 'Acknowledged', who: 'Who?', hide: 'Hide', edit: 'Edit', edited: 'edited', ack_l: 'acknowledged', seen: 'seen', not_seen: 'not seen' },
@@ -215,7 +216,7 @@ export default function BroadcastsPage() {
 
       {/* History */}
       <div style={{ fontSize: 12, fontWeight: 600, color: '#8b949e', margin: '26px 0 8px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{t('history')}</div>
-      {!loaded && <div style={{ fontSize: 13, color: '#8b949e' }}>{t('loading')}</div>}
+      {!loaded && <SkeletonRows rows={3} height={96} />}
       {loaded && list.length === 0 && <div style={{ fontSize: 13, color: '#484f58' }}>{t('empty')}</div>}
       <div style={{ display: 'grid', gap: 8 }}>
         {list.map((b) => (

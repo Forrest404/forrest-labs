@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { useConfirm } from '@/lib/ngo-ui'
+import { useConfirm, SkeletonRows } from '@/lib/ngo-ui'
 import { useNgoLang, makeT } from '@/lib/use-ngo-lang'
 
 const LANG = {
@@ -191,7 +191,7 @@ export default function NgoChatPage() {
           <button type="button" onClick={load} style={retryBtn}>{t('retry')}</button>
         </div>
       )}
-      {!loaded && <div style={muted}>{t('loading')}</div>}
+      {!loaded && <SkeletonRows rows={3} height={88} />}
 
       {canManage && (
         <button type="button" onClick={openNew} className="chat-add" style={{ ...primaryBtn, marginBottom: 16 }}>{t('add')}</button>

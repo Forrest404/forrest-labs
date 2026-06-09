@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { useConfirm } from '@/lib/ngo-ui'
+import { useConfirm, SkeletonRows } from '@/lib/ngo-ui'
 import { useNgoLang, makeT } from '@/lib/use-ngo-lang'
 
 const LANG = {
@@ -194,7 +194,7 @@ export default function NgoFacilitiesPage() {
 
       {note && <div style={infoBox}>{note}</div>}
       {error && <div style={errBox}>{t('e_load')} <button type="button" onClick={load} style={retryBtn}>{t('retry')}</button></div>}
-      {!loaded && <div style={muted}>{t('loading')}</div>}
+      {!loaded && <SkeletonRows rows={4} height={72} />}
 
       {/* ───── FACILITIES ───── */}
       {tab === 'facilities' && (

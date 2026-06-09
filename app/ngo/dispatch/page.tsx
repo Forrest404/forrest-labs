@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { useConfirm, useToast } from '@/lib/ngo-ui'
+import { useConfirm, useToast, SkeletonRows } from '@/lib/ngo-ui'
 import { useNgoLang, makeT } from '@/lib/use-ngo-lang'
 
 // Leader/admin dispatch board: every dispatch (active + history) with team,
@@ -104,7 +104,7 @@ export default function NgoDispatchPage() {
       <h1 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>{t('title')}</h1>
       <div style={{ fontSize: 13, color: '#8b949e', marginTop: 2, marginBottom: 20 }}>{t('subtitle')}</div>
 
-      {!loaded && <div style={{ color: '#8b949e', fontSize: 13, marginBottom: 16 }}>{t('loading')}</div>}
+      {!loaded && <SkeletonRows rows={3} />}
       {loaded && loadError && (
         <div style={{ background: 'rgba(248,81,73,0.1)', border: '1px solid rgba(248,81,73,0.3)', color: '#f85149', borderRadius: 6, padding: '9px 12px', fontSize: 13, marginBottom: 16 }}>
           {t('refresh_fail')} <button type="button" onClick={load} style={{ marginInlineStart: 8, background: 'none', border: '1px solid rgba(248,81,73,0.4)', color: '#f85149', borderRadius: 4, fontSize: 12, padding: '2px 8px', cursor: 'pointer' }}>{t('retry')}</button>

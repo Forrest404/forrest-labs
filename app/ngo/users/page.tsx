@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { useConfirm } from '@/lib/ngo-ui'
+import { useConfirm, SkeletonRows } from '@/lib/ngo-ui'
 import { useNgoLang, makeT } from '@/lib/use-ngo-lang'
 
 const LANG = {
@@ -176,7 +176,7 @@ export default function NgoUsersPage() {
 
       {msg && <div style={okBox}>{msg}</div>}
       {error && <div style={errorBox}>{error} <button type="button" onClick={load} style={retryBtn}>{t('retry')}</button></div>}
-      {loading && <div style={{ color: '#8b949e', fontSize: 13 }}>{t('loading')}</div>}
+      {loading && <SkeletonRows rows={4} />}
       {!loading && users.length === 0 && !error && <div style={{ color: '#484f58', fontSize: 14, padding: '32px 0', textAlign: 'center' }}>{t('no_users')}</div>}
 
       {users.length > 5 && (

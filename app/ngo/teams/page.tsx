@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
-import { useConfirm, useToast } from '@/lib/ngo-ui'
+import { useConfirm, useToast, SkeletonRows } from '@/lib/ngo-ui'
 import { useNgoLang, makeT } from '@/lib/use-ngo-lang'
 
 const LANG = {
@@ -170,7 +170,7 @@ export default function NgoTeamsPage() {
       <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
         {/* Teams list */}
         <div style={{ flex: '0 0 340px' }}>
-          {!loaded && <div style={{ ...card, color: '#8b949e', fontSize: 13 }}>{t('loading')}</div>}
+          {!loaded && <SkeletonRows rows={4} height={88} />}
           {loaded && teams.length === 0 && <div style={{ ...card, color: '#8b949e', fontSize: 13 }}>{t('no_teams')}</div>}
           {teams.map((tm) => (
             <div key={tm.id} onClick={() => setSelected(tm.id)} style={{ ...card, cursor: 'pointer', borderColor: selected === tm.id ? '#58a6ff' : '#21262d', marginBottom: 8 }}>
