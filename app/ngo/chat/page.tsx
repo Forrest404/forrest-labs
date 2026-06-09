@@ -2,6 +2,13 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useConfirm } from '@/lib/ngo-ui'
+import { useNgoLang, makeT } from '@/lib/use-ngo-lang'
+
+const LANG = {
+  en: { title: 'Group chats', sub: 'All your organisation’s group links in one place — open, copy, or share.', trust: 'Joining opens an external app NOUR doesn’t control. Only join groups you trust.', e_save: 'Could not save the link.', e_label: 'A label is required.', e_url: 'Use an https chat-invite link (Signal, WhatsApp, Telegram, or any https URL).', e_team: 'Pick a team for a team-scope link.', e_save_net: 'Could not save — check your connection.', updated: 'Link updated.', added: 'Link added.', del_confirm_title: 'Delete', del_confirm_body: 'This removes the link for everyone in scope.', del: 'Delete', deleted: 'Link deleted.', del_fail: 'Delete failed.', e_load: 'Couldn’t load chat links. This feature may not be set up yet (the chat_links table is missing).', retry: 'Retry', loading: 'Loading…', add: '+ Add link', empty_manage: 'No chat links yet — add one above.', empty_view: 'No chat groups shared with you yet.', org: 'Organisation', teams: 'Teams', forbidden: 'Chat links aren’t available for your role.', edit_link: 'Edit link', add_link: 'Add link', label: 'Label', ph_label: 'e.g. Medical team — Signal', platform: 'Platform', invite: 'Invite link', ph_url: 'https://chat.whatsapp.com/… · signal.group/… · t.me/…', url_hint: 'Only https chat-invite links are allowed.', visible_to: 'Visible to', whole_org: 'Whole org', one_team: 'One team', select_team: 'Select a team…', desc: 'Description (optional)', ph_desc: 'What this group is for', cancel: 'Cancel', saving: 'Saving…', save: 'Save', open_join: 'Open / Join ↗', copy: 'Copy link', copied: '✓ Copied', share: 'Share', edit: 'Edit', team_word: 'Team', added_by: 'Added', by_word: 'by' },
+  fr: { title: 'Groupes de discussion', sub: 'Tous les liens de groupe de votre organisation au même endroit — ouvrir, copier ou partager.', trust: 'Rejoindre ouvre une app externe que NOUR ne contrôle pas. Ne rejoignez que des groupes de confiance.', e_save: 'Impossible d’enregistrer le lien.', e_label: 'Un libellé est requis.', e_url: 'Utilisez un lien d’invitation https (Signal, WhatsApp, Telegram ou toute URL https).', e_team: 'Choisissez une équipe pour un lien d’équipe.', e_save_net: 'Échec de l’enregistrement — vérifiez votre connexion.', updated: 'Lien mis à jour.', added: 'Lien ajouté.', del_confirm_title: 'Supprimer', del_confirm_body: 'Cela supprime le lien pour tous les concernés.', del: 'Supprimer', deleted: 'Lien supprimé.', del_fail: 'Échec de la suppression.', e_load: 'Impossible de charger les liens. Cette fonctionnalité n’est peut-être pas configurée (table chat_links absente).', retry: 'Réessayer', loading: 'Chargement…', add: '+ Ajouter un lien', empty_manage: 'Aucun lien — ajoutez-en un ci-dessus.', empty_view: 'Aucun groupe partagé avec vous pour l’instant.', org: 'Organisation', teams: 'Équipes', forbidden: 'Les liens ne sont pas disponibles pour votre rôle.', edit_link: 'Modifier le lien', add_link: 'Ajouter un lien', label: 'Libellé', ph_label: 'ex. Équipe médicale — Signal', platform: 'Plateforme', invite: 'Lien d’invitation', ph_url: 'https://chat.whatsapp.com/… · signal.group/… · t.me/…', url_hint: 'Seuls les liens d’invitation https sont autorisés.', visible_to: 'Visible par', whole_org: 'Toute l’organisation', one_team: 'Une équipe', select_team: 'Sélectionner une équipe…', desc: 'Description (facultatif)', ph_desc: 'À quoi sert ce groupe', cancel: 'Annuler', saving: 'Enregistrement…', save: 'Enregistrer', open_join: 'Ouvrir / Rejoindre ↗', copy: 'Copier le lien', copied: '✓ Copié', share: 'Partager', edit: 'Modifier', team_word: 'Équipe', added_by: 'Ajouté', by_word: 'par' },
+  ar: { title: 'مجموعات الدردشة', sub: 'كل روابط مجموعات منظمتك في مكان واحد — افتح أو انسخ أو شارك.', trust: 'الانضمام يفتح تطبيقاً خارجياً لا تتحكم به نور. انضمّ فقط إلى المجموعات الموثوقة.', e_save: 'تعذّر حفظ الرابط.', e_label: 'التسمية مطلوبة.', e_url: 'استخدم رابط دعوة https (Signal أو WhatsApp أو Telegram أو أي رابط https).', e_team: 'اختر فريقاً لرابط على مستوى الفريق.', e_save_net: 'تعذّر الحفظ — تحقق من اتصالك.', updated: 'تم تحديث الرابط.', added: 'تمت إضافة الرابط.', del_confirm_title: 'حذف', del_confirm_body: 'يزيل الرابط لكل المعنيين.', del: 'حذف', deleted: 'تم حذف الرابط.', del_fail: 'فشل الحذف.', e_load: 'تعذّر تحميل الروابط. قد لا تكون الميزة مُعدّة بعد (جدول chat_links غير موجود).', retry: 'إعادة المحاولة', loading: 'جارٍ التحميل…', add: '+ إضافة رابط', empty_manage: 'لا روابط بعد — أضف واحداً أعلاه.', empty_view: 'لا توجد مجموعات مشتركة معك بعد.', org: 'المنظمة', teams: 'الفِرق', forbidden: 'الروابط غير متاحة لدورك.', edit_link: 'تعديل الرابط', add_link: 'إضافة رابط', label: 'التسمية', ph_label: 'مثال: الفريق الطبي — Signal', platform: 'المنصة', invite: 'رابط الدعوة', ph_url: 'https://chat.whatsapp.com/… · signal.group/… · t.me/…', url_hint: 'يُسمح فقط بروابط الدعوة https.', visible_to: 'مرئي لـ', whole_org: 'كل المنظمة', one_team: 'فريق واحد', select_team: 'اختر فريقاً…', desc: 'الوصف (اختياري)', ph_desc: 'الغرض من هذه المجموعة', cancel: 'إلغاء', saving: 'جارٍ الحفظ…', save: 'حفظ', open_join: 'فتح / انضمام ↗', copy: 'نسخ الرابط', copied: '✓ تم النسخ', share: 'مشاركة', edit: 'تعديل', team_word: 'فريق', added_by: 'أُضيف', by_word: 'بواسطة' },
+} as const
 
 // NGO Group chats — manage links to the org's EXISTING external chat groups
 // (Signal/WhatsApp/Telegram/…). NOUR hosts no messaging; members tap to join.
@@ -68,6 +75,8 @@ function clientUrlOk(raw: string): boolean {
 
 export default function NgoChatPage() {
   const confirm = useConfirm()
+  const { lang, isRtl } = useNgoLang()
+  const t = makeT(LANG, lang)
   const [links, setLinks] = useState<ChatLink[]>([])
   const [canManage, setCanManage] = useState(false)
   const [loaded, setLoaded] = useState(false)
@@ -121,9 +130,9 @@ export default function NgoChatPage() {
   const save = useCallback(async () => {
     if (!editing) return
     setFormErr(null)
-    if (!editing.label.trim()) { setFormErr('A label is required.'); return }
-    if (!clientUrlOk(editing.url)) { setFormErr('Use an https chat-invite link (Signal, WhatsApp, Telegram, or any https URL).'); return }
-    if (editing.scope === 'team' && !editing.team_id) { setFormErr('Pick a team for a team-scope link.'); return }
+    if (!editing.label.trim()) { setFormErr(t('e_label')); return }
+    if (!clientUrlOk(editing.url)) { setFormErr(t('e_url')); return }
+    if (editing.scope === 'team' && !editing.team_id) { setFormErr(t('e_team')); return }
     setBusy(true)
     try {
       const payload = {
@@ -136,22 +145,22 @@ export default function NgoChatPage() {
         : await fetch('/api/ngo/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
       const d = await r.json().catch(() => ({}))
       if (r.status === 403) { setForbidden(true); return }
-      if (!r.ok) { setFormErr(d?.error ?? 'Could not save the link.'); return }
+      if (!r.ok) { setFormErr(d?.error ?? t('e_save')); return }
       setEditing(null)
-      setNote(editing.id ? 'Link updated.' : 'Link added.')
+      setNote(editing.id ? t('updated') : t('added'))
       await load()
-    } catch { setFormErr('Could not save — check your connection.') }
+    } catch { setFormErr(t('e_save_net')) }
     finally { setBusy(false) }
   }, [editing, load])
 
   const del = useCallback(async (l: ChatLink) => {
-    if (!(await confirm({ title: `Delete “${l.label}”?`, body: 'This removes the link for everyone in scope.', danger: true, confirmLabel: 'Delete' }))) return
+    if (!(await confirm({ title: `${t('del_confirm_title')} “${l.label}”?`, body: t('del_confirm_body'), danger: true, confirmLabel: t('del') }))) return
     setBusy(true); setNote(null)
     try {
       const r = await fetch(`/api/ngo/chat/${l.id}`, { method: 'DELETE' })
-      if (r.ok) { setLinks((prev) => prev.filter((x) => x.id !== l.id)); setNote('Link deleted.') }
-      else setNote('Delete failed.')
-    } catch { setNote('Delete failed.') }
+      if (r.ok) { setLinks((prev) => prev.filter((x) => x.id !== l.id)); setNote(t('deleted')) }
+      else setNote(t('del_fail'))
+    } catch { setNote(t('del_fail')) }
     finally { setBusy(false) }
   }, [])
 
@@ -159,7 +168,7 @@ export default function NgoChatPage() {
   const teamLinks = links.filter((l) => l.scope === 'team')
 
   return (
-    <div className="chat-page" style={wrap}>
+    <div className="chat-page" style={wrap} dir={isRtl ? 'rtl' : 'ltr'}>
       {/* Mobile tuning: full-width add button + action buttons that grow to fill the
           row so every tap target is comfortable on a phone. */}
       <style>{`
@@ -169,79 +178,79 @@ export default function NgoChatPage() {
           .chat-page .chat-actions > button { flex: 1 1 40%; margin-inline-start: 0 !important; }
         }
       `}</style>
-      <h1 style={h1}>Group chats</h1>
-      <p style={sub}>All your organisation’s group links in one place — open, copy, or share.</p>
+      <h1 style={h1}>{t('title')}</h1>
+      <p style={sub}>{t('sub')}</p>
 
       {/* Trust notice — always shown */}
-      <div style={trustBox}>Joining opens an external app NOUR doesn’t control. Only join groups you trust.</div>
+      <div style={trustBox}>{t('trust')}</div>
 
       {note && <div style={infoBox}>{note}</div>}
       {error && (
         <div style={errBox}>
-          Couldn’t load chat links. This feature may not be set up yet (the chat_links table is missing).
-          <button type="button" onClick={load} style={retryBtn}>Retry</button>
+          {t('e_load')}
+          <button type="button" onClick={load} style={retryBtn}>{t('retry')}</button>
         </div>
       )}
-      {!loaded && <div style={muted}>Loading…</div>}
+      {!loaded && <div style={muted}>{t('loading')}</div>}
 
       {canManage && (
-        <button type="button" onClick={openNew} className="chat-add" style={{ ...primaryBtn, marginBottom: 16 }}>+ Add link</button>
+        <button type="button" onClick={openNew} className="chat-add" style={{ ...primaryBtn, marginBottom: 16 }}>{t('add')}</button>
       )}
 
       {loaded && !error && links.length === 0 && (
-        <div style={emptyBox}>{canManage ? 'No chat links yet — add one above.' : 'No chat groups shared with you yet.'}</div>
+        <div style={emptyBox}>{canManage ? t('empty_manage') : t('empty_view')}</div>
       )}
 
-      {orgLinks.length > 0 && <div style={sectionLabel}>Organisation</div>}
+      {orgLinks.length > 0 && <div style={sectionLabel}>{t('org')}</div>}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {orgLinks.map((l) => <LinkCard key={l.id} l={l} canManage={canManage} busy={busy} onEdit={openEdit} onDelete={del} />)}
+        {orgLinks.map((l) => <LinkCard key={l.id} l={l} canManage={canManage} busy={busy} onEdit={openEdit} onDelete={del} t={t} />)}
       </div>
 
-      {teamLinks.length > 0 && <div style={{ ...sectionLabel, marginTop: 18 }}>Teams</div>}
+      {teamLinks.length > 0 && <div style={{ ...sectionLabel, marginTop: 18 }}>{t('teams')}</div>}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {teamLinks.map((l) => <LinkCard key={l.id} l={l} canManage={canManage} busy={busy} onEdit={openEdit} onDelete={del} />)}
+        {teamLinks.map((l) => <LinkCard key={l.id} l={l} canManage={canManage} busy={busy} onEdit={openEdit} onDelete={del} t={t} />)}
       </div>
 
-      {forbidden && <div style={emptyBox}>Chat links aren’t available for your role.</div>}
+      {forbidden && <div style={emptyBox}>{t('forbidden')}</div>}
 
       {/* Add/edit modal */}
       {editing && (
         <div onClick={() => setEditing(null)} style={backdrop}>
           <div onClick={(e) => e.stopPropagation()} style={modal}>
-            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 14 }}>{editing.id ? 'Edit link' : 'Add link'}</div>
+            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 14 }}>{editing.id ? t('edit_link') : t('add_link')}</div>
 
-            <label style={lbl}>Label</label>
-            <input style={input} value={editing.label} onChange={(e) => setEditing({ ...editing, label: e.target.value })} placeholder="e.g. Medical team — Signal" />
+            <label style={lbl}>{t('label')}</label>
+            <input style={input} value={editing.label} onChange={(e) => setEditing({ ...editing, label: e.target.value })} placeholder={t('ph_label')} />
 
-            <label style={{ ...lbl, marginTop: 12 }}>Platform</label>
+            <label style={{ ...lbl, marginTop: 12 }}>{t('platform')}</label>
             <select style={input} value={editing.platform} onChange={(e) => setEditing({ ...editing, platform: e.target.value })}>
               {PLATFORMS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
             </select>
 
-            <label style={{ ...lbl, marginTop: 12 }}>Invite link</label>
-            <input style={input} value={editing.url} onChange={(e) => setEditing({ ...editing, url: e.target.value })} placeholder="https://chat.whatsapp.com/… · signal.group/… · t.me/…" />
-            <div style={hint}>Only https chat-invite links are allowed.</div>
+            <label style={{ ...lbl, marginTop: 12 }}>{t('invite')}</label>
+            <input style={input} value={editing.url} onChange={(e) => setEditing({ ...editing, url: e.target.value })} placeholder={t('ph_url')} />
+            <div style={hint}>{t('url_hint')}</div>
 
-            <label style={{ ...lbl, marginTop: 12 }}>Visible to</label>
+            <label style={{ ...lbl, marginTop: 12 }}>{t('visible_to')}</label>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button type="button" onClick={() => setEditing({ ...editing, scope: 'org' })} style={toggle(editing.scope === 'org')}>Whole org</button>
-              <button type="button" onClick={() => setEditing({ ...editing, scope: 'team' })} style={toggle(editing.scope === 'team')}>One team</button>
+              <button type="button" onClick={() => setEditing({ ...editing, scope: 'org' })} style={toggle(editing.scope === 'org')}>{t('whole_org')}</button>
+              <button type="button" onClick={() => setEditing({ ...editing, scope: 'team' })} style={toggle(editing.scope === 'team')}>{t('one_team')}</button>
             </div>
             {editing.scope === 'team' && (
               <select style={{ ...input, marginTop: 8 }} value={editing.team_id} onChange={(e) => setEditing({ ...editing, team_id: e.target.value })}>
-                <option value="">Select a team…</option>
-                {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                <option value="">{t('select_team')}</option>
+                {teams.map((tm) => <option key={tm.id} value={tm.id}>{tm.name}</option>)}
               </select>
             )}
 
-            <label style={{ ...lbl, marginTop: 12 }}>Description (optional)</label>
-            <input style={input} value={editing.description} onChange={(e) => setEditing({ ...editing, description: e.target.value })} placeholder="What this group is for" />
+            <label style={{ ...lbl, marginTop: 12 }}>{t('desc')}</label>
+            <input style={input} value={editing.description} onChange={(e) => setEditing({ ...editing, description: e.target.value })} placeholder={t('ph_desc')} />
 
             {formErr && <div style={{ ...errBox, marginTop: 12, marginBottom: 0 }}>{formErr}</div>}
 
             <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-              <button type="button" onClick={() => setEditing(null)} style={{ ...ghostBtn, flex: 1, height: 40 }}>Cancel</button>
-              <button type="button" onClick={save} disabled={busy} style={{ ...primaryBtn, flex: 1, opacity: busy ? 0.6 : 1 }}>{busy ? 'Saving…' : 'Save'}</button>
+              <button type="button" onClick={() => setEditing(null)} style={{ ...ghostBtn, flex: 1, height: 40 }}>{t('cancel')}</button>
+              <button type="button" onClick={save} disabled={busy} style={{ ...primaryBtn, flex: 1, opacity: busy ? 0.6 : 1 }}>{busy ? t('saving') : t('save')}</button>
             </div>
           </div>
         </div>
@@ -250,7 +259,7 @@ export default function NgoChatPage() {
   )
 }
 
-function LinkCard({ l, canManage, busy, onEdit, onDelete }: { l: ChatLink; canManage: boolean; busy: boolean; onEdit: (l: ChatLink) => void; onDelete: (l: ChatLink) => void }) {
+function LinkCard({ l, canManage, busy, onEdit, onDelete, t }: { l: ChatLink; canManage: boolean; busy: boolean; onEdit: (l: ChatLink) => void; onDelete: (l: ChatLink) => void; t: (k: string) => string }) {
   const [copied, setCopied] = useState(false)
   const [canShare, setCanShare] = useState(false)
   useEffect(() => { setCanShare(typeof navigator !== 'undefined' && !!navigator.share) }, [])
@@ -276,22 +285,22 @@ function LinkCard({ l, canManage, busy, onEdit, onDelete }: { l: ChatLink; canMa
             <span style={pill}>{platformLabel(l.platform)}</span>
             <span style={{ color: '#6e7681' }}>{hostOf(l.url)}</span>
             <span style={{ color: '#484f58' }}>·</span>
-            <span style={{ color: '#6e7681' }}>{l.scope === 'team' ? `Team${l.team_name ? ` · ${l.team_name}` : ''}` : 'Whole org'}</span>
+            <span style={{ color: '#6e7681' }}>{l.scope === 'team' ? `${t('team_word')}${l.team_name ? ` · ${l.team_name}` : ''}` : t('whole_org')}</span>
           </div>
           {(l.added_by || added) && (
             <div style={{ fontSize: 11, color: '#484f58', marginTop: 3 }}>
-              Added{l.added_by ? ` by ${l.added_by}` : ''}{added ? ` · ${added}` : ''}
+              {t('added_by')}{l.added_by ? ` ${t('by_word')} ${l.added_by}` : ''}{added ? ` · ${added}` : ''}
             </div>
           )}
         </div>
       </div>
       <div className="chat-actions" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
         {/* Tap to open — never auto-open. New tab, no referrer/opener. */}
-        <a href={l.url} target="_blank" rel="noreferrer noopener" style={joinBtn}>Open / Join ↗</a>
-        <button type="button" onClick={doCopy} style={{ ...miniBtn, ...(copied ? { color: '#3fb950', borderColor: 'rgba(63,185,80,0.45)' } : {}) }}>{copied ? '✓ Copied' : 'Copy link'}</button>
-        {canShare && <button type="button" onClick={doShare} style={miniBtn}>Share</button>}
-        {canManage && <button type="button" disabled={busy} onClick={() => onEdit(l)} style={{ ...miniBtn, marginInlineStart: 'auto' }}>Edit</button>}
-        {canManage && <button type="button" disabled={busy} onClick={() => onDelete(l)} style={{ ...miniBtn, color: '#f85149', borderColor: 'rgba(248,81,73,0.4)' }}>Delete</button>}
+        <a href={l.url} target="_blank" rel="noreferrer noopener" style={joinBtn}>{t('open_join')}</a>
+        <button type="button" onClick={doCopy} style={{ ...miniBtn, ...(copied ? { color: '#3fb950', borderColor: 'rgba(63,185,80,0.45)' } : {}) }}>{copied ? t('copied') : t('copy')}</button>
+        {canShare && <button type="button" onClick={doShare} style={miniBtn}>{t('share')}</button>}
+        {canManage && <button type="button" disabled={busy} onClick={() => onEdit(l)} style={{ ...miniBtn, marginInlineStart: 'auto' }}>{t('edit')}</button>}
+        {canManage && <button type="button" disabled={busy} onClick={() => onDelete(l)} style={{ ...miniBtn, color: '#f85149', borderColor: 'rgba(248,81,73,0.4)' }}>{t('del')}</button>}
       </div>
     </div>
   )
