@@ -3,6 +3,7 @@
 import { type ReactNode, useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { NgoUiProvider } from '@/lib/ngo-ui'
+import { NgoLangContext, useNgoLangState, makeT, type Lang } from '@/lib/use-ngo-lang'
 
 type NgoRole = 'org_admin' | 'team_leader' | 'field_coordinator'
 
@@ -11,25 +12,32 @@ type NgoRole = 'org_admin' | 'team_leader' | 'field_coordinator'
 // and the drawer (mobile) both render this same filtered list, so role gating is
 // written once, not duplicated. NOTE: hiding a link is cosmetic — the API still
 // enforces access via requireRole on every /api/ngo/* route.
-type NavItem = { href: string; label: string; roles: NgoRole[]; section: string; danger?: boolean; badgeKey?: 'panic' }
+type NavItem = { href: string; key: string; label: string; roles: NgoRole[]; section: string; danger?: boolean; badgeKey?: 'panic' }
 const NAV: NavItem[] = [
   // Operations
-  { href: '/ngo/board', label: 'Situation board', roles: ['org_admin', 'team_leader'], section: 'Operations' },
-  { href: '/ngo/panic', label: 'Panic', roles: ['org_admin', 'team_leader'], section: 'Operations', danger: true, badgeKey: 'panic' },
-  { href: '/ngo/dispatch', label: 'Dispatch', roles: ['org_admin', 'team_leader'], section: 'Operations' },
-  { href: '/ngo/teams', label: 'Teams', roles: ['org_admin', 'team_leader'], section: 'Operations' },
-  // Coordination (Reports/Chat/Facilities are scaffolds — see their pages)
-  { href: '/ngo/reports', label: 'Reports', roles: ['org_admin', 'team_leader'], section: 'Coordination' },
-  { href: '/ngo/chat', label: 'Group chats', roles: ['org_admin', 'team_leader'], section: 'Coordination' },
-  { href: '/ngo/broadcasts', label: 'Broadcast', roles: ['org_admin', 'team_leader'], section: 'Coordination' },
-  { href: '/ngo/facilities', label: 'Facilities & contacts', roles: ['org_admin', 'team_leader'], section: 'Coordination' },
+  { href: '/ngo/board', key: 'n_board', label: 'Situation board', roles: ['org_admin', 'team_leader'], section: 'Operations' },
+  { href: '/ngo/panic', key: 'n_panic', label: 'Panic', roles: ['org_admin', 'team_leader'], section: 'Operations', danger: true, badgeKey: 'panic' },
+  { href: '/ngo/dispatch', key: 'n_dispatch', label: 'Dispatch', roles: ['org_admin', 'team_leader'], section: 'Operations' },
+  { href: '/ngo/teams', key: 'n_teams', label: 'Teams', roles: ['org_admin', 'team_leader'], section: 'Operations' },
+  // Coordination
+  { href: '/ngo/reports', key: 'n_reports', label: 'Reports', roles: ['org_admin', 'team_leader'], section: 'Coordination' },
+  { href: '/ngo/chat', key: 'n_chat', label: 'Group chats', roles: ['org_admin', 'team_leader'], section: 'Coordination' },
+  { href: '/ngo/broadcasts', key: 'n_broadcast', label: 'Broadcast', roles: ['org_admin', 'team_leader'], section: 'Coordination' },
+  { href: '/ngo/facilities', key: 'n_facilities', label: 'Facilities & contacts', roles: ['org_admin', 'team_leader'], section: 'Coordination' },
   // Admin
-  { href: '/ngo/setup', label: 'Operational area', roles: ['org_admin'], section: 'Admin' },
-  { href: '/ngo/users', label: 'Users', roles: ['org_admin'], section: 'Admin' },
-  { href: '/ngo/settings', label: 'Settings', roles: ['org_admin', 'team_leader'], section: 'Admin' },
-  { href: '/ngo/security', label: 'Security (2FA)', roles: ['org_admin', 'team_leader'], section: 'Admin' },
+  { href: '/ngo/setup', key: 'n_setup', label: 'Operational area', roles: ['org_admin'], section: 'Admin' },
+  { href: '/ngo/users', key: 'n_users', label: 'Users', roles: ['org_admin'], section: 'Admin' },
+  { href: '/ngo/settings', key: 'n_settings', label: 'Settings', roles: ['org_admin', 'team_leader'], section: 'Admin' },
+  { href: '/ngo/security', key: 'n_security', label: 'Security (2FA)', roles: ['org_admin', 'team_leader'], section: 'Admin' },
 ]
 const SECTION_ORDER = ['Operations', 'Coordination', 'Admin']
+const SECTION_KEY: Record<string, string> = { Operations: 'ops', Coordination: 'coord', Admin: 'admin' }
+
+const LANG = {
+  en: { ops: 'Operations', coord: 'Coordination', admin: 'Admin', n_board: 'Situation board', n_panic: 'Panic', n_dispatch: 'Dispatch', n_teams: 'Teams', n_reports: 'Reports', n_chat: 'Group chats', n_broadcast: 'Broadcast', n_facilities: 'Facilities & contacts', n_setup: 'Operational area', n_users: 'Users', n_settings: 'Settings', n_security: 'Security (2FA)', sub: 'Operations dashboard', logout: 'Log out', prerelease: 'Pre-release', loading: 'Loading menu…', for_ngos: 'for NGOs', menu: 'Menu', language: 'Language' },
+  fr: { ops: 'Opérations', coord: 'Coordination', admin: 'Administration', n_board: 'Tableau de situation', n_panic: 'Panique', n_dispatch: 'Déploiement', n_teams: 'Équipes', n_reports: 'Rapports', n_chat: 'Groupes de discussion', n_broadcast: 'Diffusion', n_facilities: 'Établissements & contacts', n_setup: 'Zone opérationnelle', n_users: 'Utilisateurs', n_settings: 'Paramètres', n_security: 'Sécurité (2FA)', sub: 'Tableau de bord des opérations', logout: 'Déconnexion', prerelease: 'Pré-version', loading: 'Chargement du menu…', for_ngos: 'pour les ONG', menu: 'Menu', language: 'Langue' },
+  ar: { ops: 'العمليات', coord: 'التنسيق', admin: 'الإدارة', n_board: 'لوحة الوضع', n_panic: 'استغاثة', n_dispatch: 'الإيفاد', n_teams: 'الفِرق', n_reports: 'التقارير', n_chat: 'مجموعات الدردشة', n_broadcast: 'بثّ', n_facilities: 'المرافق وجهات الاتصال', n_setup: 'منطقة العمليات', n_users: 'المستخدمون', n_settings: 'الإعدادات', n_security: 'الأمان (تحقق ثنائي)', sub: 'لوحة العمليات', logout: 'تسجيل الخروج', prerelease: 'نسخة أولية', loading: 'جارٍ تحميل القائمة…', for_ngos: 'للمنظمات', menu: 'القائمة', language: 'اللغة' },
+} as const
 
 // NGO platform shell. Design-system colours + inline styles, matching the rest of
 // the app. Auth pages (login/signup) render bare — no chrome. The mobile field
@@ -40,6 +48,8 @@ export default function NgoLayout({ children }: { children: ReactNode }) {
   const isBare = pathname === '/ngo/login' || pathname === '/ngo/signup' || pathname === '/ngo/invite' || pathname === '/ngo/reset' || pathname.startsWith('/ngo/field')
   const isAuthPage = pathname === '/ngo/login' || pathname === '/ngo/signup' || pathname === '/ngo/invite' || pathname === '/ngo/reset'
 
+  const { lang, isRtl, changeLang } = useNgoLangState()
+  const t = makeT(LANG, lang)
   const [role, setRole] = useState<NgoRole | null>(null)
   const [who, setWho] = useState<{ name: string; org: string | null } | null>(null)
   const [panicCount, setPanicCount] = useState(0)
@@ -129,12 +139,14 @@ export default function NgoLayout({ children }: { children: ReactNode }) {
     .filter((g) => g.items.length > 0)
 
   const navBody = (
-    <NavBody grouped={grouped} pathname={pathname} panicCount={panicCount} who={who} onLogout={logout} loading={role === null} />
+    <NavBody grouped={grouped} pathname={pathname} panicCount={panicCount} who={who} onLogout={logout} loading={role === null} t={t} lang={lang} changeLang={changeLang} />
   )
 
   return (
+   <NgoLangContext.Provider value={{ lang, isRtl, changeLang }}>
     <div
       className="ngo-scope"
+      dir={isRtl ? 'rtl' : 'ltr'}
       style={{
         display: 'flex',
         flexDirection: isMobile ? 'column' : 'row',
@@ -157,9 +169,9 @@ export default function NgoLayout({ children }: { children: ReactNode }) {
       {isMobile && (
         <header style={{ flexShrink: 0, height: 52, background: '#0d1117', borderBottom: '1px solid #21262d', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 14px' }}>
           <div style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.02em' }}>
-            NOUR <span style={{ color: '#3fb950' }}>for NGOs</span>
+            NOUR <span style={{ color: '#3fb950' }}>{t('for_ngos')}</span>
           </div>
-          <button type="button" onClick={() => setDrawerOpen(true)} aria-label="Open menu" style={{ position: 'relative', height: 36, width: 40, background: 'rgba(255,255,255,0.04)', border: '1px solid #21262d', borderRadius: 8, color: '#e6edf3', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui' }}>
+          <button type="button" onClick={() => setDrawerOpen(true)} aria-label={t('menu')} style={{ position: 'relative', height: 36, width: 40, background: 'rgba(255,255,255,0.04)', border: '1px solid #21262d', borderRadius: 8, color: '#e6edf3', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui' }}>
             ☰
             {panicCount > 0 && (
               <span style={{ position: 'absolute', top: -6, right: -6, background: '#da3633', color: '#fff', fontSize: 11, fontWeight: 700, borderRadius: 999, minWidth: 18, height: 18, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 5px' }}>{panicCount}</span>
@@ -182,39 +194,43 @@ export default function NgoLayout({ children }: { children: ReactNode }) {
 
       <main style={{ flex: 1, overflowY: 'auto' }}><NgoUiProvider>{children}</NgoUiProvider></main>
     </div>
+   </NgoLangContext.Provider>
   )
 }
 
 // The nav contents, shared by the desktop sidebar and the mobile drawer.
 function NavBody({
-  grouped, pathname, panicCount, who, onLogout, loading,
+  grouped, pathname, panicCount, who, onLogout, loading, t, lang, changeLang,
 }: {
-  grouped: { section: string; items: { href: string; label: string; danger?: boolean; badgeKey?: 'panic' }[] }[]
+  grouped: { section: string; items: { href: string; key: string; label: string; danger?: boolean; badgeKey?: 'panic' }[] }[]
   pathname: string
   panicCount: number
   who: { name: string; org: string | null } | null
   onLogout: () => void
   loading: boolean
+  t: (k: string) => string
+  lang: Lang
+  changeLang: (l: Lang) => void
 }) {
   return (
     <>
       <div style={{ padding: '0 16px 16px', borderBottom: '1px solid #21262d' }}>
         <div style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.02em' }}>
-          NOUR <span style={{ color: '#3fb950' }}>for NGOs</span>
+          NOUR <span style={{ color: '#3fb950' }}>{t('for_ngos')}</span>
         </div>
-        <div style={{ fontSize: 11, color: '#8b949e', marginTop: 2 }}>Operations dashboard</div>
+        <div style={{ fontSize: 11, color: '#8b949e', marginTop: 2 }}>{t('sub')}</div>
       </div>
 
       <nav style={{ flex: 1, padding: '12px 8px', display: 'flex', flexDirection: 'column', gap: 2, overflowY: 'auto' }}>
-        {loading && <div style={{ padding: '8px 12px', fontSize: 12, color: '#484f58' }}>Loading menu…</div>}
+        {loading && <div style={{ padding: '8px 12px', fontSize: 12, color: '#484f58' }}>{t('loading')}</div>}
         {!loading && grouped.map((g) => (
           <div key={g.section} style={{ marginBottom: 8 }}>
-            <div style={{ padding: '6px 12px 4px', fontSize: 10, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#484f58' }}>{g.section}</div>
+            <div style={{ padding: '6px 12px 4px', fontSize: 10, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#484f58' }}>{t(SECTION_KEY[g.section] ?? g.section)}</div>
             {g.items.map((item) => (
               <NavLink
                 key={item.href}
                 href={item.href}
-                label={item.label}
+                label={t(item.key)}
                 active={pathname.startsWith(item.href)}
                 badge={item.badgeKey === 'panic' ? panicCount : undefined}
                 danger={item.danger}
@@ -224,7 +240,7 @@ function NavBody({
         ))}
       </nav>
 
-      {/* Who's signed in + logout — present on every authenticated page. */}
+      {/* Who's signed in + language + logout — present on every authenticated page. */}
       <div style={{ padding: '12px 16px 0', borderTop: '1px solid #21262d' }}>
         {who && (
           <div style={{ marginBottom: 8 }}>
@@ -232,10 +248,18 @@ function NavBody({
             {who.org && <div style={{ fontSize: 11, color: '#8b949e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{who.org}</div>}
           </div>
         )}
+        <div style={{ display: 'flex', border: '1px solid #21262d', borderRadius: 6, overflow: 'hidden', marginBottom: 8 }}>
+          {(['en', 'fr', 'ar'] as Lang[]).map((l) => (
+            <button key={l} type="button" onClick={() => changeLang(l)} aria-pressed={lang === l}
+              style={{ flex: 1, height: 28, background: lang === l ? 'rgba(63,185,80,0.15)' : 'transparent', color: lang === l ? '#3fb950' : '#8b949e', border: 'none', cursor: 'pointer', fontFamily: 'system-ui', fontSize: 12, fontWeight: 600 }}>
+              {l === 'ar' ? 'ع' : l.toUpperCase()}
+            </button>
+          ))}
+        </div>
         <button type="button" onClick={onLogout} style={{ width: '100%', height: 32, background: 'rgba(255,255,255,0.04)', border: '1px solid #21262d', color: '#8b949e', borderRadius: 6, fontSize: 13, cursor: 'pointer', fontFamily: 'system-ui' }}>
-          Log out
+          {t('logout')}
         </button>
-        <div style={{ padding: '10px 0 0', fontSize: 10, color: '#484f58' }}>Pre-release</div>
+        <div style={{ padding: '10px 0 0', fontSize: 10, color: '#484f58' }}>{t('prerelease')}</div>
       </div>
     </>
   )
