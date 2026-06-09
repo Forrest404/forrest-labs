@@ -220,6 +220,8 @@ export default function NgoBoardPage() {
   const [incBusy, setIncBusy] = useState(false)
   const [assignIncFor, setAssignIncFor] = useState<CustomIncident | null>(null)
   const [incTeams, setIncTeams] = useState<{ id: string; name: string; type: string; status: string; notifiable_count?: number }[]>([])
+  // Clicking a map marker selects it → a detail card (looked up from current data by kind+id).
+  const [selected, setSelected] = useState<{ kind: 'incident' | 'custom' | 'team' | 'worker' | 'panic' | 'facility'; id: string } | null>(null)
 
   function changeMapStyle(id: string) {
     const s = MAP_STYLES.find((x) => x.id === id)
@@ -447,6 +449,38 @@ export default function NgoBoardPage() {
   // When the map becomes ready, paint the latest data onto it.
   useEffect(() => { if (mapLoaded) renderSources() }, [mapLoaded, renderSources])
 
+  // Click a marker → select it (opens the detail card); pointer cursor on hover. Layer ids
+  // mirror setupBoardLayers. Registered once the map is ready; cleaned up on unmount.
+  useEffect(() => {
+    if (!mapLoaded || !map.current) return
+    const m = map.current
+    const LAYERS: [string, 'incident' | 'custom' | 'team' | 'worker' | 'panic' | 'facility'][] = [
+      ['inc-dots', 'incident'], ['custom-inc-dot', 'custom'], ['team-dots', 'team'],
+      ['worker-dot', 'worker'], ['panic-dot', 'panic'], ['fac-dots', 'facility'],
+    ]
+    const bound: { layer: string; onClick: any; onEnter: any; onLeave: any }[] = []
+    for (const [layer, kind] of LAYERS) {
+      const onClick = (e: any) => {
+        if (creatingRef.current) return
+        const f = e.features?.[0]; if (!f) return
+        setSelected({ kind, id: String(f.properties.id) })
+        const c = f.geometry?.coordinates
+        if (Array.isArray(c)) m.easeTo({ center: c as [number, number] })
+      }
+      const onEnter = () => { if (!creatingRef.current) m.getCanvas().style.cursor = 'pointer' }
+      const onLeave = () => { if (!creatingRef.current) m.getCanvas().style.cursor = '' }
+      m.on('click', layer, onClick); m.on('mouseenter', layer, onEnter); m.on('mouseleave', layer, onLeave)
+      bound.push({ layer, onClick, onEnter, onLeave })
+    }
+    return () => { bound.forEach((b) => { try { m.off('click', b.layer, b.onClick); m.off('mouseenter', b.layer, b.onEnter); m.off('mouseleave', b.layer, b.onLeave) } catch { /* map gone */ } }) }
+  }, [mapLoaded])
+
+  // Select an entity from the feed/list and centre the map on it (feed ↔ map link).
+  function selectAndFly(kind: 'incident' | 'custom', id: string, lon: number, lat: number) {
+    setSelected({ kind, id })
+    if (map.current && Number.isFinite(lon) && Number.isFinite(lat)) map.current.easeTo({ center: [lon, lat] })
+  }
+
   // 1s tick keeps the "updated Xs ago" freshness label live (paused when hidden).
   useEffect(() => {
     const id = setInterval(() => { if (document.visibilityState === 'visible') setAgoTick((n) => n + 1) }, 1000)
@@ -617,6 +651,91 @@ export default function NgoBoardPage() {
         <div style={{ ...statusChip, color: '#8b949e' }}>updated {freshAgo(updatedAt, agoTick)}</div>
       )}
 
+      {/* Selected-marker detail card (click a pin) */}
+      {selected && (() => {
+        const close = () => setSelected(null)
+        const header = (title: string, sub?: string) => (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, wordBreak: 'break-word' }}>{title}</div>
+              {sub && <div style={{ fontSize: 11, color: '#8b949e', marginTop: 2 }}>{sub}</div>}
+            </div>
+            <button type="button" onClick={close} aria-label="Close" style={{ flexShrink: 0, background: 'none', border: 'none', color: '#8b949e', fontSize: 18, lineHeight: 1, cursor: 'pointer', fontFamily: 'system-ui' }}>×</button>
+          </div>
+        )
+        if (selected.kind === 'incident') {
+          const c = incidents.find((x) => x.id === selected.id) ?? handledIncidents.find((x) => x.id === selected.id)
+          if (!c) return null
+          const d = activeDispatchFor(c.id)
+          return (
+            <div style={detailCard}>
+              {header(locNames[c.id] ?? `${c.lat.toFixed(3)}, ${c.lon.toFixed(3)}`, `${c.confidence_score}% · ${c.report_count} report${c.report_count === 1 ? '' : 's'} · ${timeAgo(c.created_at)}`)}
+              <div style={{ fontSize: 11, color: STATUS_HEX[c.status] ?? '#8b949e', marginBottom: 8 }}>● {STATUS_LABEL[c.status] ?? c.status}{!c.covered && <span style={{ color: '#f85149' }}> · unassigned</span>}</div>
+              {d
+                ? <>
+                    <div style={{ fontSize: 12, color: '#3fb950', marginBottom: 6 }}>🚑 {d.team_name} · {DISPATCH_LABEL[d.status] ?? d.status}</div>
+                    <button type="button" onClick={() => { setRecallFor({ id: d.id, team: d.team_name }); setRecallReason(''); close() }} style={{ ...assignBtn, marginTop: 0, color: '#f85149', borderColor: 'rgba(248,81,73,0.35)', background: 'rgba(248,81,73,0.08)' }}>Recall</button>
+                  </>
+                : <div style={{ display: 'flex', gap: 6 }}>
+                    <button type="button" onClick={() => { openAssign(c); close() }} style={{ ...assignBtn, marginTop: 0 }}>Assign</button>
+                    <button type="button" onClick={() => setClusterHandling(c.id, 'dismiss', 'Dismiss this incident? It leaves your board but can be reopened. The public verification is unaffected.')} style={{ ...assignBtn, marginTop: 0, color: '#8b949e', borderColor: '#21262d', background: 'rgba(255,255,255,0.04)' }}>Dismiss</button>
+                  </div>}
+            </div>
+          )
+        }
+        if (selected.kind === 'custom') {
+          const i = customIncidents.find((x) => x.id === selected.id) ?? handledCustom.find((x) => x.id === selected.id)
+          if (!i) return null
+          const d = dispatches.find((x) => x.ngo_incident_id === i.id && ACTIVE_DISPATCH.includes(x.status))
+          return (
+            <div style={detailCard}>
+              {header(i.title, [i.category, i.address].filter(Boolean).join(' · ') || `${i.lat.toFixed(3)}, ${i.lon.toFixed(3)}`)}
+              <div style={{ fontSize: 11, color: SEVERITY_COLOUR[i.severity] ?? '#8b949e', marginBottom: 6 }}>● {i.severity}</div>
+              {i.description && <div style={{ fontSize: 12, color: '#c9d1d9', marginBottom: 8, lineHeight: 1.4 }}>{i.description}</div>}
+              {d
+                ? <div style={{ fontSize: 12, color: '#3fb950' }}>🚑 {d.team_name} · {DISPATCH_LABEL[d.status] ?? d.status}</div>
+                : <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    <button type="button" onClick={() => { openAssignIncident(i); close() }} style={{ ...assignBtn, marginTop: 0 }}>Assign</button>
+                    <button type="button" onClick={() => { resolveIncident(i.id); close() }} style={{ ...assignBtn, marginTop: 0, color: '#8b949e', borderColor: '#21262d', background: 'rgba(255,255,255,0.04)' }}>Resolve</button>
+                  </div>}
+            </div>
+          )
+        }
+        if (selected.kind === 'team') {
+          const tm = teams.find((x) => x.id === selected.id)
+          if (!tm) return null
+          return <div style={detailCard}>{header(tm.name, `${tm.type} · ${tm.status}`)}<div style={{ fontSize: 12, color: '#8b949e' }}>Last seen {timeAgo(tm.last_seen_at)}</div></div>
+        }
+        if (selected.kind === 'worker') {
+          const w = workers.find((x) => x.ngo_user_id === selected.id)
+          if (!w) return null
+          return <div style={detailCard}>{header(w.name, w.role ?? undefined)}<div style={{ fontSize: 12, color: '#8b949e' }}>Last seen {timeAgo(w.last_seen_at)}{w.source === 'panic' ? ' · 🆘 duress' : ''}</div></div>
+        }
+        if (selected.kind === 'panic') {
+          const p = panics.find((x) => x.id === selected.id)
+          if (!p) return null
+          return (
+            <div style={{ ...detailCard, borderColor: 'rgba(248,81,73,0.5)' }}>
+              {header(`🆘 ${p.name}`, `${timeAgo(p.created_at)}${p.reason ? ` · ${p.reason}` : ''}`)}
+              <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 8 }}>{p.lat != null && p.lon != null ? `Last known ${p.lat.toFixed(4)}, ${p.lon.toFixed(4)}` : 'No location'}</div>
+              <div style={{ fontSize: 12, marginBottom: 8 }}>{p.acknowledged_at ? <span style={{ color: '#3fb950' }}>✓ Acknowledged by {p.acknowledged_by_name}</span> : <span style={{ color: '#d29922' }}>● Not yet acknowledged</span>}</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {!p.acknowledged_at && <button type="button" onClick={() => acknowledgePanic(p.id)} style={{ ...resolveBtn, color: '#58a6ff', borderColor: 'rgba(88,166,255,0.4)', background: 'rgba(88,166,255,0.1)' }}>Acknowledge</button>}
+                {p.phone && <a href={`tel:${p.phone}`} style={{ ...resolveBtn, textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>Call</a>}
+                <button type="button" onClick={() => openPanicDispatch(p)} style={{ ...resolveBtn, color: '#58a6ff', borderColor: 'rgba(88,166,255,0.4)', background: 'rgba(88,166,255,0.1)' }}>Send team</button>
+                <button type="button" onClick={() => { setResolvePanicFor(p); setPanicNote('') }} style={resolveBtn}>Resolve</button>
+              </div>
+            </div>
+          )
+        }
+        if (selected.kind === 'facility') {
+          const f = facilities.find((x) => x.id === selected.id)
+          if (!f) return null
+          return <div style={detailCard}>{header(f.name, f.status)}{f.status_updated_at && <div style={{ fontSize: 11, color: '#8b949e' }}>Updated {timeAgo(f.status_updated_at)}</div>}</div>
+        }
+        return null
+      })()}
+
       {/* Base-map style switcher + worker-pins toggle */}
       <div style={styleSwitcher}>
         {MAP_STYLES.map((s) => (
@@ -657,7 +776,7 @@ export default function NgoBoardPage() {
               const d = dispatches.find((x) => x.ngo_incident_id === i.id && ACTIVE_DISPATCH.includes(x.status))
               return (
                 <div key={i.id} style={{ padding: '8px 0', borderBottom: '1px solid #1b2027' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                  <div onClick={() => selectAndFly('custom', i.id, i.lon, i.lat)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, cursor: 'pointer' }}>
                     <div style={{ fontSize: 13, fontWeight: 500 }}>{i.title}</div>
                     <span style={{ fontSize: 10, color: SEVERITY_COLOUR[i.severity] ?? '#8b949e', whiteSpace: 'nowrap' }}>● {i.severity}</span>
                   </div>
@@ -767,8 +886,8 @@ export default function NgoBoardPage() {
             {feed.map((c) => {
               const overdue = !c.covered && Date.now() - new Date(c.created_at).getTime() > 30 * 60000
               return (
-                <div key={c.id} style={{ ...feedCard, borderLeft: overdue ? '3px solid #f85149' : '3px solid transparent' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                <div key={c.id} style={{ ...feedCard, borderLeft: selected?.kind === 'incident' && selected.id === c.id ? '3px solid #58a6ff' : overdue ? '3px solid #f85149' : '3px solid transparent', background: selected?.kind === 'incident' && selected.id === c.id ? 'rgba(88,166,255,0.06)' : undefined }}>
+                  <div onClick={() => selectAndFly('incident', c.id, c.lon, c.lat)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, cursor: 'pointer' }}>
                     <div style={{ fontSize: 13, fontWeight: 500 }}>{locNames[c.id] ?? 'Locating…'}</div>
                     <span style={{ fontSize: 10, color: STATUS_HEX[c.status] ?? '#8b949e', whiteSpace: 'nowrap' }}>● {STATUS_LABEL[c.status] ?? c.status}</span>
                   </div>
@@ -980,6 +1099,7 @@ const toggleBtn: React.CSSProperties = {
   background: 'rgba(13,17,23,0.95)', border: '1px solid #21262d', color: '#8b949e', cursor: 'pointer', fontFamily: 'system-ui',
 }
 const statusChip: React.CSSProperties = { position: 'absolute', top: 12, left: 12, zIndex: 7, fontSize: 12, color: '#8b949e', background: 'rgba(13,17,23,0.95)', border: '1px solid #21262d', borderRadius: 999, padding: '4px 12px', fontFamily: 'system-ui' }
+const detailCard: React.CSSProperties = { position: 'absolute', top: 48, left: 12, zIndex: 8, width: 300, maxWidth: 'calc(100vw - 24px)', background: 'rgba(13,17,23,0.97)', border: '1px solid #21262d', borderRadius: 10, padding: 14, color: '#e6edf3', fontFamily: 'system-ui', boxShadow: '0 8px 28px rgba(0,0,0,0.5)' }
 const styleSwitcher: React.CSSProperties = { position: 'absolute', bottom: 12, left: 12, zIndex: 7, display: 'flex', gap: 4, background: 'rgba(13,17,23,0.9)', border: '1px solid #21262d', borderRadius: 8, padding: 4 }
 function styleBtn(active: boolean): React.CSSProperties {
   return { height: 26, padding: '0 10px', borderRadius: 6, fontSize: 11, cursor: 'pointer', fontFamily: 'system-ui', whiteSpace: 'nowrap', background: active ? 'rgba(88,166,255,0.15)' : 'transparent', border: active ? '1px solid #58a6ff' : '1px solid transparent', color: active ? '#58a6ff' : '#8b949e' }
