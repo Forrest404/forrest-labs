@@ -113,6 +113,19 @@ interface Dispatch {
 interface RankedTeam {
   id: string; name: string; type: string; status: string; type_match: boolean; distance_km: number | null; busy: boolean; notifiable_count?: number
 }
+const LEGEND_SECTIONS = [
+  { title: 'Incidents', items: [
+    { color: '#ef4444', label: 'Confirmed' }, { color: '#f97316', label: 'Auto-confirmed' },
+    { color: '#58a6ff', label: 'News verified' }, { color: '#a371f7', label: 'Official' },
+  ] },
+  { title: 'Teams', items: [
+    { color: '#3fb950', label: 'Standby' }, { color: '#d29922', label: 'Deployed' },
+    { color: '#8b949e', label: 'Unavailable' }, { color: '#a371f7', label: 'Off duty' },
+  ] },
+  { title: 'Markers', items: [
+    { color: '#f85149', label: '🆘 Panic / unassigned' }, { color: '#3fb950', label: 'Worker / facility open' },
+  ] },
+]
 const ACTIVE_DISPATCH = ['assigned', 'en_route', 'on_scene']
 const DISPATCH_LABEL: Record<string, string> = { assigned: 'Assigned', en_route: 'En route', on_scene: 'On scene', done: 'Done', cancelled: 'Cancelled' }
 
@@ -222,6 +235,14 @@ export default function NgoBoardPage() {
   const [incTeams, setIncTeams] = useState<{ id: string; name: string; type: string; status: string; notifiable_count?: number }[]>([])
   // Clicking a map marker selects it → a detail card (looked up from current data by kind+id).
   const [selected, setSelected] = useState<{ kind: 'incident' | 'custom' | 'team' | 'worker' | 'panic' | 'facility'; id: string } | null>(null)
+  // Place search + find-my-location + legend.
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<{ name: string; lon: number; lat: number }[]>([])
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [locating, setLocating] = useState(false)
+  const [legendOpen, setLegendOpen] = useState(true)
+  const userMarker = useRef<any>(null)
+  const searchTimer = useRef<any>(null)
 
   function changeMapStyle(id: string) {
     const s = MAP_STYLES.find((x) => x.id === id)
@@ -481,6 +502,42 @@ export default function NgoBoardPage() {
     if (map.current && Number.isFinite(lon) && Number.isFinite(lat)) map.current.easeTo({ center: [lon, lat] })
   }
 
+  // ── Place search (Mapbox forward geocoding, Lebanon-biased) + find-my-location ──
+  function onSearchChange(v: string) {
+    setSearchQuery(v)
+    if (searchTimer.current) clearTimeout(searchTimer.current)
+    if (v.trim().length < 2) { setSearchResults([]); setSearchOpen(false); return }
+    searchTimer.current = setTimeout(async () => {
+      try {
+        const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
+        const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(v)}.json?access_token=${token}&country=lb&proximity=35.86,33.87&limit=5&types=place,locality,neighborhood,address,poi`
+        const res = await fetch(url)
+        const d = await res.json()
+        setSearchResults((d.features ?? []).map((f: any) => ({ name: f.place_name as string, lon: f.center[0] as number, lat: f.center[1] as number })))
+        setSearchOpen(true)
+      } catch { /* leave previous results */ }
+    }, 300)
+  }
+  function flyToResult(r: { name: string; lon: number; lat: number }) {
+    setSearchOpen(false); setSearchQuery(r.name)
+    map.current?.flyTo({ center: [r.lon, r.lat], zoom: 14, essential: true })
+  }
+  function locateMe() {
+    if (!('geolocation' in navigator) || !map.current) { toast('Location not available on this device', 'error'); return }
+    setLocating(true)
+    navigator.geolocation.getCurrentPosition(
+      (p) => {
+        setLocating(false)
+        const { latitude, longitude } = p.coords
+        map.current.flyTo({ center: [longitude, latitude], zoom: 14, essential: true })
+        try { userMarker.current?.remove() } catch { /* none */ }
+        userMarker.current = new window.mapboxgl.Marker({ color: '#58a6ff' }).setLngLat([longitude, latitude]).addTo(map.current)
+      },
+      () => { setLocating(false); toast('Could not get your location — check permissions', 'error') },
+      { enableHighAccuracy: true, timeout: 8000 },
+    )
+  }
+
   // 1s tick keeps the "updated Xs ago" freshness label live (paused when hidden).
   useEffect(() => {
     const id = setInterval(() => { if (document.visibilityState === 'visible') setAgoTick((n) => n + 1) }, 1000)
@@ -650,6 +707,40 @@ export default function NgoBoardPage() {
       {loaded && !loadError && updatedAt != null && (
         <div style={{ ...statusChip, color: '#8b949e' }}>updated {freshAgo(updatedAt, agoTick)}</div>
       )}
+
+      {/* Place search + find-my-location */}
+      <div style={searchWrap}>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <input value={searchQuery} onChange={(e) => onSearchChange(e.target.value)} onFocus={() => { if (searchResults.length) setSearchOpen(true) }} placeholder="Search a place…" style={searchInput} />
+          <button type="button" onClick={locateMe} disabled={locating} title="Find my location" aria-label="Find my location" style={searchIconBtn}>{locating ? '…' : '◎'}</button>
+        </div>
+        {searchOpen && searchResults.length > 0 && (
+          <div style={searchResultsBox}>
+            {searchResults.map((r, i) => (
+              <button key={i} type="button" onClick={() => flyToResult(r)} style={searchResultRow}>{r.name}</button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Legend */}
+      <div style={legendBox}>
+        <button type="button" onClick={() => setLegendOpen((o) => !o)} style={legendHeader}>{legendOpen ? '▾' : '▸'} Legend</button>
+        {legendOpen && (
+          <div style={{ marginTop: 6, display: 'grid', gap: 4 }}>
+            {LEGEND_SECTIONS.map((sec) => (
+              <div key={sec.title}>
+                <div style={legendSectionLabel}>{sec.title}</div>
+                {sec.items.map((it) => (
+                  <div key={it.label} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#c9d1d9' }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: it.color, flexShrink: 0 }} />{it.label}
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Selected-marker detail card (click a pin) */}
       {selected && (() => {
@@ -1099,7 +1190,15 @@ const toggleBtn: React.CSSProperties = {
   background: 'rgba(13,17,23,0.95)', border: '1px solid #21262d', color: '#8b949e', cursor: 'pointer', fontFamily: 'system-ui',
 }
 const statusChip: React.CSSProperties = { position: 'absolute', top: 12, left: 12, zIndex: 7, fontSize: 12, color: '#8b949e', background: 'rgba(13,17,23,0.95)', border: '1px solid #21262d', borderRadius: 999, padding: '4px 12px', fontFamily: 'system-ui' }
-const detailCard: React.CSSProperties = { position: 'absolute', top: 48, left: 12, zIndex: 8, width: 300, maxWidth: 'calc(100vw - 24px)', background: 'rgba(13,17,23,0.97)', border: '1px solid #21262d', borderRadius: 10, padding: 14, color: '#e6edf3', fontFamily: 'system-ui', boxShadow: '0 8px 28px rgba(0,0,0,0.5)' }
+const detailCard: React.CSSProperties = { position: 'absolute', top: 56, left: 12, zIndex: 8, width: 300, maxWidth: 'calc(100vw - 24px)', background: 'rgba(13,17,23,0.97)', border: '1px solid #21262d', borderRadius: 10, padding: 14, color: '#e6edf3', fontFamily: 'system-ui', boxShadow: '0 8px 28px rgba(0,0,0,0.5)' }
+const searchWrap: React.CSSProperties = { position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', zIndex: 8, width: 'min(400px, calc(100vw - 24px))', display: 'flex', flexDirection: 'column', gap: 6 }
+const searchInput: React.CSSProperties = { flex: 1, height: 36, background: 'rgba(13,17,23,0.95)', border: '1px solid #21262d', borderRadius: 8, color: '#e6edf3', padding: '0 12px', fontSize: 13, outline: 'none', fontFamily: 'system-ui' }
+const searchIconBtn: React.CSSProperties = { flexShrink: 0, width: 38, height: 36, background: 'rgba(13,17,23,0.95)', border: '1px solid #21262d', borderRadius: 8, color: '#58a6ff', cursor: 'pointer', fontSize: 16, fontFamily: 'system-ui' }
+const searchResultsBox: React.CSSProperties = { background: 'rgba(13,17,23,0.97)', border: '1px solid #21262d', borderRadius: 8, overflow: 'hidden' }
+const searchResultRow: React.CSSProperties = { display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', background: 'transparent', border: 'none', borderBottom: '1px solid #1b2027', color: '#e6edf3', fontSize: 12, cursor: 'pointer', fontFamily: 'system-ui' }
+const legendBox: React.CSSProperties = { position: 'absolute', bottom: 52, left: 12, zIndex: 7, background: 'rgba(13,17,23,0.9)', border: '1px solid #21262d', borderRadius: 8, padding: '6px 10px', fontFamily: 'system-ui', maxWidth: 200 }
+const legendHeader: React.CSSProperties = { background: 'none', border: 'none', color: '#8b949e', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'system-ui', padding: 0 }
+const legendSectionLabel: React.CSSProperties = { fontSize: 9, color: '#484f58', letterSpacing: '0.08em', textTransform: 'uppercase', margin: '4px 0 2px' }
 const styleSwitcher: React.CSSProperties = { position: 'absolute', bottom: 12, left: 12, zIndex: 7, display: 'flex', gap: 4, background: 'rgba(13,17,23,0.9)', border: '1px solid #21262d', borderRadius: 8, padding: 4 }
 function styleBtn(active: boolean): React.CSSProperties {
   return { height: 26, padding: '0 10px', borderRadius: 6, fontSize: 11, cursor: 'pointer', fontFamily: 'system-ui', whiteSpace: 'nowrap', background: active ? 'rgba(88,166,255,0.15)' : 'transparent', border: active ? '1px solid #58a6ff' : '1px solid transparent', color: active ? '#58a6ff' : '#8b949e' }
