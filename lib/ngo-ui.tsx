@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useCallback, useContext, useRef, useState, type ReactNode, type CSSProperties } from 'react'
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode, type CSSProperties } from 'react'
 
 // Shared NGO-dashboard UI primitives: transient toasts + a styled confirm dialog. These replace
 // native window.confirm/alert (jarring, unstyled) and the "modal closes with no feedback" pattern
@@ -43,13 +43,26 @@ export function NgoUiProvider({ children }: { children: ReactNode }) {
   )
   const closeConfirm = (v: boolean) => { confirmState?.resolve(v); setConfirmState(null) }
 
+  // Keyboard a11y for the confirm dialog: Esc cancels; autofocus the SAFE button (Cancel for
+  // destructive dialogs, so a stray Enter can't confirm a delete; the confirm button otherwise).
+  const cancelBtnRef = useRef<HTMLButtonElement>(null)
+  const confirmBtnRef = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (!confirmState) return
+    ;(confirmState.danger ? cancelBtnRef : confirmBtnRef).current?.focus()
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.preventDefault(); closeConfirm(false) } }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [confirmState])
+
   return (
     <ConfirmCtx.Provider value={confirm}>
       <ToastCtx.Provider value={toast}>
         {children}
 
         {/* Toaster — fixed, bottom-centre, above modals; non-interactive */}
-        <div style={toastWrap} aria-live="polite">
+        <div style={toastWrap} aria-live="polite" role="status">
           {toasts.map((t) => (
             <div key={t.id} style={toastBox(t.kind)}>{t.text}</div>
           ))}
@@ -58,12 +71,12 @@ export function NgoUiProvider({ children }: { children: ReactNode }) {
         {/* Confirm dialog */}
         {confirmState && (
           <div style={confirmBackdrop} onClick={() => closeConfirm(false)}>
-            <div style={confirmBox} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+            <div style={confirmBox} onClick={(e) => e.stopPropagation()} role={confirmState.danger ? 'alertdialog' : 'dialog'} aria-modal="true">
               <div style={{ fontSize: 15, fontWeight: 600, marginBottom: confirmState.body ? 8 : 16 }}>{confirmState.title}</div>
               {confirmState.body && <div style={{ fontSize: 13, color: '#8b949e', marginBottom: 18, lineHeight: 1.5 }}>{confirmState.body}</div>}
               <div style={{ display: 'flex', gap: 8 }}>
-                <button type="button" onClick={() => closeConfirm(false)} style={btnCancel}>{confirmState.cancelLabel ?? 'Cancel'}</button>
-                <button type="button" onClick={() => closeConfirm(true)} style={confirmState.danger ? btnDanger : btnConfirm}>{confirmState.confirmLabel ?? 'Confirm'}</button>
+                <button ref={cancelBtnRef} type="button" onClick={() => closeConfirm(false)} style={btnCancel}>{confirmState.cancelLabel ?? 'Cancel'}</button>
+                <button ref={confirmBtnRef} type="button" onClick={() => closeConfirm(true)} style={confirmState.danger ? btnDanger : btnConfirm}>{confirmState.confirmLabel ?? 'Confirm'}</button>
               </div>
             </div>
           </div>
