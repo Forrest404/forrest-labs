@@ -2,6 +2,13 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useConfirm } from '@/lib/ngo-ui'
+import { useNgoLang, makeT } from '@/lib/use-ngo-lang'
+
+const LANG = {
+  en: { title: 'Facilities & contacts', sub: 'Where to take people, and who to call.', facilities_tab: 'Facilities', contacts_tab: 'Contacts', e_load: 'Couldn’t load everything. This feature may not be set up yet (the facilities/contacts tables may be missing).', retry: 'Retry', loading: 'Loading…', show_map: '🗺 Show on map', add_facility: '+ Add facility', add_contact: '+ Add contact', all_types: 'All types', all_status: 'All status', empty_fac: 'No facilities yet — add one to start.', no_match: 'No facilities match these filters.', empty_con: 'No contacts yet — add one.', approx: '📍 approx location — verify', e_name: 'A name is required.', e_save: 'Could not save.', e_save_net: 'Could not save — check your connection.', fac_updated: 'Facility updated.', fac_added: 'Facility added.', fac_deleted: 'Facility deleted.', del_fail: 'Delete failed.', e_status: 'Could not update status.', e_status_off: 'Could not update status — offline?', con_updated: 'Contact updated.', con_added: 'Contact added.', con_deleted: 'Contact deleted.', del_confirm_body: 'This removes it for your whole organisation.', del: 'Delete', edit: 'Edit', map_link: 'Map ↗', cancel: 'Cancel', saving: 'Saving…', save: 'Save', edit_fac: 'Edit facility', add_fac_t: 'Add facility', name: 'Name', ph_name_fac: 'e.g. Hammoud Hospital', f_type: 'Type', f_status: 'Status', phone: 'Phone', address: 'Address', ph_address: 'Town, street', lat: 'Latitude', lon: 'Longitude', cap_note: 'Capacity note', ph_cap: 'e.g. ER full, trauma only', notes: 'Notes', ph_notes: 'Anything useful', edit_con: 'Edit contact', add_con_t: 'Add contact', ph_name_con: 'e.g. Dr. Sami', organisation: 'Organisation', ph_org: 'e.g. Lebanese Red Cross', role: 'Role', ph_role: 'e.g. Dispatch coordinator', ph_phone_con: '03/000000', ph_notes_con: 'When to call, etc.', ph_phone_fac: '07/000000', status_not_set: 'status not set', updated: 'updated', just_now: 'just now', type_hospital: 'Hospital', type_clinic: 'Clinic', type_field_hospital: 'Field hospital', type_shelter: 'Shelter', type_distribution: 'Distribution', type_safe_area: 'Safe area', type_fuel: 'Fuel', type_water: 'Water', type_other: 'Other', st_open: 'Open', st_full: 'Full', st_closed: 'Closed', st_unknown: 'Unknown' },
+  fr: { title: 'Établissements & contacts', sub: 'Où emmener les gens, et qui appeler.', facilities_tab: 'Établissements', contacts_tab: 'Contacts', e_load: 'Impossible de tout charger. Cette fonctionnalité n’est peut-être pas configurée (tables établissements/contacts absentes).', retry: 'Réessayer', loading: 'Chargement…', show_map: '🗺 Voir sur la carte', add_facility: '+ Ajouter un établissement', add_contact: '+ Ajouter un contact', all_types: 'Tous les types', all_status: 'Tous les statuts', empty_fac: 'Aucun établissement — ajoutez-en un.', no_match: 'Aucun établissement ne correspond à ces filtres.', empty_con: 'Aucun contact — ajoutez-en un.', approx: '📍 position approx. — à vérifier', e_name: 'Un nom est requis.', e_save: 'Échec de l’enregistrement.', e_save_net: 'Échec — vérifiez votre connexion.', fac_updated: 'Établissement mis à jour.', fac_added: 'Établissement ajouté.', fac_deleted: 'Établissement supprimé.', del_fail: 'Échec de la suppression.', e_status: 'Impossible de mettre à jour le statut.', e_status_off: 'Statut non mis à jour — hors ligne ?', con_updated: 'Contact mis à jour.', con_added: 'Contact ajouté.', con_deleted: 'Contact supprimé.', del_confirm_body: 'Cela le supprime pour toute votre organisation.', del: 'Supprimer', edit: 'Modifier', map_link: 'Carte ↗', cancel: 'Annuler', saving: 'Enregistrement…', save: 'Enregistrer', edit_fac: 'Modifier l’établissement', add_fac_t: 'Ajouter un établissement', name: 'Nom', ph_name_fac: 'ex. Hôpital Hammoud', f_type: 'Type', f_status: 'Statut', phone: 'Téléphone', address: 'Adresse', ph_address: 'Ville, rue', lat: 'Latitude', lon: 'Longitude', cap_note: 'Note de capacité', ph_cap: 'ex. urgences pleines, trauma seulement', notes: 'Notes', ph_notes: 'Tout ce qui est utile', edit_con: 'Modifier le contact', add_con_t: 'Ajouter un contact', ph_name_con: 'ex. Dr Sami', organisation: 'Organisation', ph_org: 'ex. Croix-Rouge libanaise', role: 'Rôle', ph_role: 'ex. Coordinateur de déploiement', ph_phone_con: '03/000000', ph_notes_con: 'Quand appeler, etc.', ph_phone_fac: '07/000000', status_not_set: 'statut non défini', updated: 'mis à jour', just_now: 'à l’instant', type_hospital: 'Hôpital', type_clinic: 'Clinique', type_field_hospital: 'Hôpital de campagne', type_shelter: 'Abri', type_distribution: 'Distribution', type_safe_area: 'Zone sûre', type_fuel: 'Carburant', type_water: 'Eau', type_other: 'Autre', st_open: 'Ouvert', st_full: 'Plein', st_closed: 'Fermé', st_unknown: 'Inconnu' },
+  ar: { title: 'المرافق وجهات الاتصال', sub: 'إلى أين تأخذ الناس، ومن تتصل به.', facilities_tab: 'المرافق', contacts_tab: 'جهات الاتصال', e_load: 'تعذّر تحميل كل شيء. قد لا تكون الميزة مُعدّة بعد (جداول المرافق/جهات الاتصال غير موجودة).', retry: 'إعادة المحاولة', loading: 'جارٍ التحميل…', show_map: '🗺 عرض على الخريطة', add_facility: '+ إضافة مرفق', add_contact: '+ إضافة جهة اتصال', all_types: 'كل الأنواع', all_status: 'كل الحالات', empty_fac: 'لا مرافق بعد — أضف واحداً للبدء.', no_match: 'لا مرافق تطابق هذه المرشّحات.', empty_con: 'لا جهات اتصال بعد — أضف واحدة.', approx: '📍 موقع تقريبي — تحقّق', e_name: 'الاسم مطلوب.', e_save: 'تعذّر الحفظ.', e_save_net: 'تعذّر الحفظ — تحقق من اتصالك.', fac_updated: 'تم تحديث المرفق.', fac_added: 'تمت إضافة المرفق.', fac_deleted: 'تم حذف المرفق.', del_fail: 'فشل الحذف.', e_status: 'تعذّر تحديث الحالة.', e_status_off: 'لم تُحدَّث الحالة — غير متصل؟', con_updated: 'تم تحديث جهة الاتصال.', con_added: 'تمت إضافة جهة الاتصال.', con_deleted: 'تم حذف جهة الاتصال.', del_confirm_body: 'يزيله لكامل منظمتك.', del: 'حذف', edit: 'تعديل', map_link: 'خريطة ↗', cancel: 'إلغاء', saving: 'جارٍ الحفظ…', save: 'حفظ', edit_fac: 'تعديل المرفق', add_fac_t: 'إضافة مرفق', name: 'الاسم', ph_name_fac: 'مثال: مستشفى حمود', f_type: 'النوع', f_status: 'الحالة', phone: 'الهاتف', address: 'العنوان', ph_address: 'البلدة، الشارع', lat: 'خط العرض', lon: 'خط الطول', cap_note: 'ملاحظة السعة', ph_cap: 'مثال: الطوارئ ممتلئة، إصابات فقط', notes: 'ملاحظات', ph_notes: 'أي شيء مفيد', edit_con: 'تعديل جهة الاتصال', add_con_t: 'إضافة جهة اتصال', ph_name_con: 'مثال: د. سامي', organisation: 'المنظمة', ph_org: 'مثال: الصليب الأحمر اللبناني', role: 'الدور', ph_role: 'مثال: منسّق الإيفاد', ph_phone_con: '03/000000', ph_notes_con: 'متى تتصل، إلخ.', ph_phone_fac: '07/000000', status_not_set: 'الحالة غير محددة', updated: 'حُدّث', just_now: 'الآن', type_hospital: 'مستشفى', type_clinic: 'عيادة', type_field_hospital: 'مستشفى ميداني', type_shelter: 'مأوى', type_distribution: 'توزيع', type_safe_area: 'منطقة آمنة', type_fuel: 'وقود', type_water: 'ماء', type_other: 'أخرى', st_open: 'مفتوح', st_full: 'ممتلئ', st_closed: 'مغلق', st_unknown: 'غير معروف' },
+} as const
 
 // Facilities & contacts — "where do we take people" and "who do we call".
 // Glanceable + tappable under stress. Managers (org_admin/team_leader) get full CRUD
@@ -35,21 +42,23 @@ function statusMeta(s: string) { return STATUSES.find((x) => x.value === s) ?? S
 function telHref(phone: string) { const d = phone.replace(/[^\d+]/g, ''); return `tel:${d}` }
 
 // Staleness of a status update: fresh < 2h, ageing < 4h, stale ≥ 4h, or never set.
-function staleness(iso: string | null): { label: string; tier: 'never' | 'fresh' | 'ageing' | 'stale' } {
-  if (!iso) return { label: 'status not set', tier: 'never' }
+function staleness(iso: string | null, t: (k: string) => string): { label: string; tier: 'never' | 'fresh' | 'ageing' | 'stale' } {
+  if (!iso) return { label: t('status_not_set'), tier: 'never' }
   const ms = Date.now() - new Date(iso).getTime()
   const mins = Math.max(0, Math.round(ms / 60000))
   let label: string
-  if (mins < 1) label = 'just now'
+  if (mins < 1) label = t('just_now')
   else if (mins < 60) label = `${mins}m ago`
   else if (mins < 1440) label = `${Math.round(mins / 60)}h ago`
   else label = `${Math.round(mins / 1440)}d ago`
   const tier = mins < 120 ? 'fresh' : mins < 240 ? 'ageing' : 'stale'
-  return { label: `updated ${label}`, tier }
+  return { label: mins < 1 ? `${t('updated')} ${label}` : `${t('updated')} ${label}`, tier }
 }
 
 export default function NgoFacilitiesPage() {
   const confirm = useConfirm()
+  const { lang, isRtl } = useNgoLang()
+  const t = makeT(LANG, lang)
   const [tab, setTab] = useState<'facilities' | 'contacts'>('facilities')
   const [facilities, setFacilities] = useState<Facility[]>([])
   const [contacts, setContacts] = useState<Contact[]>([])
@@ -99,7 +108,7 @@ export default function NgoFacilitiesPage() {
   const saveFac = useCallback(async () => {
     if (!facEdit) return
     setFormErr(null)
-    if (!facEdit.name.trim()) { setFormErr('A name is required.'); return }
+    if (!facEdit.name.trim()) { setFormErr(t('e_name')); return }
     setBusy(true)
     try {
       const payload = {
@@ -112,18 +121,18 @@ export default function NgoFacilitiesPage() {
         ? await fetch(`/api/ngo/facilities/${facEdit.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
         : await fetch('/api/ngo/facilities', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
       const d = await r.json().catch(() => ({}))
-      if (!r.ok) { setFormErr(d?.error ?? 'Could not save.'); return }
-      setFacEdit(null); setNote(facEdit.id ? 'Facility updated.' : 'Facility added.'); await load()
-    } catch { setFormErr('Could not save — check your connection.') }
+      if (!r.ok) { setFormErr(d?.error ?? t('e_save')); return }
+      setFacEdit(null); setNote(facEdit.id ? t('fac_updated') : t('fac_added')); await load()
+    } catch { setFormErr(t('e_save_net')) }
     finally { setBusy(false) }
   }, [facEdit, load])
   const delFac = useCallback(async (f: Facility) => {
-    if (!(await confirm({ title: `Delete “${f.name}”?`, body: 'This removes it for your whole organisation.', danger: true, confirmLabel: 'Delete' }))) return
+    if (!(await confirm({ title: `${t('del')} “${f.name}”?`, body: t('del_confirm_body'), danger: true, confirmLabel: t('del') }))) return
     setBusy(true); setNote(null)
     try {
       const r = await fetch(`/api/ngo/facilities/${f.id}`, { method: 'DELETE' })
-      if (r.ok) { setFacilities((p) => p.filter((x) => x.id !== f.id)); setNote('Facility deleted.') } else setNote('Delete failed.')
-    } catch { setNote('Delete failed.') } finally { setBusy(false) }
+      if (r.ok) { setFacilities((p) => p.filter((x) => x.id !== f.id)); setNote(t('fac_deleted')) } else setNote(t('del_fail'))
+    } catch { setNote(t('del_fail')) } finally { setBusy(false) }
   }, [])
   // One-tap status change — optimistic; stamps a fresh "updated just now".
   const setStatus = useCallback(async (f: Facility, status: Facility['status']) => {
@@ -132,8 +141,8 @@ export default function NgoFacilitiesPage() {
     setFacilities((p) => p.map((x) => x.id === f.id ? { ...x, status, status_updated_at: new Date().toISOString() } : x))
     try {
       const r = await fetch(`/api/ngo/facilities/${f.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) })
-      if (!r.ok) { setFacilities(prev); setNote('Could not update status.') }
-    } catch { setFacilities(prev); setNote('Could not update status — offline?') }
+      if (!r.ok) { setFacilities(prev); setNote(t('e_status')) }
+    } catch { setFacilities(prev); setNote(t('e_status_off')) }
   }, [facilities])
 
   // ── Contact CRUD ──
@@ -142,7 +151,7 @@ export default function NgoFacilitiesPage() {
   const saveCon = useCallback(async () => {
     if (!conEdit) return
     setFormErr(null)
-    if (!conEdit.name.trim()) { setFormErr('A name is required.'); return }
+    if (!conEdit.name.trim()) { setFormErr(t('e_name')); return }
     setBusy(true)
     try {
       const payload = { name: conEdit.name.trim(), organisation: conEdit.organisation.trim() || null, role: conEdit.role.trim() || null, phone: conEdit.phone.trim() || null, notes: conEdit.notes.trim() || null }
@@ -150,84 +159,84 @@ export default function NgoFacilitiesPage() {
         ? await fetch(`/api/ngo/contacts/${conEdit.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
         : await fetch('/api/ngo/contacts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
       const d = await r.json().catch(() => ({}))
-      if (!r.ok) { setFormErr(d?.error ?? 'Could not save.'); return }
-      setConEdit(null); setNote(conEdit.id ? 'Contact updated.' : 'Contact added.'); await load()
-    } catch { setFormErr('Could not save — check your connection.') }
+      if (!r.ok) { setFormErr(d?.error ?? t('e_save')); return }
+      setConEdit(null); setNote(conEdit.id ? t('con_updated') : t('con_added')); await load()
+    } catch { setFormErr(t('e_save_net')) }
     finally { setBusy(false) }
   }, [conEdit, load])
   const delCon = useCallback(async (c: Contact) => {
-    if (!(await confirm({ title: `Delete “${c.name}”?`, danger: true, confirmLabel: 'Delete' }))) return
+    if (!(await confirm({ title: `${t('del')} “${c.name}”?`, danger: true, confirmLabel: t('del') }))) return
     setBusy(true); setNote(null)
     try {
       const r = await fetch(`/api/ngo/contacts/${c.id}`, { method: 'DELETE' })
-      if (r.ok) { setContacts((p) => p.filter((x) => x.id !== c.id)); setNote('Contact deleted.') } else setNote('Delete failed.')
-    } catch { setNote('Delete failed.') } finally { setBusy(false) }
+      if (r.ok) { setContacts((p) => p.filter((x) => x.id !== c.id)); setNote(t('con_deleted')) } else setNote(t('del_fail'))
+    } catch { setNote(t('del_fail')) } finally { setBusy(false) }
   }, [])
 
   const shownFacilities = facilities.filter((f) => (typeFilter === 'all' || f.type === typeFilter) && (statusFilter === 'all' || f.status === statusFilter))
 
   return (
-    <div className="fac-page" style={wrap}>
+    <div className="fac-page" style={wrap} dir={isRtl ? 'rtl' : 'ltr'}>
       <style>{`
         @media (max-width: 600px) {
           .fac-page .fac-add { width: 100%; }
           .fac-page .fac-actions > a, .fac-page .fac-actions > button { flex: 1 1 40%; margin-inline-start: 0 !important; }
         }
       `}</style>
-      <h1 style={h1}>Facilities & contacts</h1>
-      <p style={sub}>Where to take people, and who to call.</p>
+      <h1 style={h1}>{t('title')}</h1>
+      <p style={sub}>{t('sub')}</p>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-        <button type="button" onClick={() => setTab('facilities')} style={tabBtn(tab === 'facilities')}>Facilities{facilities.length ? ` (${facilities.length})` : ''}</button>
-        <button type="button" onClick={() => setTab('contacts')} style={tabBtn(tab === 'contacts')}>Contacts{contacts.length ? ` (${contacts.length})` : ''}</button>
+        <button type="button" onClick={() => setTab('facilities')} style={tabBtn(tab === 'facilities')}>{t('facilities_tab')}{facilities.length ? ` (${facilities.length})` : ''}</button>
+        <button type="button" onClick={() => setTab('contacts')} style={tabBtn(tab === 'contacts')}>{t('contacts_tab')}{contacts.length ? ` (${contacts.length})` : ''}</button>
       </div>
 
       {note && <div style={infoBox}>{note}</div>}
-      {error && <div style={errBox}>Couldn’t load everything. This feature may not be set up yet (the facilities/contacts tables may be missing). <button type="button" onClick={load} style={retryBtn}>Retry</button></div>}
-      {!loaded && <div style={muted}>Loading…</div>}
+      {error && <div style={errBox}>{t('e_load')} <button type="button" onClick={load} style={retryBtn}>{t('retry')}</button></div>}
+      {!loaded && <div style={muted}>{t('loading')}</div>}
 
       {/* ───── FACILITIES ───── */}
       {tab === 'facilities' && (
         <>
           {/* Jump to the situation board with the facilities layer switched on. */}
-          <a href="/ngo/board?layer=facilities" className="fac-add" style={{ ...mapLinkBtn, marginBottom: 10 }}>🗺 Show on map</a>
-          {canManage && <button type="button" onClick={openNewFac} className="fac-add" style={{ ...primaryBtn, marginBottom: 14 }}>+ Add facility</button>}
+          <a href="/ngo/board?layer=facilities" className="fac-add" style={{ ...mapLinkBtn, marginBottom: 10 }}>{t('show_map')}</a>
+          {canManage && <button type="button" onClick={openNewFac} className="fac-add" style={{ ...primaryBtn, marginBottom: 14 }}>{t('add_facility')}</button>}
 
           {/* Filters */}
           {facilities.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
               <div style={chipRow}>
-                <Chip active={typeFilter === 'all'} onClick={() => setTypeFilter('all')}>All types</Chip>
-                {FAC_TYPES.filter((t) => facilities.some((f) => f.type === t.value)).map((t) => (
-                  <Chip key={t.value} active={typeFilter === t.value} onClick={() => setTypeFilter(t.value)}>{t.label}</Chip>
+                <Chip active={typeFilter === 'all'} onClick={() => setTypeFilter('all')}>{t('all_types')}</Chip>
+                {FAC_TYPES.filter((ft) => facilities.some((f) => f.type === ft.value)).map((ft) => (
+                  <Chip key={ft.value} active={typeFilter === ft.value} onClick={() => setTypeFilter(ft.value)}>{t(`type_${ft.value}`)}</Chip>
                 ))}
               </div>
               <div style={chipRow}>
-                <Chip active={statusFilter === 'all'} onClick={() => setStatusFilter('all')}>All status</Chip>
+                <Chip active={statusFilter === 'all'} onClick={() => setStatusFilter('all')}>{t('all_status')}</Chip>
                 {STATUSES.map((s) => (
-                  <Chip key={s.value} active={statusFilter === s.value} onClick={() => setStatusFilter(s.value)} dot={s.colour}>{s.label}</Chip>
+                  <Chip key={s.value} active={statusFilter === s.value} onClick={() => setStatusFilter(s.value)} dot={s.colour}>{t(`st_${s.value}`)}</Chip>
                 ))}
               </div>
             </div>
           )}
 
-          {loaded && !error && facilities.length === 0 && <div style={emptyBox}>No facilities yet — add one to start.</div>}
-          {loaded && facilities.length > 0 && shownFacilities.length === 0 && <div style={emptyBox}>No facilities match these filters.</div>}
+          {loaded && !error && facilities.length === 0 && <div style={emptyBox}>{t('empty_fac')}</div>}
+          {loaded && facilities.length > 0 && shownFacilities.length === 0 && <div style={emptyBox}>{t('no_match')}</div>}
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {shownFacilities.map((f) => {
-              const sm = statusMeta(f.status); const st = staleness(f.status_updated_at)
+              const sm = statusMeta(f.status); const st = staleness(f.status_updated_at, t)
               return (
                 <div key={f.id} style={card}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' }}>
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div style={{ fontSize: 15, fontWeight: 700, color: '#e6edf3' }}>{f.name}</div>
-                      <div style={{ fontSize: 12, color: '#8b949e', marginTop: 2 }}>{typeLabel(f.type)}{f.address ? ` · ${f.address}` : ''}</div>
+                      <div style={{ fontSize: 12, color: '#8b949e', marginTop: 2 }}>{t(`type_${f.type}`)}{f.address ? ` · ${f.address}` : ''}</div>
                       {f.capacity_note && <div style={{ fontSize: 12, color: '#8b949e', marginTop: 2 }}>{f.capacity_note}</div>}
-                      {f.source === 'seed' && f.notes?.includes('approx') && <div style={{ fontSize: 11, color: '#d29922', marginTop: 3 }}>📍 approx location — verify</div>}
+                      {f.source === 'seed' && f.notes?.includes('approx') && <div style={{ fontSize: 11, color: '#d29922', marginTop: 3 }}>{t('approx')}</div>}
                     </div>
-                    <div style={{ flexShrink: 0, textAlign: 'right' }}>
-                      <span style={{ ...statusBadge, background: sm.colour + '22', color: sm.colour, borderColor: sm.colour + '66' }}>{sm.label}</span>
+                    <div style={{ flexShrink: 0, textAlign: isRtl ? 'left' : 'right' }}>
+                      <span style={{ ...statusBadge, background: sm.colour + '22', color: sm.colour, borderColor: sm.colour + '66' }}>{t(`st_${f.status}`)}</span>
                       <div style={{ fontSize: 10.5, marginTop: 4, color: st.tier === 'stale' || st.tier === 'never' ? '#f85149' : st.tier === 'ageing' ? '#d29922' : '#6e7681' }}>{st.label}</div>
                     </div>
                   </div>
@@ -240,16 +249,16 @@ export default function NgoFacilitiesPage() {
                           style={{ flex: 1, minHeight: 36, borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'system-ui',
                             background: f.status === s.value ? s.colour + '22' : 'transparent',
                             border: `1px solid ${f.status === s.value ? s.colour + '88' : '#21262d'}`,
-                            color: f.status === s.value ? s.colour : '#8b949e' }}>{s.label}</button>
+                            color: f.status === s.value ? s.colour : '#8b949e' }}>{t(`st_${s.value}`)}</button>
                       ))}
                     </div>
                   )}
 
                   <div className="fac-actions" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 10 }}>
                     {f.phone && <a href={telHref(f.phone)} style={callBtn}>📞 {f.phone}</a>}
-                    {f.lat != null && f.lon != null && <a href={`https://www.google.com/maps?q=${f.lat},${f.lon}`} target="_blank" rel="noreferrer noopener" style={miniBtn}>Map ↗</a>}
-                    {canManage && <button type="button" disabled={busy} onClick={() => openEditFac(f)} style={{ ...miniBtn, marginInlineStart: 'auto' }}>Edit</button>}
-                    {canManage && <button type="button" disabled={busy} onClick={() => delFac(f)} style={{ ...miniBtn, color: '#f85149', borderColor: 'rgba(248,81,73,0.4)' }}>Delete</button>}
+                    {f.lat != null && f.lon != null && <a href={`https://www.google.com/maps?q=${f.lat},${f.lon}`} target="_blank" rel="noreferrer noopener" style={miniBtn}>{t('map_link')}</a>}
+                    {canManage && <button type="button" disabled={busy} onClick={() => openEditFac(f)} style={{ ...miniBtn, marginInlineStart: 'auto' }}>{t('edit')}</button>}
+                    {canManage && <button type="button" disabled={busy} onClick={() => delFac(f)} style={{ ...miniBtn, color: '#f85149', borderColor: 'rgba(248,81,73,0.4)' }}>{t('del')}</button>}
                   </div>
                 </div>
               )
@@ -261,8 +270,8 @@ export default function NgoFacilitiesPage() {
       {/* ───── CONTACTS ───── */}
       {tab === 'contacts' && (
         <>
-          {canManage && <button type="button" onClick={openNewCon} className="fac-add" style={{ ...primaryBtn, marginBottom: 14 }}>+ Add contact</button>}
-          {loaded && !error && contacts.length === 0 && <div style={emptyBox}>No contacts yet — add one.</div>}
+          {canManage && <button type="button" onClick={openNewCon} className="fac-add" style={{ ...primaryBtn, marginBottom: 14 }}>{t('add_contact')}</button>}
+          {loaded && !error && contacts.length === 0 && <div style={emptyBox}>{t('empty_con')}</div>}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {contacts.map((c) => (
               <div key={c.id} style={card}>
@@ -275,8 +284,8 @@ export default function NgoFacilitiesPage() {
                 </div>
                 <div className="fac-actions" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 10 }}>
                   {c.phone && <a href={telHref(c.phone)} style={callBtn}>📞 {c.phone}</a>}
-                  {canManage && <button type="button" disabled={busy} onClick={() => openEditCon(c)} style={{ ...miniBtn, marginInlineStart: 'auto' }}>Edit</button>}
-                  {canManage && <button type="button" disabled={busy} onClick={() => delCon(c)} style={{ ...miniBtn, color: '#f85149', borderColor: 'rgba(248,81,73,0.4)' }}>Delete</button>}
+                  {canManage && <button type="button" disabled={busy} onClick={() => openEditCon(c)} style={{ ...miniBtn, marginInlineStart: 'auto' }}>{t('edit')}</button>}
+                  {canManage && <button type="button" disabled={busy} onClick={() => delCon(c)} style={{ ...miniBtn, color: '#f85149', borderColor: 'rgba(248,81,73,0.4)' }}>{t('del')}</button>}
                 </div>
               </div>
             ))}
@@ -288,35 +297,35 @@ export default function NgoFacilitiesPage() {
       {facEdit && (
         <div onClick={() => setFacEdit(null)} style={backdrop}>
           <div onClick={(e) => e.stopPropagation()} style={modal}>
-            <div style={modalTitle}>{facEdit.id ? 'Edit facility' : 'Add facility'}</div>
-            <label style={lbl}>Name</label>
-            <input style={input} value={facEdit.name} onChange={(e) => setFacEdit({ ...facEdit, name: e.target.value })} placeholder="e.g. Hammoud Hospital" />
+            <div style={modalTitle}>{facEdit.id ? t('edit_fac') : t('add_fac_t')}</div>
+            <label style={lbl}>{t('name')}</label>
+            <input style={input} value={facEdit.name} onChange={(e) => setFacEdit({ ...facEdit, name: e.target.value })} placeholder={t('ph_name_fac')} />
             <div style={{ display: 'flex', gap: 8 }}>
               <div style={{ flex: 1 }}>
-                <label style={{ ...lbl, marginTop: 12 }}>Type</label>
-                <select style={input} value={facEdit.type} onChange={(e) => setFacEdit({ ...facEdit, type: e.target.value })}>{FAC_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}</select>
+                <label style={{ ...lbl, marginTop: 12 }}>{t('f_type')}</label>
+                <select style={input} value={facEdit.type} onChange={(e) => setFacEdit({ ...facEdit, type: e.target.value })}>{FAC_TYPES.map((ft) => <option key={ft.value} value={ft.value}>{t(`type_${ft.value}`)}</option>)}</select>
               </div>
               <div style={{ flex: 1 }}>
-                <label style={{ ...lbl, marginTop: 12 }}>Status</label>
-                <select style={input} value={facEdit.status} onChange={(e) => setFacEdit({ ...facEdit, status: e.target.value })}>{STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}</select>
+                <label style={{ ...lbl, marginTop: 12 }}>{t('f_status')}</label>
+                <select style={input} value={facEdit.status} onChange={(e) => setFacEdit({ ...facEdit, status: e.target.value })}>{STATUSES.map((s) => <option key={s.value} value={s.value}>{t(`st_${s.value}`)}</option>)}</select>
               </div>
             </div>
-            <label style={{ ...lbl, marginTop: 12 }}>Phone</label>
-            <input style={input} value={facEdit.phone} onChange={(e) => setFacEdit({ ...facEdit, phone: e.target.value })} placeholder="07/000000" inputMode="tel" />
-            <label style={{ ...lbl, marginTop: 12 }}>Address</label>
-            <input style={input} value={facEdit.address} onChange={(e) => setFacEdit({ ...facEdit, address: e.target.value })} placeholder="Town, street" />
+            <label style={{ ...lbl, marginTop: 12 }}>{t('phone')}</label>
+            <input style={input} value={facEdit.phone} onChange={(e) => setFacEdit({ ...facEdit, phone: e.target.value })} placeholder={t('ph_phone_fac')} inputMode="tel" />
+            <label style={{ ...lbl, marginTop: 12 }}>{t('address')}</label>
+            <input style={input} value={facEdit.address} onChange={(e) => setFacEdit({ ...facEdit, address: e.target.value })} placeholder={t('ph_address')} />
             <div style={{ display: 'flex', gap: 8 }}>
-              <div style={{ flex: 1 }}><label style={{ ...lbl, marginTop: 12 }}>Latitude</label><input style={input} value={facEdit.lat} onChange={(e) => setFacEdit({ ...facEdit, lat: e.target.value })} placeholder="33.27" inputMode="decimal" /></div>
-              <div style={{ flex: 1 }}><label style={{ ...lbl, marginTop: 12 }}>Longitude</label><input style={input} value={facEdit.lon} onChange={(e) => setFacEdit({ ...facEdit, lon: e.target.value })} placeholder="35.20" inputMode="decimal" /></div>
+              <div style={{ flex: 1 }}><label style={{ ...lbl, marginTop: 12 }}>{t('lat')}</label><input style={input} value={facEdit.lat} onChange={(e) => setFacEdit({ ...facEdit, lat: e.target.value })} placeholder="33.27" inputMode="decimal" /></div>
+              <div style={{ flex: 1 }}><label style={{ ...lbl, marginTop: 12 }}>{t('lon')}</label><input style={input} value={facEdit.lon} onChange={(e) => setFacEdit({ ...facEdit, lon: e.target.value })} placeholder="35.20" inputMode="decimal" /></div>
             </div>
-            <label style={{ ...lbl, marginTop: 12 }}>Capacity note</label>
-            <input style={input} value={facEdit.capacity_note} onChange={(e) => setFacEdit({ ...facEdit, capacity_note: e.target.value })} placeholder="e.g. ER full, trauma only" />
-            <label style={{ ...lbl, marginTop: 12 }}>Notes</label>
-            <input style={input} value={facEdit.notes} onChange={(e) => setFacEdit({ ...facEdit, notes: e.target.value })} placeholder="Anything useful" />
+            <label style={{ ...lbl, marginTop: 12 }}>{t('cap_note')}</label>
+            <input style={input} value={facEdit.capacity_note} onChange={(e) => setFacEdit({ ...facEdit, capacity_note: e.target.value })} placeholder={t('ph_cap')} />
+            <label style={{ ...lbl, marginTop: 12 }}>{t('notes')}</label>
+            <input style={input} value={facEdit.notes} onChange={(e) => setFacEdit({ ...facEdit, notes: e.target.value })} placeholder={t('ph_notes')} />
             {formErr && <div style={{ ...errBox, marginTop: 12, marginBottom: 0 }}>{formErr}</div>}
             <div style={modalActions}>
-              <button type="button" onClick={() => setFacEdit(null)} style={{ ...ghostBtn, flex: 1 }}>Cancel</button>
-              <button type="button" onClick={saveFac} disabled={busy} style={{ ...primaryBtn, flex: 1, opacity: busy ? 0.6 : 1 }}>{busy ? 'Saving…' : 'Save'}</button>
+              <button type="button" onClick={() => setFacEdit(null)} style={{ ...ghostBtn, flex: 1 }}>{t('cancel')}</button>
+              <button type="button" onClick={saveFac} disabled={busy} style={{ ...primaryBtn, flex: 1, opacity: busy ? 0.6 : 1 }}>{busy ? t('saving') : t('save')}</button>
             </div>
           </div>
         </div>
@@ -326,21 +335,21 @@ export default function NgoFacilitiesPage() {
       {conEdit && (
         <div onClick={() => setConEdit(null)} style={backdrop}>
           <div onClick={(e) => e.stopPropagation()} style={modal}>
-            <div style={modalTitle}>{conEdit.id ? 'Edit contact' : 'Add contact'}</div>
-            <label style={lbl}>Name</label>
-            <input style={input} value={conEdit.name} onChange={(e) => setConEdit({ ...conEdit, name: e.target.value })} placeholder="e.g. Dr. Sami" />
-            <label style={{ ...lbl, marginTop: 12 }}>Organisation</label>
-            <input style={input} value={conEdit.organisation} onChange={(e) => setConEdit({ ...conEdit, organisation: e.target.value })} placeholder="e.g. Lebanese Red Cross" />
-            <label style={{ ...lbl, marginTop: 12 }}>Role</label>
-            <input style={input} value={conEdit.role} onChange={(e) => setConEdit({ ...conEdit, role: e.target.value })} placeholder="e.g. Dispatch coordinator" />
-            <label style={{ ...lbl, marginTop: 12 }}>Phone</label>
-            <input style={input} value={conEdit.phone} onChange={(e) => setConEdit({ ...conEdit, phone: e.target.value })} placeholder="03/000000" inputMode="tel" />
-            <label style={{ ...lbl, marginTop: 12 }}>Notes</label>
-            <input style={input} value={conEdit.notes} onChange={(e) => setConEdit({ ...conEdit, notes: e.target.value })} placeholder="When to call, etc." />
+            <div style={modalTitle}>{conEdit.id ? t('edit_con') : t('add_con_t')}</div>
+            <label style={lbl}>{t('name')}</label>
+            <input style={input} value={conEdit.name} onChange={(e) => setConEdit({ ...conEdit, name: e.target.value })} placeholder={t('ph_name_con')} />
+            <label style={{ ...lbl, marginTop: 12 }}>{t('organisation')}</label>
+            <input style={input} value={conEdit.organisation} onChange={(e) => setConEdit({ ...conEdit, organisation: e.target.value })} placeholder={t('ph_org')} />
+            <label style={{ ...lbl, marginTop: 12 }}>{t('role')}</label>
+            <input style={input} value={conEdit.role} onChange={(e) => setConEdit({ ...conEdit, role: e.target.value })} placeholder={t('ph_role')} />
+            <label style={{ ...lbl, marginTop: 12 }}>{t('phone')}</label>
+            <input style={input} value={conEdit.phone} onChange={(e) => setConEdit({ ...conEdit, phone: e.target.value })} placeholder={t('ph_phone_con')} inputMode="tel" />
+            <label style={{ ...lbl, marginTop: 12 }}>{t('notes')}</label>
+            <input style={input} value={conEdit.notes} onChange={(e) => setConEdit({ ...conEdit, notes: e.target.value })} placeholder={t('ph_notes_con')} />
             {formErr && <div style={{ ...errBox, marginTop: 12, marginBottom: 0 }}>{formErr}</div>}
             <div style={modalActions}>
-              <button type="button" onClick={() => setConEdit(null)} style={{ ...ghostBtn, flex: 1 }}>Cancel</button>
-              <button type="button" onClick={saveCon} disabled={busy} style={{ ...primaryBtn, flex: 1, opacity: busy ? 0.6 : 1 }}>{busy ? 'Saving…' : 'Save'}</button>
+              <button type="button" onClick={() => setConEdit(null)} style={{ ...ghostBtn, flex: 1 }}>{t('cancel')}</button>
+              <button type="button" onClick={saveCon} disabled={busy} style={{ ...primaryBtn, flex: 1, opacity: busy ? 0.6 : 1 }}>{busy ? t('saving') : t('save')}</button>
             </div>
           </div>
         </div>
