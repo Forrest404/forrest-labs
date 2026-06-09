@@ -200,6 +200,11 @@ const MAP_STRINGS: Record<MapLang, Record<string, string>> = {
     st_official: 'Officially verified', st_news: 'News verified', st_civilian: 'Civilian confirmed', st_auto: 'AI auto-confirmed',
     warn_active: 'Active evacuation', warn_clear: 'All clear reported',
     list: 'List', incidents: 'Incidents', no_incidents: 'No incidents match the current filters.', reports: 'reports', updated: 'updated',
+    alerts_btn: 'Alerts', alerts_title: 'Area alerts', alerts_desc: 'Get a push when a verified incident or evacuation warning appears in your area.',
+    alerts_centre: 'Using the map’s current centre — pan the map or use “find my location” to set your area.',
+    radius_label: 'Alert radius', subscribe: 'Subscribe', subscribing: 'Subscribing…',
+    alerts_ready: 'Subscription ready', alerts_howto: 'Open this link on your phone to get alerts — it uses the free ntfy app, no account needed:',
+    copy_link: 'Copy link', copied: 'Copied ✓', open_link: 'Open', done: 'Done', alerts_err: 'Could not subscribe. Please try again.', km: 'km',
   },
   fr: {
     search_ph: 'Rechercher un lieu au Liban…', clear: 'Effacer', locate: 'Ma position',
@@ -210,6 +215,11 @@ const MAP_STRINGS: Record<MapLang, Record<string, string>> = {
     st_official: 'Vérifié officiellement', st_news: 'Vérifié par les médias', st_civilian: 'Confirmé par des civils', st_auto: 'Auto-confirmé (IA)',
     warn_active: 'Évacuation active', warn_clear: 'Fin d’alerte signalée',
     list: 'Liste', incidents: 'Incidents', no_incidents: 'Aucun incident ne correspond aux filtres actuels.', reports: 'signalements', updated: 'mis à jour',
+    alerts_btn: 'Alertes', alerts_title: 'Alertes de zone', alerts_desc: 'Recevez une notification quand un incident vérifié ou un avertissement d’évacuation apparaît dans votre zone.',
+    alerts_centre: 'Centre actuel de la carte — déplacez la carte ou utilisez « ma position » pour définir votre zone.',
+    radius_label: 'Rayon d’alerte', subscribe: 'S’abonner', subscribing: 'Abonnement…',
+    alerts_ready: 'Abonnement prêt', alerts_howto: 'Ouvrez ce lien sur votre téléphone pour recevoir les alertes — via l’app gratuite ntfy, sans compte :',
+    copy_link: 'Copier le lien', copied: 'Copié ✓', open_link: 'Ouvrir', done: 'Terminé', alerts_err: 'Échec de l’abonnement. Réessayez.', km: 'km',
   },
   ar: {
     search_ph: 'ابحث عن مكان في لبنان…', clear: 'مسح', locate: 'موقعي',
@@ -220,6 +230,11 @@ const MAP_STRINGS: Record<MapLang, Record<string, string>> = {
     st_official: 'مؤكد رسمياً', st_news: 'مؤكد إخبارياً', st_civilian: 'مؤكد من المدنيين', st_auto: 'مؤكد آلياً (ذكاء اصطناعي)',
     warn_active: 'إخلاء نشط', warn_clear: 'تم الإبلاغ عن انتهاء الخطر',
     list: 'قائمة', incidents: 'الحوادث', no_incidents: 'لا توجد حوادث مطابقة للمرشّحات الحالية.', reports: 'بلاغات', updated: 'آخر تحديث',
+    alerts_btn: 'تنبيهات', alerts_title: 'تنبيهات المنطقة', alerts_desc: 'احصل على إشعار عند ظهور حادثة مؤكدة أو تحذير إخلاء في منطقتك.',
+    alerts_centre: 'يُستخدم مركز الخريطة الحالي — حرّك الخريطة أو استخدم «موقعي» لتحديد منطقتك.',
+    radius_label: 'نطاق التنبيه', subscribe: 'اشترك', subscribing: 'جارٍ الاشتراك…',
+    alerts_ready: 'تم تجهيز الاشتراك', alerts_howto: 'افتح هذا الرابط على هاتفك لتصلك التنبيهات — عبر تطبيق ntfy المجاني، دون حساب:',
+    copy_link: 'نسخ الرابط', copied: 'تم النسخ ✓', open_link: 'فتح', done: 'تم', alerts_err: 'تعذّر الاشتراك. حاول مرة أخرى.', km: 'كم',
   },
 }
 
@@ -245,6 +260,15 @@ export default function MapPage() {
   const [locating, setLocating] = useState(false)
   const [geoError, setGeoError] = useState<string | null>(null)
   const userMarker = useRef<any>(null)
+
+  // ── Area-alert subscription state ──────────────────────────────────────────
+  const [alertsOpen, setAlertsOpen] = useState(false)
+  const [alertArea, setAlertArea] = useState<{ lat: number; lon: number } | null>(null)
+  const [alertRadius, setAlertRadius] = useState(5000)
+  const [alertBusy, setAlertBusy] = useState(false)
+  const [alertErr, setAlertErr] = useState<string | null>(null)
+  const [alertResult, setAlertResult] = useState<{ topic: string; subscribe_url: string } | null>(null)
+  const [alertCopied, setAlertCopied] = useState(false)
 
   // ── Freshness indicator ───────────────────────────────────────────────────
   const [lastUpdated, setLastUpdated] = useState<number | null>(null)
@@ -467,6 +491,27 @@ export default function MapPage() {
       { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 },
     )
   }, [t])
+
+  // Open the area-alert modal seeded with the map's current centre as the chosen area.
+  const openAlerts = useCallback(() => {
+    let area = { lat: 33.8938, lon: 35.5018 }
+    try { const c = map.current?.getCenter?.(); if (c) area = { lat: c.lat, lon: c.lng } } catch { /* map not ready */ }
+    setAlertArea(area); setAlertResult(null); setAlertErr(null); setAlertCopied(false); setAlertsOpen(true)
+  }, [])
+
+  const subscribeAlerts = useCallback(async () => {
+    if (!alertArea || alertBusy) return
+    setAlertBusy(true); setAlertErr(null)
+    try {
+      const res = await fetch('/api/alerts/subscribe', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lat: alertArea.lat, lon: alertArea.lon, radius_metres: alertRadius, lang }),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (res.ok && d.topic) setAlertResult({ topic: d.topic, subscribe_url: d.subscribe_url })
+      else setAlertErr(d.error ?? t('alerts_err'))
+    } catch { setAlertErr(t('alerts_err')) } finally { setAlertBusy(false) }
+  }, [alertArea, alertRadius, alertBusy, lang, t])
 
   const updateMapSource = useCallback((clusterData: Cluster[]) => {
     if (!map.current) return
@@ -1874,6 +1919,18 @@ export default function MapPage() {
               <line x1="13" y1="8" x2="15.5" y2="8" stroke="currentColor" strokeWidth="1.4" />
             </svg>
           </button>
+          <button
+            type="button"
+            onClick={openAlerts}
+            aria-label={t('alerts_title')}
+            title={t('alerts_title')}
+            style={{ flexShrink: 0, width: 38, height: 38, borderRadius: 10, background: 'rgba(10,10,15,0.9)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', border: '0.5px solid rgba(255,255,255,0.15)', color: '#f59e0b', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+              <path d="M8 1.6a3.4 3.4 0 0 0-3.4 3.4c0 3.2-1.3 4.2-1.3 4.2h9.4s-1.3-1-1.3-4.2A3.4 3.4 0 0 0 8 1.6Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+              <path d="M6.7 12.4a1.4 1.4 0 0 0 2.6 0" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+            </svg>
+          </button>
         </div>
         {searchOpen && searchResults.length > 0 && (
           <div style={{ background: 'rgba(10,10,15,0.95)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', border: '0.5px solid rgba(255,255,255,0.12)', borderRadius: 10, overflow: 'hidden' }}>
@@ -2837,6 +2894,43 @@ export default function MapPage() {
           }}>
             Share this warning
           </button>
+        </div>
+      )}
+
+      {/* ── Area-alert subscription modal ──────────────────────────────── */}
+      {alertsOpen && (
+        <div onClick={() => setAlertsOpen(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={(e) => e.stopPropagation()} dir={isRtl ? 'rtl' : 'ltr'} style={{ width: 380, maxWidth: '100%', background: '#0f0f16', border: '0.5px solid rgba(255,255,255,0.15)', borderRadius: 14, padding: 20, color: '#e6edf3', fontFamily: 'system-ui' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <div style={{ fontSize: 16, fontWeight: 700 }}>🔔 {t('alerts_title')}</div>
+              <button type="button" onClick={() => setAlertsOpen(false)} aria-label={t('done')} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', fontSize: 22, lineHeight: 1, cursor: 'pointer' }}>×</button>
+            </div>
+            {!alertResult ? (
+              <>
+                <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', marginBottom: 10 }}>{t('alerts_desc')}</div>
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginBottom: 12 }}>{t('alerts_centre')}{alertArea ? ` (${alertArea.lat.toFixed(3)}, ${alertArea.lon.toFixed(3)})` : ''}</div>
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', marginBottom: 6 }}>{t('radius_label')}</div>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+                  {[2000, 5000, 10000].map((r) => (
+                    <button key={r} type="button" onClick={() => setAlertRadius(r)} style={{ flex: 1, minHeight: 40, borderRadius: 8, cursor: 'pointer', fontFamily: 'system-ui', fontSize: 13, fontWeight: 600, background: alertRadius === r ? 'rgba(245,158,11,0.2)' : 'rgba(255,255,255,0.05)', border: `0.5px solid ${alertRadius === r ? '#f59e0b' : 'rgba(255,255,255,0.15)'}`, color: alertRadius === r ? '#f59e0b' : 'rgba(255,255,255,0.7)' }}>{r / 1000} {t('km')}</button>
+                  ))}
+                </div>
+                {alertErr && <div style={{ fontSize: 12, color: '#f87171', marginBottom: 10 }}>{alertErr}</div>}
+                <button type="button" onClick={subscribeAlerts} disabled={alertBusy} style={{ width: '100%', minHeight: 46, borderRadius: 10, background: '#f59e0b', border: 'none', color: '#1a1a1a', fontSize: 15, fontWeight: 700, cursor: alertBusy ? 'default' : 'pointer', fontFamily: 'system-ui', opacity: alertBusy ? 0.7 : 1 }}>{alertBusy ? t('subscribing') : t('subscribe')}</button>
+              </>
+            ) : (
+              <>
+                <div style={{ fontSize: 14, fontWeight: 700, color: '#3fb950', marginBottom: 6 }}>✓ {t('alerts_ready')}</div>
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginBottom: 10 }}>{t('alerts_howto')}</div>
+                <div style={{ background: '#0a0a0f', border: '0.5px solid rgba(255,255,255,0.15)', borderRadius: 8, padding: '8px 10px', fontSize: 12, wordBreak: 'break-all', color: '#58a6ff', marginBottom: 10 }}>{alertResult.subscribe_url}</div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <a href={alertResult.subscribe_url} target="_blank" rel="noreferrer noopener" style={{ flex: 1, textAlign: 'center', minHeight: 44, lineHeight: '44px', borderRadius: 10, background: '#f59e0b', color: '#1a1a1a', fontWeight: 700, textDecoration: 'none', fontSize: 14 }}>{t('open_link')}</a>
+                  <button type="button" onClick={() => { navigator.clipboard?.writeText(alertResult.subscribe_url).then(() => { setAlertCopied(true); setTimeout(() => setAlertCopied(false), 2000) }).catch(() => {}) }} style={{ flex: 1, minHeight: 44, borderRadius: 10, background: 'rgba(255,255,255,0.08)', border: '0.5px solid rgba(255,255,255,0.15)', color: '#fff', cursor: 'pointer', fontFamily: 'system-ui', fontSize: 14, fontWeight: 600 }}>{alertCopied ? t('copied') : t('copy_link')}</button>
+                </div>
+                <button type="button" onClick={() => setAlertsOpen(false)} style={{ width: '100%', marginTop: 10, minHeight: 40, borderRadius: 10, background: 'transparent', border: '0.5px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontFamily: 'system-ui', fontSize: 13 }}>{t('done')}</button>
+              </>
+            )}
+          </div>
         </div>
       )}
 
