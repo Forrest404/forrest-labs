@@ -2,6 +2,13 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useConfirm } from '@/lib/ngo-ui'
+import { useNgoLang, makeT } from '@/lib/use-ngo-lang'
+
+const LANG = {
+  en: { title: 'Operational area', desc_edit: 'Draw the polygon covering your area of operations.', desc_view: 'View only — the operational area is managed by an org admin.', draw: 'Draw area', redraw: 'Redraw area', click_add: 'Click the map to add points', undo: 'Undo', cancel: 'Cancel', saving: 'Saving…', save: 'Save area', defined: '✓ Area defined', clear: 'Clear area', e_min: 'Add at least 3 points to define an area.', saved_msg: 'Operational area saved.', e_save: 'Could not save.', e_save_retry: 'Could not save. Please try again.', cleared_msg: 'Operational area cleared.', e_clear: 'Could not clear.', e_clear_retry: 'Could not clear. Please try again.', confirm_clear_title: 'Clear the operational area?', confirm_clear_body: 'Incidents will no longer be flagged inside/outside it until you draw a new one.', confirm_clear: 'Clear' },
+  fr: { title: 'Zone opérationnelle', desc_edit: 'Dessinez le polygone couvrant votre zone d’opérations.', desc_view: 'Lecture seule — la zone opérationnelle est gérée par un administrateur.', draw: 'Dessiner la zone', redraw: 'Redessiner la zone', click_add: 'Cliquez sur la carte pour ajouter des points', undo: 'Annuler le point', cancel: 'Annuler', saving: 'Enregistrement…', save: 'Enregistrer la zone', defined: '✓ Zone définie', clear: 'Effacer la zone', e_min: 'Ajoutez au moins 3 points pour définir une zone.', saved_msg: 'Zone opérationnelle enregistrée.', e_save: 'Échec de l’enregistrement.', e_save_retry: 'Échec de l’enregistrement. Réessayez.', cleared_msg: 'Zone opérationnelle effacée.', e_clear: 'Échec de l’effacement.', e_clear_retry: 'Échec de l’effacement. Réessayez.', confirm_clear_title: 'Effacer la zone opérationnelle ?', confirm_clear_body: 'Les incidents ne seront plus signalés dans/hors zone jusqu’à ce que vous en dessiniez une nouvelle.', confirm_clear: 'Effacer' },
+  ar: { title: 'منطقة العمليات', desc_edit: 'ارسم المضلّع الذي يغطي منطقة عملياتك.', desc_view: 'للعرض فقط — يدير منطقة العمليات مسؤول المنظمة.', draw: 'رسم المنطقة', redraw: 'إعادة رسم المنطقة', click_add: 'انقر على الخريطة لإضافة نقاط', undo: 'تراجع', cancel: 'إلغاء', saving: 'جارٍ الحفظ…', save: 'حفظ المنطقة', defined: '✓ تم تحديد المنطقة', clear: 'مسح المنطقة', e_min: 'أضف 3 نقاط على الأقل لتحديد منطقة.', saved_msg: 'تم حفظ منطقة العمليات.', e_save: 'تعذّر الحفظ.', e_save_retry: 'تعذّر الحفظ. حاول مرة أخرى.', cleared_msg: 'تم مسح منطقة العمليات.', e_clear: 'تعذّر المسح.', e_clear_retry: 'تعذّر المسح. حاول مرة أخرى.', confirm_clear_title: 'مسح منطقة العمليات؟', confirm_clear_body: 'لن تُصنَّف الحوادث داخل/خارج المنطقة حتى ترسم واحدة جديدة.', confirm_clear: 'مسح' },
+} as const
 
 declare global {
   interface Window { mapboxgl: any }
@@ -25,6 +32,8 @@ function isPolygon(area: unknown): area is Polygon {
 
 export default function NgoSetupPage() {
   const confirm = useConfirm()
+  const { lang, isRtl } = useNgoLang()
+  const t = makeT(LANG, lang)
   const mapContainer = useRef<HTMLDivElement | null>(null)
   const map = useRef<any>(null)
   const drawModeRef = useRef(false)
@@ -156,7 +165,7 @@ export default function NgoSetupPage() {
 
   async function save() {
     if (points.length < 3) {
-      setStatus('Add at least 3 points to define an area.')
+      setStatus(t('e_min'))
       return
     }
     const closed: number[][] = [...points, points[0]]
@@ -174,58 +183,56 @@ export default function NgoSetupPage() {
         setSaved(polygon)
         setPoints([])
         setDrawMode(false)
-        setStatus('Operational area saved.')
+        setStatus(t('saved_msg'))
       } else {
-        setStatus(data.error ?? 'Could not save.')
+        setStatus(data.error ?? t('e_save'))
       }
     } catch {
-      setStatus('Could not save. Please try again.')
+      setStatus(t('e_save_retry'))
     } finally {
       setBusy(false)
     }
   }
 
   async function clearArea() {
-    if (!(await confirm({ title: 'Clear the operational area?', body: 'Incidents will no longer be flagged inside/outside it until you draw a new one.', danger: true, confirmLabel: 'Clear' }))) return
+    if (!(await confirm({ title: t('confirm_clear_title'), body: t('confirm_clear_body'), danger: true, confirmLabel: t('confirm_clear') }))) return
     setBusy(true); setStatus(null)
     try {
       const res = await fetch('/api/ngo/org/area', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ area: null }) })
       const data = await res.json()
-      if (res.ok) { setSaved(null); setPoints([]); setDrawMode(false); setStatus('Operational area cleared.') }
-      else setStatus(data.error ?? 'Could not clear.')
-    } catch { setStatus('Could not clear. Please try again.') }
+      if (res.ok) { setSaved(null); setPoints([]); setDrawMode(false); setStatus(t('cleared_msg')) }
+      else setStatus(data.error ?? t('e_clear'))
+    } catch { setStatus(t('e_clear_retry')) }
     finally { setBusy(false) }
   }
 
   return (
-    <div style={{ position: 'relative', height: '100vh', width: '100%' }}>
+    <div style={{ position: 'relative', height: '100vh', width: '100%' }} dir={isRtl ? 'rtl' : 'ltr'}>
       <div ref={mapContainer} style={{ position: 'absolute', inset: 0 }} />
 
       <div style={panel}>
-        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Operational area</div>
+        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>{t('title')}</div>
         <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 12 }}>
-          {canEdit
-            ? 'Draw the polygon covering your area of operations.'
-            : 'View only — the operational area is managed by an org admin.'}
+          {canEdit ? t('desc_edit') : t('desc_view')}
         </div>
 
         {canEdit && (
           <>
             {!drawMode ? (
               <button type="button" onClick={startDraw} style={btn(true)}>
-                {saved ? 'Redraw area' : 'Draw area'}
+                {saved ? t('redraw') : t('draw')}
               </button>
             ) : (
               <>
                 <div style={{ fontSize: 12, color: '#58a6ff', marginBottom: 8 }}>
-                  Click the map to add points ({points.length}).
+                  {t('click_add')} ({points.length}).
                 </div>
                 <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                  <button type="button" onClick={undoPoint} disabled={!points.length} style={{ ...btn(false), flex: 1 }}>Undo</button>
-                  <button type="button" onClick={clearDraw} style={{ ...btn(false), flex: 1 }}>Cancel</button>
+                  <button type="button" onClick={undoPoint} disabled={!points.length} style={{ ...btn(false), flex: 1 }}>{t('undo')}</button>
+                  <button type="button" onClick={clearDraw} style={{ ...btn(false), flex: 1 }}>{t('cancel')}</button>
                 </div>
                 <button type="button" onClick={save} disabled={busy || points.length < 3} style={{ ...btn(true), opacity: busy || points.length < 3 ? 0.6 : 1 }}>
-                  {busy ? 'Saving…' : 'Save area'}
+                  {busy ? t('saving') : t('save')}
                 </button>
               </>
             )}
@@ -234,9 +241,9 @@ export default function NgoSetupPage() {
 
         {saved && !drawMode && (
           <div style={{ marginTop: 10 }}>
-            <div style={{ fontSize: 12, color: '#3fb950' }}>✓ Area defined</div>
+            <div style={{ fontSize: 12, color: '#3fb950' }}>{t('defined')}</div>
             {canEdit && (
-              <button type="button" onClick={clearArea} disabled={busy} style={{ ...btn(false), marginTop: 8, color: '#f85149', borderColor: 'rgba(248,81,73,0.4)' }}>Clear area</button>
+              <button type="button" onClick={clearArea} disabled={busy} style={{ ...btn(false), marginTop: 8, color: '#f85149', borderColor: 'rgba(248,81,73,0.4)' }}>{t('clear')}</button>
             )}
           </div>
         )}
@@ -247,7 +254,7 @@ export default function NgoSetupPage() {
 }
 
 const panel: React.CSSProperties = {
-  position: 'absolute', top: 16, left: 16, zIndex: 5, width: 240,
+  position: 'absolute', top: 16, insetInlineStart: 16, zIndex: 5, width: 240,
   background: 'rgba(13,17,23,0.95)', border: '1px solid #21262d', borderRadius: 8,
   padding: 14, fontFamily: 'system-ui, sans-serif', color: '#e6edf3',
 }
