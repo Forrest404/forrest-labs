@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useConfirm } from '@/lib/ngo-ui'
 
 // NGO Group chats — manage links to the org's EXISTING external chat groups
 // (Signal/WhatsApp/Telegram/…). NOUR hosts no messaging; members tap to join.
@@ -66,6 +67,7 @@ function clientUrlOk(raw: string): boolean {
 }
 
 export default function NgoChatPage() {
+  const confirm = useConfirm()
   const [links, setLinks] = useState<ChatLink[]>([])
   const [canManage, setCanManage] = useState(false)
   const [loaded, setLoaded] = useState(false)
@@ -143,7 +145,7 @@ export default function NgoChatPage() {
   }, [editing, load])
 
   const del = useCallback(async (l: ChatLink) => {
-    if (!window.confirm(`Delete "${l.label}"? This removes the link for everyone in scope.`)) return
+    if (!(await confirm({ title: `Delete “${l.label}”?`, body: 'This removes the link for everyone in scope.', danger: true, confirmLabel: 'Delete' }))) return
     setBusy(true); setNote(null)
     try {
       const r = await fetch(`/api/ngo/chat/${l.id}`, { method: 'DELETE' })

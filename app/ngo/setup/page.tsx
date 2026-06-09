@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { useConfirm } from '@/lib/ngo-ui'
 
 declare global {
   interface Window { mapboxgl: any }
@@ -23,6 +24,7 @@ function isPolygon(area: unknown): area is Polygon {
 }
 
 export default function NgoSetupPage() {
+  const confirm = useConfirm()
   const mapContainer = useRef<HTMLDivElement | null>(null)
   const map = useRef<any>(null)
   const drawModeRef = useRef(false)
@@ -184,7 +186,7 @@ export default function NgoSetupPage() {
   }
 
   async function clearArea() {
-    if (!window.confirm('Clear the operational area? Incidents will no longer be flagged inside/outside it until you draw a new one.')) return
+    if (!(await confirm({ title: 'Clear the operational area?', body: 'Incidents will no longer be flagged inside/outside it until you draw a new one.', danger: true, confirmLabel: 'Clear' }))) return
     setBusy(true); setStatus(null)
     try {
       const res = await fetch('/api/ngo/org/area', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ area: null }) })

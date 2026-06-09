@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useNewPanicAlert } from '@/lib/use-new-panic-alert'
+import { useConfirm, useToast } from '@/lib/ngo-ui'
 
 declare global {
   interface Window { mapboxgl: any }
@@ -154,6 +155,8 @@ function freshAgo(at: number | null, _tick: number): string {
 }
 
 export default function NgoBoardPage() {
+  const confirm = useConfirm()
+  const toast = useToast()
   const mapContainer = useRef<HTMLDivElement | null>(null)
   const map = useRef<any>(null)
   const [mapLoaded, setMapLoaded] = useState(false)
@@ -484,7 +487,7 @@ export default function NgoBoardPage() {
     setAssignBusy(true)
     try {
       const res = await fetch('/api/ngo/dispatch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cluster_id: assignFor.id, team_id: teamId, note: assignNote || undefined }) })
-      if (res.ok) { setAssignFor(null); fetchBoard() }
+      if (res.ok) { setAssignFor(null); toast('Team dispatched'); fetchBoard() } else toast('Could not dispatch team', 'error')
     } finally { setAssignBusy(false) }
   }
   function setWindow(v: string) {
@@ -493,11 +496,11 @@ export default function NgoBoardPage() {
   async function resolvePanic(panicId: string, note: string) {
     if (note.trim().length < 3) return
     const res = await fetch(`/api/ngo/safety/panic/${panicId}/resolve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ resolution_note: note.trim() }) })
-    if (res.ok) { setResolvePanicFor(null); setPanicNote(''); fetchBoard() }
+    if (res.ok) { setResolvePanicFor(null); setPanicNote(''); toast('Panic resolved'); fetchBoard() } else toast('Could not resolve', 'error')
   }
   async function acknowledgePanic(panicId: string) {
     const res = await fetch(`/api/ngo/safety/panic/${panicId}/acknowledge`, { method: 'POST' })
-    if (res.ok) fetchBoard()
+    if (res.ok) { toast('Panic acknowledged'); fetchBoard() }
   }
   function locatePanic(p: Panic) {
     if (p.lat == null || p.lon == null || !map.current) return
@@ -518,7 +521,7 @@ export default function NgoBoardPage() {
       const res = await fetch(`/api/ngo/safety/panic/${panicDispatchFor.id}/dispatch`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ team_id: teamId }),
       })
-      if (res.ok) { setPanicDispatchFor(null); fetchBoard() }
+      if (res.ok) { setPanicDispatchFor(null); toast('Team sent'); fetchBoard() } else toast('Could not send team', 'error')
     } finally { setPanicBusy(false) }
   }
 
@@ -546,25 +549,25 @@ export default function NgoBoardPage() {
     setIncBusy(true)
     try {
       const res = await fetch('/api/ngo/incidents', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newInc) })
-      if (res.ok) { setNewInc(null); setAddr(''); fetchBoard() }
+      if (res.ok) { setNewInc(null); setAddr(''); toast('Incident created'); fetchBoard() } else toast('Could not create incident', 'error')
     } finally { setIncBusy(false) }
   }
   async function resolveIncident(id: string) {
-    if (!window.confirm('Mark this incident resolved? It leaves the board.')) return
+    if (!(await confirm({ title: 'Mark this incident resolved?', body: 'It leaves the board.', confirmLabel: 'Resolve' }))) return
     const res = await fetch(`/api/ngo/incidents/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'resolved' }) })
-    if (res.ok) fetchBoard()
+    if (res.ok) { toast('Incident resolved'); fetchBoard() } else toast('Could not resolve incident', 'error')
   }
   // Dismiss a custom incident (not actionable) / reopen a handled one.
   async function setCustomStatus(id: string, status: 'open' | 'dismissed', confirmMsg?: string) {
-    if (confirmMsg && !window.confirm(confirmMsg)) return
+    if (confirmMsg && !(await confirm({ title: confirmMsg, danger: status === 'dismissed', confirmLabel: status === 'dismissed' ? 'Dismiss' : 'Reopen' }))) return
     const res = await fetch(`/api/ngo/incidents/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) })
-    if (res.ok) fetchBoard()
+    if (res.ok) { toast(status === 'dismissed' ? 'Incident dismissed' : 'Incident reopened'); fetchBoard() } else toast('Action failed', 'error')
   }
   // Dismiss / reopen a PUBLIC cluster incident via the NGO overlay.
   async function setClusterHandling(clusterId: string, action: 'dismiss' | 'reopen', confirmMsg?: string) {
-    if (confirmMsg && !window.confirm(confirmMsg)) return
+    if (confirmMsg && !(await confirm({ title: confirmMsg, danger: action === 'dismiss', confirmLabel: action === 'dismiss' ? 'Dismiss' : 'Reopen' }))) return
     const res = await fetch('/api/ngo/incidents/cluster-status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cluster_id: clusterId, action }) })
-    if (res.ok) fetchBoard()
+    if (res.ok) { toast(action === 'dismiss' ? 'Incident dismissed' : 'Incident reopened'); fetchBoard() } else toast('Action failed', 'error')
   }
   async function openAssignIncident(i: CustomIncident) {
     setAssignIncFor(i); setIncTeams([])
@@ -575,13 +578,13 @@ export default function NgoBoardPage() {
     setIncBusy(true)
     try {
       const res = await fetch('/api/ngo/dispatch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ngo_incident_id: assignIncFor.id, team_id: teamId }) })
-      if (res.ok) { setAssignIncFor(null); fetchBoard() }
+      if (res.ok) { setAssignIncFor(null); toast('Team dispatched'); fetchBoard() } else toast('Could not dispatch team', 'error')
     } finally { setIncBusy(false) }
   }
   async function confirmRecall() {
     if (!recallFor) return
     const res = await fetch(`/api/ngo/dispatch/${recallFor.id}/recall`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: recallReason }) })
-    if (res.ok) { setRecallFor(null); setRecallReason(''); fetchBoard() }
+    if (res.ok) { setRecallFor(null); setRecallReason(''); toast('Team recalled'); fetchBoard() } else toast('Could not recall team', 'error')
   }
   const activeDispatchFor = (clusterId: string) => dispatches.find((d) => d.cluster_id === clusterId && ACTIVE_DISPATCH.includes(d.status))
 

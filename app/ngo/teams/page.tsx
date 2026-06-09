@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { useConfirm, useToast } from '@/lib/ngo-ui'
 
 // Team roster: org_admin and team_leader manage teams and their members.
 // Only org_admin may delete a team or invite a member as a field coordinator.
@@ -15,6 +16,8 @@ const STATUS_COLOUR: Record<string, string> = {
 }
 
 export default function NgoTeamsPage() {
+  const confirm = useConfirm()
+  const toast = useToast()
   const [role, setRole] = useState<string | null>(null)
   const [teams, setTeams] = useState<Team[]>([])
   const [selected, setSelected] = useState<string | null>(null)
@@ -71,10 +74,10 @@ export default function NgoTeamsPage() {
   }
 
   async function deleteTeam(id: string) {
-    if (!confirm('Delete this team and all its members?')) return
+    if (!(await confirm({ title: 'Delete this team?', body: 'The team and all its members will be removed.', danger: true, confirmLabel: 'Delete' }))) return
     setErr(null)
     const res = await fetch(`/api/ngo/teams/${id}`, { method: 'DELETE' })
-    if (res.ok) { if (selected === id) setSelected(null); await loadTeams() }
+    if (res.ok) { if (selected === id) setSelected(null); toast('Team deleted'); await loadTeams() }
     else setErr((await res.json()).error ?? 'Could not delete team.')
   }
 
@@ -105,9 +108,10 @@ export default function NgoTeamsPage() {
   }
 
   async function removeMember(memberId: string) {
-    if (!selected || !confirm('Remove this member from the team?')) return
+    if (!selected) return
+    if (!(await confirm({ title: 'Remove this member from the team?', danger: true, confirmLabel: 'Remove' }))) return
     const res = await fetch(`/api/ngo/teams/${selected}/members/${memberId}`, { method: 'DELETE' })
-    if (res.ok) await loadMembers(selected)
+    if (res.ok) { toast('Member removed'); await loadMembers(selected) }
     else setErr((await res.json()).error ?? 'Could not remove member.')
   }
 

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { useConfirm } from '@/lib/ngo-ui'
 
 const ROLES = [
   { value: 'org_admin', label: 'Org admin' },
@@ -14,6 +15,7 @@ type AddForm = { full_name: string; email: string; phone: string; role: string; 
 type EditForm = { id: string; full_name: string; phone: string; role: string; status: string; password: string; regenerate: boolean; team_id: string }
 
 export default function NgoUsersPage() {
+  const confirm = useConfirm()
   const [users, setUsers] = useState<User[]>([])
   const [me, setMe] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -88,7 +90,7 @@ export default function NgoUsersPage() {
   }
 
   async function signOutDevices(u: User) {
-    if (!window.confirm(`Sign ${u.full_name || u.email} out of all devices now? Any phone or browser they’re logged in on stops working immediately. Use this for a lost or seized device.`)) return
+    if (!(await confirm({ title: `Sign ${u.full_name || u.email} out of all devices?`, body: 'Any phone or browser they’re logged in on stops working immediately. Use this for a lost or seized device.', danger: true, confirmLabel: 'Sign out' }))) return
     setBusy(true); setMsg(null); setError(null)
     try {
       const res = await fetch(`/api/ngo/users/${u.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revoke_sessions: true }) })
@@ -100,7 +102,7 @@ export default function NgoUsersPage() {
   }
 
   async function resetCode(u: User) {
-    if (!window.confirm(`Reset ${u.full_name || u.email}’s access code? Their current code and QR stop working immediately — you’ll need to share the new one.`)) return
+    if (!(await confirm({ title: `Reset ${u.full_name || u.email}’s access code?`, body: 'Their current code and QR stop working immediately — you’ll need to share the new one.', danger: true, confirmLabel: 'Reset code' }))) return
     setBusy(true); setMsg(null); setError(null)
     try {
       const res = await fetch(`/api/ngo/users/${u.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ regenerate_code: true }) })
@@ -111,7 +113,7 @@ export default function NgoUsersPage() {
   }
 
   async function removeUser(u: User) {
-    if (!window.confirm(`Remove ${u.full_name || u.email}? This deletes their login and their personal check-in/panic history. This cannot be undone.`)) return
+    if (!(await confirm({ title: `Remove ${u.full_name || u.email}?`, body: 'This deletes their login and their personal check-in/panic history. This cannot be undone.', danger: true, confirmLabel: 'Remove' }))) return
     setMsg(null); setError(null)
     const res = await fetch(`/api/ngo/users/${u.id}`, { method: 'DELETE' })
     const data = await res.json().catch(() => ({}))

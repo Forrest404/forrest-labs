@@ -2,6 +2,7 @@
 
 import { type ReactNode, useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
+import { NgoUiProvider } from '@/lib/ngo-ui'
 
 type NgoRole = 'org_admin' | 'team_leader' | 'field_coordinator'
 
@@ -179,7 +180,7 @@ export default function NgoLayout({ children }: { children: ReactNode }) {
         </div>
       )}
 
-      <main style={{ flex: 1, overflowY: 'auto' }}>{children}</main>
+      <main style={{ flex: 1, overflowY: 'auto' }}><NgoUiProvider>{children}</NgoUiProvider></main>
     </div>
   )
 }

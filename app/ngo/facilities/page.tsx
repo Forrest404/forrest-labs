@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useConfirm } from '@/lib/ngo-ui'
 
 // Facilities & contacts — "where do we take people" and "who do we call".
 // Glanceable + tappable under stress. Managers (org_admin/team_leader) get full CRUD
@@ -48,6 +49,7 @@ function staleness(iso: string | null): { label: string; tier: 'never' | 'fresh'
 }
 
 export default function NgoFacilitiesPage() {
+  const confirm = useConfirm()
   const [tab, setTab] = useState<'facilities' | 'contacts'>('facilities')
   const [facilities, setFacilities] = useState<Facility[]>([])
   const [contacts, setContacts] = useState<Contact[]>([])
@@ -116,7 +118,7 @@ export default function NgoFacilitiesPage() {
     finally { setBusy(false) }
   }, [facEdit, load])
   const delFac = useCallback(async (f: Facility) => {
-    if (!window.confirm(`Delete "${f.name}"? This removes it for your whole organisation.`)) return
+    if (!(await confirm({ title: `Delete “${f.name}”?`, body: 'This removes it for your whole organisation.', danger: true, confirmLabel: 'Delete' }))) return
     setBusy(true); setNote(null)
     try {
       const r = await fetch(`/api/ngo/facilities/${f.id}`, { method: 'DELETE' })
@@ -154,7 +156,7 @@ export default function NgoFacilitiesPage() {
     finally { setBusy(false) }
   }, [conEdit, load])
   const delCon = useCallback(async (c: Contact) => {
-    if (!window.confirm(`Delete "${c.name}"?`)) return
+    if (!(await confirm({ title: `Delete “${c.name}”?`, danger: true, confirmLabel: 'Delete' }))) return
     setBusy(true); setNote(null)
     try {
       const r = await fetch(`/api/ngo/contacts/${c.id}`, { method: 'DELETE' })

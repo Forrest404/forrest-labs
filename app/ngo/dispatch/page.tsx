@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { useConfirm, useToast } from '@/lib/ngo-ui'
 
 // Leader/admin dispatch board: every dispatch (active + history) with team,
 // status, response time, the note, and the on-scene report. Reassign / recall
@@ -25,6 +26,8 @@ function timeAgo(iso: string | null): string {
 }
 
 export default function NgoDispatchPage() {
+  const confirm = useConfirm()
+  const toast = useToast()
   const [dispatches, setDispatches] = useState<Dispatch[]>([])
   const [incidents, setIncidents] = useState<Incident[]>([])
   const [teams, setTeams] = useState<Team[]>([])
@@ -62,25 +65,25 @@ export default function NgoDispatchPage() {
   async function confirmRecall() {
     if (!recallFor) return
     const res = await fetch(`/api/ngo/dispatch/${recallFor.id}/recall`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason }) })
-    if (res.ok) { setRecallFor(null); setReason(''); load() }
+    if (res.ok) { setRecallFor(null); setReason(''); toast('Team recalled'); load() } else toast('Could not recall team', 'error')
   }
   async function doReassign(clusterId: string) {
     if (!reassignFor) return
     const res = await fetch(`/api/ngo/dispatch/${reassignFor.id}/reassign`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cluster_id: clusterId, reason }) })
-    if (res.ok) { setReassignFor(null); setReason(''); load() }
+    if (res.ok) { setReassignFor(null); setReason(''); toast('Dispatch reassigned'); load() } else toast('Could not reassign', 'error')
   }
   async function doReassignTeam(teamId: string) {
     if (!reassignTeamFor) return
     const res = await fetch(`/api/ngo/dispatch/${reassignTeamFor.id}/reassign-team`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ team_id: teamId, reason }) })
-    if (res.ok) { setReassignTeamFor(null); setReason(''); load() }
+    if (res.ok) { setReassignTeamFor(null); setReason(''); toast('Team reassigned'); load() } else toast('Could not reassign team', 'error')
   }
   const [clearing, setClearing] = useState(false)
   async function clearHistory() {
-    if (!window.confirm('Delete all closed dispatches (done & cancelled) and their on-scene reports? Active dispatches are kept. This cannot be undone.')) return
+    if (!(await confirm({ title: 'Delete all closed dispatches?', body: 'This removes done & cancelled dispatches and their on-scene reports. Active dispatches are kept. This cannot be undone.', danger: true, confirmLabel: 'Delete' }))) return
     setClearing(true)
     try {
       const res = await fetch('/api/ngo/dispatch', { method: 'DELETE' })
-      if (res.ok) load()
+      if (res.ok) { toast('History cleared'); load() } else toast('Could not clear history', 'error')
     } finally { setClearing(false) }
   }
 

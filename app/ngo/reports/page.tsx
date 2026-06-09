@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useConfirm, useToast } from '@/lib/ngo-ui'
 
 // NGO Reports — generate OCHA-style situation reports from this org's incidents,
 // dispatches and on-scene reports; save, view, re-export, delete; and export raw
@@ -24,6 +25,8 @@ function todayISO() { return new Date().toISOString().slice(0, 10) }
 function daysAgoISO(n: number) { return new Date(Date.now() - n * 86400000).toISOString().slice(0, 10) }
 
 export default function NgoReportsPage() {
+  const confirm = useConfirm()
+  const toast = useToast()
   const [start, setStart] = useState(daysAgoISO(7))
   const [end, setEnd] = useState(todayISO())
   const [title, setTitle] = useState('')
@@ -82,11 +85,11 @@ export default function NgoReportsPage() {
   }, [])
 
   const del = useCallback(async (rep: SavedReport) => {
-    if (!window.confirm(`Delete "${rep.title}"? This cannot be undone.`)) return
+    if (!(await confirm({ title: `Delete “${rep.title}”?`, body: 'This cannot be undone.', danger: true, confirmLabel: 'Delete' }))) return
     setBusyId(rep.id)
     try {
       const r = await fetch(`/api/ngo/reports/${rep.id}`, { method: 'DELETE' })
-      if (r.ok) { setReports((prev) => prev.filter((x) => x.id !== rep.id)); if (open?.id === rep.id) setOpen(null) }
+      if (r.ok) { setReports((prev) => prev.filter((x) => x.id !== rep.id)); if (open?.id === rep.id) setOpen(null); toast('Report deleted') }
       else setNote({ kind: 'error', text: 'Delete failed.' })
     } catch { setNote({ kind: 'error', text: 'Delete failed.' }) }
     finally { setBusyId(null) }

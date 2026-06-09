@@ -1,11 +1,13 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { useConfirm } from '@/lib/ngo-ui'
 
 // Per-user 2FA (TOTP) enrolment for org_admin / team_leader. Optional but recommended.
 // Setup → scan QR → verify a code → enabled, with one-time recovery codes shown once.
 
 export default function NgoSecurityPage() {
+  const confirm = useConfirm()
   const [enabled, setEnabled] = useState<boolean | null>(null)
   const [recoveryRemaining, setRecoveryRemaining] = useState(0)
   const [setup, setSetup] = useState<{ secret: string; uri: string } | null>(null)
@@ -76,7 +78,7 @@ export default function NgoSecurityPage() {
 
   const startSetup = async () => { const d = await act('setup'); if (d) { setSetup({ secret: d.secret, uri: d.uri }); setRecoveryCodes(null) } }
   const enable = async () => { const d = await act('enable', { code: code.trim() }); if (d) { setRecoveryCodes(d.recovery_codes ?? []); setSetup(null); setCode(''); setMsg('Two-factor authentication is on.'); load() } }
-  const disable = async () => { if (!window.confirm('Disable two-factor authentication on your account?')) return; const d = await act('disable', { code: code.trim() }); if (d) { setCode(''); setMsg('Two-factor authentication disabled.'); load() } }
+  const disable = async () => { if (!(await confirm({ title: 'Disable two-factor authentication?', danger: true, confirmLabel: 'Disable' }))) return; const d = await act('disable', { code: code.trim() }); if (d) { setCode(''); setMsg('Two-factor authentication disabled.'); load() } }
 
   return (
     <div style={{ maxWidth: 560, margin: '0 auto', padding: 24, color: '#e6edf3', fontFamily: 'system-ui, sans-serif' }}>

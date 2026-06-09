@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { useConfirm } from '@/lib/ngo-ui'
 
 const ORG_TYPES = [
   { value: 'ingo', label: 'International NGO' },
@@ -45,6 +46,7 @@ function minToTime(m: number | null): string { if (m == null) return ''; const h
 function timeToMin(s: string): number | null { if (!s) return null; const [h, m] = s.split(':').map(Number); if (isNaN(h) || isNaN(m)) return null; return h * 60 + m }
 
 export default function NgoSettingsPage() {
+  const confirm = useConfirm()
   const [role, setRole] = useState<Role | null>(null)
   const [org, setOrg] = useState<Org | null>(null)
   const [account, setAccount] = useState<Account | null>(null)
@@ -117,7 +119,7 @@ export default function NgoSettingsPage() {
   }
 
   async function purgeNow() {
-    if (!window.confirm('Permanently delete this organisation’s location data older than the retention window now? This cannot be undone. Active panic alerts are kept.')) return
+    if (!(await confirm({ title: 'Permanently delete old location data?', body: 'Deletes this organisation’s location data older than the retention window now. This cannot be undone. Active panic alerts are kept.', danger: true, confirmLabel: 'Delete' }))) return
     setBusy(true); setMsg(null); setError(null)
     try {
       const res = await fetch('/api/ngo/org/purge', { method: 'POST' })
@@ -157,7 +159,7 @@ export default function NgoSettingsPage() {
   }
 
   async function logoutEverywhere() {
-    if (!window.confirm('Sign out of NOUR on every device, including this one? You’ll need to sign in again.')) return
+    if (!(await confirm({ title: 'Sign out on every device?', body: 'Signs out of NOUR on every device, including this one. You’ll need to sign in again.', danger: true, confirmLabel: 'Sign out' }))) return
     setBusy(true); setError(null)
     try {
       const res = await fetch('/api/ngo/me', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'logout_all' }) })
