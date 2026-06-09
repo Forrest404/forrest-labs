@@ -253,6 +253,14 @@ export default function NgoBoardPage() {
   const [rollCall, setRollCall] = useState<RollCall | null>(null)
   const [rcBusy, setRcBusy] = useState(false)
   const [panelOpen, setPanelOpen] = useState(true)
+  // On phones the fixed side panel covers the map — track viewport so it can become a
+  // full-width drawer that starts collapsed (map-first), with the toggle acting as a close button.
+  const [isMobile, setIsMobile] = useState(false)
+  useEffect(() => {
+    const onR = () => setIsMobile(window.innerWidth < 768)
+    onR(); window.addEventListener('resize', onR); return () => window.removeEventListener('resize', onR)
+  }, [])
+  useEffect(() => { if (isMobile) setPanelOpen(false) }, [isMobile])
   const [locNames, setLocNames] = useState<Record<string, string>>({})
   const locNamesRef = useRef<Record<string, string>>({})
   const [dispatches, setDispatches] = useState<Dispatch[]>([])
@@ -914,13 +922,13 @@ export default function NgoBoardPage() {
       </div>
 
       {/* Collapse toggle */}
-      <button type="button" onClick={() => setPanelOpen((o) => !o)} style={{ ...toggleBtn, right: panelOpen ? 340 : 12 }}>
-        {panelOpen ? '›' : '‹'}
+      <button type="button" onClick={() => setPanelOpen((o) => !o)} style={{ ...toggleBtn, right: isMobile ? 12 : (panelOpen ? 340 : 12) }}>
+        {panelOpen ? (isMobile ? '✕' : '›') : '‹'}
       </button>
 
       {/* Side panel */}
       {panelOpen && (
-        <div style={panel}>
+        <div style={{ ...panel, width: isMobile ? '100%' : 328 }}>
           {/* Custom incidents (911-style) */}
           <div style={{ padding: '12px 16px', borderBottom: '1px solid #21262d' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
