@@ -3,6 +3,76 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useNewPanicAlert } from '@/lib/use-new-panic-alert'
 import { useConfirm, useToast } from '@/lib/ngo-ui'
+import { useNgoLang, makeT } from '@/lib/use-ngo-lang'
+
+const BLANG = {
+  en: {
+    st_official_verified: 'Official', st_news_verified: 'News verified', st_confirmed: 'Confirmed', st_auto_confirmed: 'Auto',
+    disp_assigned: 'Assigned', disp_en_route: 'En route', disp_on_scene: 'On scene', disp_done: 'Done', disp_cancelled: 'Cancelled',
+    'style_dark': 'Dark', 'style_streets': 'Streets', 'style_satellite': 'Satellite', 'style_sat-streets': 'Satellite + roads',
+    legend: 'Legend', leg_incidents: 'Incidents', leg_teams: 'Teams', leg_markers: 'Markers', leg_confirmed: 'Confirmed', leg_auto: 'Auto-confirmed', leg_news: 'News verified', leg_official: 'Official', leg_standby: 'Standby', leg_deployed: 'Deployed', leg_unavailable: 'Unavailable', leg_off_duty: 'Off duty', leg_panic: '🆘 Panic / unassigned', leg_worker: 'Worker / facility open',
+    loading: 'Loading…', offline: 'Offline', cant_refresh: 'Couldn’t refresh', updated: 'updated', retry: 'Retry', workers: 'Workers', facilities: 'Facilities', search_ph: 'Search a place…', locate: 'Find my location',
+    ps_active: 'active panic', ps_active_pl: 'active panics', ps_unack: 'unacknowledged', ps_all_ack: 'all acknowledged', ps_tap: 'tap to respond',
+    assign: 'Assign', dismiss: 'Dismiss', recall: 'Recall', resolve: 'Resolve', acknowledge: 'Acknowledge', call: 'Call', send_team: 'Send team', locate_btn: 'Locate', unassigned: 'unassigned', last_known: 'Last known', no_location: 'No location', ack_by: 'Acknowledged by', not_acked: 'Not yet acknowledged', updated_w: 'Updated', last_seen: 'Last seen', duress: 'duress', reports: 'reports', report: 'report',
+    inc_title: 'Incidents', new_incident: '+ New incident', click_map: 'Click the map to place the incident, or type an address below.', type_address: 'Type an address…', find: 'Find', no_active_inc: 'No active incidents.',
+    silent: 'silent', last_known_lc: 'last known', no_location_lc: 'no location',
+    rc_title: 'Roll call', rc_new: 'New roll call', rc_start: 'Roll call', rc_of: 'of', rc_safe: 'safe', awaiting: 'awaiting', unsafe: 'unsafe', rc_none: 'No active roll call.', rc_all_off: 'All field coordinators off duty.', rc_no_fc: 'No field coordinators.', rc_off_exempt: '🌙 Off duty (exempt):',
+    feed_title: 'Incident feed', in_area: 'in your area', all_assigned: 'all assigned', range_all: 'All', no_in_area: 'No incidents in your operational area.', locating: 'Locating…', response: 'response',
+    handled: 'Handled', nothing_handled: 'Nothing handled yet. Dismissed incidents and those a team completed appear here.', completed: '✓ Completed', dismissed_w: 'Dismissed', resolved_w: '✓ Resolved', incident_w: 'incident', reopen: 'Reopen',
+    ni_title: 'New incident', ni_title_ph: 'Title (what’s happening)', ni_details_ph: 'Details for the responding team…', creating: 'Creating…', create_inc: 'Create incident', cancel: 'Cancel',
+    ai_title: 'Assign a team —', alerted_push: 'team alerted by push', no_teams: 'No teams.', no_app: '⚠ no app access',
+    pd_title: 'Send a team to', pd_last_seen: 'Last seen', pd_no_loc: 'No location reported', pd_alerted: 'the team is alerted by push.',
+    rp_title: 'Resolve', rp_poss: '’s panic', rp_note: 'Only resolve once the person is confirmed safe. A meaningful outcome note (at least 10 characters) is required.', rp_ph: 'What happened / outcome…',
+    rec_title: 'Recall', rec_note: 'The team is told to stand down and the incident reopens as a coverage gap.', reason_opt: 'Reason (optional)',
+    as_title: 'Assign a team', note_opt: 'Note (optional)', no_teams_avail: 'No teams available.', match: '✓match', km: 'km', no_loc: 'no loc', busy_w: 'busy', no_app_members: '⚠ No members with app access — they won’t be notified',
+    t_inc_resolved: 'Incident resolved', t_e_resolve: 'Could not resolve incident', t_dismissed: 'Incident dismissed', t_reopened: 'Incident reopened', t_action_fail: 'Action failed', t_dispatched: 'Team dispatched', t_e_dispatch: 'Could not dispatch team', t_panic_resolved: 'Panic resolved', t_e_resolve2: 'Could not resolve', t_panic_ack: 'Panic acknowledged', t_team_sent: 'Team sent', t_e_send: 'Could not send team', t_inc_created: 'Incident created', t_e_create: 'Could not create incident', t_team_recalled: 'Team recalled', t_e_recall: 'Could not recall team', t_loc_fail: 'Could not get your location — check permissions', t_loc_na: 'Location not available on this device',
+    cf_resolve_t: 'Mark this incident resolved?', cf_resolve_b: 'It leaves the board.', cf_dismiss_cluster: 'Dismiss this incident? It leaves your board but can be reopened. The public verification is unaffected.', cf_dismiss_custom: 'Dismiss this incident? It leaves the board but can be reopened.',
+  },
+  fr: {
+    st_official_verified: 'Officiel', st_news_verified: 'Vérifié (presse)', st_confirmed: 'Confirmé', st_auto_confirmed: 'Auto',
+    disp_assigned: 'Assigné', disp_en_route: 'En route', disp_on_scene: 'Sur place', disp_done: 'Terminé', disp_cancelled: 'Annulé',
+    'style_dark': 'Sombre', 'style_streets': 'Rues', 'style_satellite': 'Satellite', 'style_sat-streets': 'Satellite + routes',
+    legend: 'Légende', leg_incidents: 'Incidents', leg_teams: 'Équipes', leg_markers: 'Repères', leg_confirmed: 'Confirmé', leg_auto: 'Auto-confirmé', leg_news: 'Vérifié (presse)', leg_official: 'Officiel', leg_standby: 'En attente', leg_deployed: 'Déployé', leg_unavailable: 'Indisponible', leg_off_duty: 'Hors service', leg_panic: '🆘 Panique / non assigné', leg_worker: 'Agent / établissement ouvert',
+    loading: 'Chargement…', offline: 'Hors ligne', cant_refresh: 'Échec de l’actualisation', updated: 'mis à jour', retry: 'Réessayer', workers: 'Agents', facilities: 'Établissements', search_ph: 'Rechercher un lieu…', locate: 'Ma position',
+    ps_active: 'panique active', ps_active_pl: 'paniques actives', ps_unack: 'non confirmée(s)', ps_all_ack: 'toutes confirmées', ps_tap: 'touchez pour répondre',
+    assign: 'Assigner', dismiss: 'Rejeter', recall: 'Rappeler', resolve: 'Clôturer', acknowledge: 'Confirmer', call: 'Appeler', send_team: 'Envoyer une équipe', locate_btn: 'Localiser', unassigned: 'non assigné', last_known: 'Dernière position', no_location: 'Sans position', ack_by: 'Confirmé par', not_acked: 'Pas encore confirmé', updated_w: 'Mis à jour', last_seen: 'Vu', duress: 'détresse', reports: 'signalements', report: 'signalement',
+    inc_title: 'Incidents', new_incident: '+ Nouvel incident', click_map: 'Cliquez sur la carte pour placer l’incident, ou tapez une adresse ci-dessous.', type_address: 'Tapez une adresse…', find: 'Chercher', no_active_inc: 'Aucun incident actif.',
+    silent: 'silencieux', last_known_lc: 'dernière position', no_location_lc: 'sans position',
+    rc_title: 'Appel', rc_new: 'Nouvel appel', rc_start: 'Appel', rc_of: 'sur', rc_safe: 'en sécurité', awaiting: 'en attente', unsafe: 'en danger', rc_none: 'Aucun appel actif.', rc_all_off: 'Tous les coordinateurs hors service.', rc_no_fc: 'Aucun coordinateur de terrain.', rc_off_exempt: '🌙 Hors service (exemptés) :',
+    feed_title: 'Fil des incidents', in_area: 'dans votre zone', all_assigned: 'tous assignés', range_all: 'Tout', no_in_area: 'Aucun incident dans votre zone opérationnelle.', locating: 'Localisation…', response: 'réponse',
+    handled: 'Traités', nothing_handled: 'Rien de traité. Les incidents rejetés et ceux qu’une équipe a terminés apparaissent ici.', completed: '✓ Terminé', dismissed_w: 'Rejeté', resolved_w: '✓ Résolu', incident_w: 'incident', reopen: 'Rouvrir',
+    ni_title: 'Nouvel incident', ni_title_ph: 'Titre (ce qui se passe)', ni_details_ph: 'Détails pour l’équipe qui répond…', creating: 'Création…', create_inc: 'Créer l’incident', cancel: 'Annuler',
+    ai_title: 'Assigner une équipe —', alerted_push: 'équipe alertée par notification', no_teams: 'Aucune équipe.', no_app: '⚠ sans accès à l’app',
+    pd_title: 'Envoyer une équipe à', pd_last_seen: 'Vu', pd_no_loc: 'Aucune position signalée', pd_alerted: 'l’équipe est alertée par notification.',
+    rp_title: 'Clôturer la panique de', rp_poss: '', rp_note: 'Ne clôturez qu’une fois la personne en sécurité. Une note d’issue (au moins 10 caractères) est requise.', rp_ph: 'Ce qui s’est passé / issue…',
+    rec_title: 'Rappeler', rec_note: 'L’équipe se retire et l’incident redevient une lacune de couverture.', reason_opt: 'Raison (facultatif)',
+    as_title: 'Assigner une équipe', note_opt: 'Note (facultatif)', no_teams_avail: 'Aucune équipe disponible.', match: '✓correspond', km: 'km', no_loc: 'sans pos.', busy_w: 'occupé', no_app_members: '⚠ Aucun membre avec accès à l’app — ils ne seront pas notifiés',
+    t_inc_resolved: 'Incident résolu', t_e_resolve: 'Impossible de résoudre l’incident', t_dismissed: 'Incident rejeté', t_reopened: 'Incident rouvert', t_action_fail: 'Échec de l’action', t_dispatched: 'Équipe déployée', t_e_dispatch: 'Impossible de déployer l’équipe', t_panic_resolved: 'Panique clôturée', t_e_resolve2: 'Impossible de clôturer', t_panic_ack: 'Panique confirmée', t_team_sent: 'Équipe envoyée', t_e_send: 'Impossible d’envoyer l’équipe', t_inc_created: 'Incident créé', t_e_create: 'Impossible de créer l’incident', t_team_recalled: 'Équipe rappelée', t_e_recall: 'Impossible de rappeler l’équipe', t_loc_fail: 'Impossible d’obtenir votre position — vérifiez les autorisations', t_loc_na: 'Localisation non disponible sur cet appareil',
+    cf_resolve_t: 'Marquer cet incident comme résolu ?', cf_resolve_b: 'Il quitte le tableau.', cf_dismiss_cluster: 'Rejeter cet incident ? Il quitte votre tableau mais peut être rouvert. La vérification publique n’est pas affectée.', cf_dismiss_custom: 'Rejeter cet incident ? Il quitte le tableau mais peut être rouvert.',
+  },
+  ar: {
+    st_official_verified: 'رسمي', st_news_verified: 'مؤكَّد إعلامياً', st_confirmed: 'مؤكَّد', st_auto_confirmed: 'تلقائي',
+    disp_assigned: 'مُكلّف', disp_en_route: 'في الطريق', disp_on_scene: 'في الموقع', disp_done: 'منجز', disp_cancelled: 'ملغى',
+    'style_dark': 'داكن', 'style_streets': 'شوارع', 'style_satellite': 'قمر صناعي', 'style_sat-streets': 'قمر صناعي + طرق',
+    legend: 'مفتاح', leg_incidents: 'الحوادث', leg_teams: 'الفِرق', leg_markers: 'العلامات', leg_confirmed: 'مؤكَّد', leg_auto: 'مؤكَّد تلقائياً', leg_news: 'مؤكَّد إعلامياً', leg_official: 'رسمي', leg_standby: 'جاهز', leg_deployed: 'منتشر', leg_unavailable: 'غير متاح', leg_off_duty: 'خارج الخدمة', leg_panic: '🆘 استغاثة / غير معيّن', leg_worker: 'عامل / مرفق مفتوح',
+    loading: 'جارٍ التحميل…', offline: 'غير متصل', cant_refresh: 'تعذّر التحديث', updated: 'آخر تحديث', retry: 'إعادة', workers: 'العاملون', facilities: 'المرافق', search_ph: 'ابحث عن مكان…', locate: 'موقعي',
+    ps_active: 'استغاثة نشطة', ps_active_pl: 'استغاثات نشطة', ps_unack: 'غير مؤكَّدة', ps_all_ack: 'الكل مؤكَّد', ps_tap: 'اضغط للاستجابة',
+    assign: 'تعيين', dismiss: 'رفض', recall: 'استدعاء', resolve: 'إنهاء', acknowledge: 'تأكيد', call: 'اتصال', send_team: 'إرسال فريق', locate_btn: 'تحديد', unassigned: 'غير معيّن', last_known: 'آخر موقع معروف', no_location: 'بدون موقع', ack_by: 'أكّدها', not_acked: 'لم تُؤكَّد بعد', updated_w: 'حُدّث', last_seen: 'آخر ظهور', duress: 'إكراه', reports: 'بلاغات', report: 'بلاغ',
+    inc_title: 'الحوادث', new_incident: '+ حادثة جديدة', click_map: 'انقر على الخريطة لوضع الحادثة، أو اكتب عنواناً أدناه.', type_address: 'اكتب عنواناً…', find: 'بحث', no_active_inc: 'لا حوادث نشطة.',
+    silent: 'صامت', last_known_lc: 'آخر موقع معروف', no_location_lc: 'بدون موقع',
+    rc_title: 'نداء التفقّد', rc_new: 'نداء جديد', rc_start: 'نداء التفقّد', rc_of: 'من', rc_safe: 'بأمان', awaiting: 'بانتظار', unsafe: 'غير آمن', rc_none: 'لا نداء نشط.', rc_all_off: 'كل المنسّقين خارج الخدمة.', rc_no_fc: 'لا منسّقين ميدانيين.', rc_off_exempt: '🌙 خارج الخدمة (مُعفون):',
+    feed_title: 'سجلّ الحوادث', in_area: 'في منطقتك', all_assigned: 'الكل معيّن', range_all: 'الكل', no_in_area: 'لا حوادث في منطقة عملياتك.', locating: 'جارٍ التحديد…', response: 'استجابة',
+    handled: 'مُعالَجة', nothing_handled: 'لا شيء مُعالَج بعد. تظهر هنا الحوادث المرفوضة وتلك التي أنهاها فريق.', completed: '✓ منجز', dismissed_w: 'مرفوض', resolved_w: '✓ مُنهى', incident_w: 'حادثة', reopen: 'إعادة فتح',
+    ni_title: 'حادثة جديدة', ni_title_ph: 'العنوان (ماذا يحدث)', ni_details_ph: 'تفاصيل للفريق المستجيب…', creating: 'جارٍ الإنشاء…', create_inc: 'إنشاء الحادثة', cancel: 'إلغاء',
+    ai_title: 'تعيين فريق —', alerted_push: 'يُنبَّه الفريق عبر إشعار', no_teams: 'لا فِرق.', no_app: '⚠ لا وصول للتطبيق',
+    pd_title: 'إرسال فريق إلى', pd_last_seen: 'آخر ظهور', pd_no_loc: 'لا موقع مُبلَّغ', pd_alerted: 'يُنبَّه الفريق عبر إشعار.',
+    rp_title: 'إنهاء استغاثة', rp_poss: '', rp_note: 'لا تُنهِها إلا بعد التأكد من سلامة الشخص. مطلوب ملاحظة عن النتيجة (10 أحرف على الأقل).', rp_ph: 'ماذا حدث / النتيجة…',
+    rec_title: 'استدعاء', rec_note: 'يُطلب من الفريق التوقف وتعود الحادثة كفجوة تغطية.', reason_opt: 'السبب (اختياري)',
+    as_title: 'تعيين فريق', note_opt: 'ملاحظة (اختياري)', no_teams_avail: 'لا فِرق متاحة.', match: '✓مطابق', km: 'كم', no_loc: 'لا موقع', busy_w: 'مشغول', no_app_members: '⚠ لا أعضاء لديهم وصول للتطبيق — لن يُنبَّهوا',
+    t_inc_resolved: 'تم إنهاء الحادثة', t_e_resolve: 'تعذّر إنهاء الحادثة', t_dismissed: 'تم رفض الحادثة', t_reopened: 'أُعيد فتح الحادثة', t_action_fail: 'فشل الإجراء', t_dispatched: 'تم إيفاد الفريق', t_e_dispatch: 'تعذّر إيفاد الفريق', t_panic_resolved: 'تم إنهاء الاستغاثة', t_e_resolve2: 'تعذّر الإنهاء', t_panic_ack: 'تم تأكيد الاستغاثة', t_team_sent: 'أُرسل الفريق', t_e_send: 'تعذّر إرسال الفريق', t_inc_created: 'تم إنشاء الحادثة', t_e_create: 'تعذّر إنشاء الحادثة', t_team_recalled: 'تم استدعاء الفريق', t_e_recall: 'تعذّر استدعاء الفريق', t_loc_fail: 'تعذّر تحديد موقعك — تحقق من الأذونات', t_loc_na: 'تحديد الموقع غير متاح على هذا الجهاز',
+    cf_resolve_t: 'وضع علامة على الحادثة كمُنهاة؟', cf_resolve_b: 'ستغادر اللوحة.', cf_dismiss_cluster: 'رفض هذه الحادثة؟ تغادر لوحتك لكن يمكن إعادة فتحها. لا يتأثّر التحقق العام.', cf_dismiss_custom: 'رفض هذه الحادثة؟ تغادر اللوحة لكن يمكن إعادة فتحها.',
+  },
+} as const
 
 declare global {
   interface Window { mapboxgl: any }
@@ -114,16 +184,16 @@ interface RankedTeam {
   id: string; name: string; type: string; status: string; type_match: boolean; distance_km: number | null; busy: boolean; notifiable_count?: number
 }
 const LEGEND_SECTIONS = [
-  { title: 'Incidents', items: [
-    { color: '#ef4444', label: 'Confirmed' }, { color: '#f97316', label: 'Auto-confirmed' },
-    { color: '#58a6ff', label: 'News verified' }, { color: '#a371f7', label: 'Official' },
+  { titleKey: 'leg_incidents', items: [
+    { color: '#ef4444', labelKey: 'leg_confirmed' }, { color: '#f97316', labelKey: 'leg_auto' },
+    { color: '#58a6ff', labelKey: 'leg_news' }, { color: '#a371f7', labelKey: 'leg_official' },
   ] },
-  { title: 'Teams', items: [
-    { color: '#3fb950', label: 'Standby' }, { color: '#d29922', label: 'Deployed' },
-    { color: '#8b949e', label: 'Unavailable' }, { color: '#a371f7', label: 'Off duty' },
+  { titleKey: 'leg_teams', items: [
+    { color: '#3fb950', labelKey: 'leg_standby' }, { color: '#d29922', labelKey: 'leg_deployed' },
+    { color: '#8b949e', labelKey: 'leg_unavailable' }, { color: '#a371f7', labelKey: 'leg_off_duty' },
   ] },
-  { title: 'Markers', items: [
-    { color: '#f85149', label: '🆘 Panic / unassigned' }, { color: '#3fb950', label: 'Worker / facility open' },
+  { titleKey: 'leg_markers', items: [
+    { color: '#f85149', labelKey: 'leg_panic' }, { color: '#3fb950', labelKey: 'leg_worker' },
   ] },
 ]
 const ACTIVE_DISPATCH = ['assigned', 'en_route', 'on_scene']
@@ -170,6 +240,8 @@ function freshAgo(at: number | null, _tick: number): string {
 export default function NgoBoardPage() {
   const confirm = useConfirm()
   const toast = useToast()
+  const { lang, isRtl } = useNgoLang()
+  const t = makeT(BLANG, lang)
   const mapContainer = useRef<HTMLDivElement | null>(null)
   const map = useRef<any>(null)
   const [mapLoaded, setMapLoaded] = useState(false)
@@ -523,7 +595,7 @@ export default function NgoBoardPage() {
     map.current?.flyTo({ center: [r.lon, r.lat], zoom: 14, essential: true })
   }
   function locateMe() {
-    if (!('geolocation' in navigator) || !map.current) { toast('Location not available on this device', 'error'); return }
+    if (!('geolocation' in navigator) || !map.current) { toast(t('t_loc_na'), 'error'); return }
     setLocating(true)
     navigator.geolocation.getCurrentPosition(
       (p) => {
@@ -533,7 +605,7 @@ export default function NgoBoardPage() {
         try { userMarker.current?.remove() } catch { /* none */ }
         userMarker.current = new window.mapboxgl.Marker({ color: '#58a6ff' }).setLngLat([longitude, latitude]).addTo(map.current)
       },
-      () => { setLocating(false); toast('Could not get your location — check permissions', 'error') },
+      () => { setLocating(false); toast(t('t_loc_fail'), 'error') },
       { enableHighAccuracy: true, timeout: 8000 },
     )
   }
@@ -578,7 +650,7 @@ export default function NgoBoardPage() {
     setAssignBusy(true)
     try {
       const res = await fetch('/api/ngo/dispatch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cluster_id: assignFor.id, team_id: teamId, note: assignNote || undefined }) })
-      if (res.ok) { setAssignFor(null); toast('Team dispatched'); fetchBoard() } else toast('Could not dispatch team', 'error')
+      if (res.ok) { setAssignFor(null); toast(t('t_dispatched')); fetchBoard() } else toast(t('t_e_dispatch'), 'error')
     } finally { setAssignBusy(false) }
   }
   function setWindow(v: string) {
@@ -587,11 +659,11 @@ export default function NgoBoardPage() {
   async function resolvePanic(panicId: string, note: string) {
     if (note.trim().length < 10) return
     const res = await fetch(`/api/ngo/safety/panic/${panicId}/resolve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ resolution_note: note.trim() }) })
-    if (res.ok) { setResolvePanicFor(null); setPanicNote(''); toast('Panic resolved'); fetchBoard() } else toast('Could not resolve', 'error')
+    if (res.ok) { setResolvePanicFor(null); setPanicNote(''); toast(t('t_panic_resolved')); fetchBoard() } else toast(t('t_e_resolve2'), 'error')
   }
   async function acknowledgePanic(panicId: string) {
     const res = await fetch(`/api/ngo/safety/panic/${panicId}/acknowledge`, { method: 'POST' })
-    if (res.ok) { toast('Panic acknowledged'); fetchBoard() }
+    if (res.ok) { toast(t('t_panic_ack')); fetchBoard() }
   }
   function locatePanic(p: Panic) {
     if (p.lat == null || p.lon == null || !map.current) return
@@ -612,7 +684,7 @@ export default function NgoBoardPage() {
       const res = await fetch(`/api/ngo/safety/panic/${panicDispatchFor.id}/dispatch`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ team_id: teamId }),
       })
-      if (res.ok) { setPanicDispatchFor(null); toast('Team sent'); fetchBoard() } else toast('Could not send team', 'error')
+      if (res.ok) { setPanicDispatchFor(null); toast(t('t_team_sent')); fetchBoard() } else toast(t('t_e_send'), 'error')
     } finally { setPanicBusy(false) }
   }
 
@@ -640,25 +712,25 @@ export default function NgoBoardPage() {
     setIncBusy(true)
     try {
       const res = await fetch('/api/ngo/incidents', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newInc) })
-      if (res.ok) { setNewInc(null); setAddr(''); toast('Incident created'); fetchBoard() } else toast('Could not create incident', 'error')
+      if (res.ok) { setNewInc(null); setAddr(''); toast(t('t_inc_created')); fetchBoard() } else toast(t('t_e_create'), 'error')
     } finally { setIncBusy(false) }
   }
   async function resolveIncident(id: string) {
-    if (!(await confirm({ title: 'Mark this incident resolved?', body: 'It leaves the board.', confirmLabel: 'Resolve' }))) return
+    if (!(await confirm({ title: t('cf_resolve_t'), body: t('cf_resolve_b'), confirmLabel: t('resolve') }))) return
     const res = await fetch(`/api/ngo/incidents/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'resolved' }) })
-    if (res.ok) { toast('Incident resolved'); fetchBoard() } else toast('Could not resolve incident', 'error')
+    if (res.ok) { toast(t('t_inc_resolved')); fetchBoard() } else toast(t('t_e_resolve'), 'error')
   }
   // Dismiss a custom incident (not actionable) / reopen a handled one.
   async function setCustomStatus(id: string, status: 'open' | 'dismissed', confirmMsg?: string) {
-    if (confirmMsg && !(await confirm({ title: confirmMsg, danger: status === 'dismissed', confirmLabel: status === 'dismissed' ? 'Dismiss' : 'Reopen' }))) return
+    if (confirmMsg && !(await confirm({ title: confirmMsg, danger: status === 'dismissed', confirmLabel: status === 'dismissed' ? t('dismiss') : t('reopen') }))) return
     const res = await fetch(`/api/ngo/incidents/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) })
-    if (res.ok) { toast(status === 'dismissed' ? 'Incident dismissed' : 'Incident reopened'); fetchBoard() } else toast('Action failed', 'error')
+    if (res.ok) { toast(status === 'dismissed' ? t('t_dismissed') : t('t_reopened')); fetchBoard() } else toast(t('t_action_fail'), 'error')
   }
   // Dismiss / reopen a PUBLIC cluster incident via the NGO overlay.
   async function setClusterHandling(clusterId: string, action: 'dismiss' | 'reopen', confirmMsg?: string) {
-    if (confirmMsg && !(await confirm({ title: confirmMsg, danger: action === 'dismiss', confirmLabel: action === 'dismiss' ? 'Dismiss' : 'Reopen' }))) return
+    if (confirmMsg && !(await confirm({ title: confirmMsg, danger: action === 'dismiss', confirmLabel: action === 'dismiss' ? t('dismiss') : t('reopen') }))) return
     const res = await fetch('/api/ngo/incidents/cluster-status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cluster_id: clusterId, action }) })
-    if (res.ok) { toast(action === 'dismiss' ? 'Incident dismissed' : 'Incident reopened'); fetchBoard() } else toast('Action failed', 'error')
+    if (res.ok) { toast(action === 'dismiss' ? t('t_dismissed') : t('t_reopened')); fetchBoard() } else toast(t('t_action_fail'), 'error')
   }
   async function openAssignIncident(i: CustomIncident) {
     setAssignIncFor(i); setIncTeams([])
@@ -669,13 +741,13 @@ export default function NgoBoardPage() {
     setIncBusy(true)
     try {
       const res = await fetch('/api/ngo/dispatch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ngo_incident_id: assignIncFor.id, team_id: teamId }) })
-      if (res.ok) { setAssignIncFor(null); toast('Team dispatched'); fetchBoard() } else toast('Could not dispatch team', 'error')
+      if (res.ok) { setAssignIncFor(null); toast(t('t_dispatched')); fetchBoard() } else toast(t('t_e_dispatch'), 'error')
     } finally { setIncBusy(false) }
   }
   async function confirmRecall() {
     if (!recallFor) return
     const res = await fetch(`/api/ngo/dispatch/${recallFor.id}/recall`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: recallReason }) })
-    if (res.ok) { setRecallFor(null); setRecallReason(''); toast('Team recalled'); fetchBoard() } else toast('Could not recall team', 'error')
+    if (res.ok) { setRecallFor(null); setRecallReason(''); toast(t('t_team_recalled')); fetchBoard() } else toast(t('t_e_recall'), 'error')
   }
   const activeDispatchFor = (clusterId: string) => dispatches.find((d) => d.cluster_id === clusterId && ACTIVE_DISPATCH.includes(d.status))
 
@@ -683,36 +755,36 @@ export default function NgoBoardPage() {
   const gapCount = feed.filter((c) => !c.covered).length
 
   return (
-    <div style={{ position: 'relative', height: '100vh', width: '100%', overflow: 'hidden' }}>
+    <div dir={isRtl ? 'rtl' : 'ltr'} style={{ position: 'relative', height: '100vh', width: '100%', overflow: 'hidden' }}>
       <div ref={mapContainer} style={{ position: 'absolute', inset: 0 }} />
 
       {/* Dismiss-proof panic strip — always on top of the board while any panic is active */}
       {panics.length > 0 && (
         <div onClick={() => { setPanelOpen(true); const u = panics.find((p) => !p.acknowledged_at) ?? panics[0]; locatePanic(u) }} style={panicStrip}>
-          <span>🆘 {panics.length} active panic{panics.length === 1 ? '' : 's'}
-            {panics.some((p) => !p.acknowledged_at) ? ` · ${panics.filter((p) => !p.acknowledged_at).length} unacknowledged` : ' · all acknowledged'} — tap to respond</span>
-          <button type="button" onClick={(e) => { e.stopPropagation(); toggleMute() }} title={muted ? 'New-panic sound off' : 'New-panic sound on'}
+          <span>🆘 {panics.length} {panics.length === 1 ? t('ps_active') : t('ps_active_pl')}
+            {panics.some((p) => !p.acknowledged_at) ? ` · ${panics.filter((p) => !p.acknowledged_at).length} ${t('ps_unack')}` : ` · ${t('ps_all_ack')}`} — {t('ps_tap')}</span>
+          <button type="button" onClick={(e) => { e.stopPropagation(); toggleMute() }} title={t('ps_tap')}
             style={{ marginInlineStart: 10, background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.4)', color: '#fff', borderRadius: 6, fontSize: 12, padding: '2px 8px', cursor: 'pointer', fontFamily: 'system-ui', flexShrink: 0 }}>{muted ? '🔇' : '🔔'}</button>
         </div>
       )}
 
       {/* Loading / refresh-error chip (top-left) + a live "updated Xs ago" so a silently-polling
           board never looks current when it's actually stale (e.g. offline). */}
-      {!loaded && <div style={statusChip}>Loading…</div>}
+      {!loaded && <div style={statusChip}>{t('loading')}</div>}
       {loaded && loadError && (
         <div style={{ ...statusChip, color: '#f85149', borderColor: 'rgba(248,81,73,0.4)' }}>
-          {typeof navigator !== 'undefined' && !navigator.onLine ? 'Offline' : 'Couldn’t refresh'} · updated {freshAgo(updatedAt, agoTick)} <button type="button" onClick={fetchBoard} style={chipRetry}>Retry</button>
+          {typeof navigator !== 'undefined' && !navigator.onLine ? t('offline') : t('cant_refresh')} · {t('updated')} {freshAgo(updatedAt, agoTick)} <button type="button" onClick={fetchBoard} style={chipRetry}>{t('retry')}</button>
         </div>
       )}
       {loaded && !loadError && updatedAt != null && (
-        <div style={{ ...statusChip, color: '#8b949e' }}>updated {freshAgo(updatedAt, agoTick)}</div>
+        <div style={{ ...statusChip, color: '#8b949e' }}>{t('updated')} {freshAgo(updatedAt, agoTick)}</div>
       )}
 
       {/* Place search + find-my-location */}
       <div style={searchWrap}>
         <div style={{ display: 'flex', gap: 6 }}>
-          <input value={searchQuery} onChange={(e) => onSearchChange(e.target.value)} onFocus={() => { if (searchResults.length) setSearchOpen(true) }} placeholder="Search a place…" style={searchInput} />
-          <button type="button" onClick={locateMe} disabled={locating} title="Find my location" aria-label="Find my location" style={searchIconBtn}>{locating ? '…' : '◎'}</button>
+          <input value={searchQuery} onChange={(e) => onSearchChange(e.target.value)} onFocus={() => { if (searchResults.length) setSearchOpen(true) }} placeholder={t('search_ph')} style={searchInput} />
+          <button type="button" onClick={locateMe} disabled={locating} title={t('locate')} aria-label={t('locate')} style={searchIconBtn}>{locating ? '…' : '◎'}</button>
         </div>
         {searchOpen && searchResults.length > 0 && (
           <div style={searchResultsBox}>
@@ -725,15 +797,15 @@ export default function NgoBoardPage() {
 
       {/* Legend */}
       <div style={legendBox}>
-        <button type="button" onClick={() => setLegendOpen((o) => !o)} style={legendHeader}>{legendOpen ? '▾' : '▸'} Legend</button>
+        <button type="button" onClick={() => setLegendOpen((o) => !o)} style={legendHeader}>{legendOpen ? '▾' : '▸'} {t('legend')}</button>
         {legendOpen && (
           <div style={{ marginTop: 6, display: 'grid', gap: 4 }}>
             {LEGEND_SECTIONS.map((sec) => (
-              <div key={sec.title}>
-                <div style={legendSectionLabel}>{sec.title}</div>
+              <div key={sec.titleKey}>
+                <div style={legendSectionLabel}>{t(sec.titleKey)}</div>
                 {sec.items.map((it) => (
-                  <div key={it.label} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#c9d1d9' }}>
-                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: it.color, flexShrink: 0 }} />{it.label}
+                  <div key={it.labelKey} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#c9d1d9' }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: it.color, flexShrink: 0 }} />{t(it.labelKey)}
                   </div>
                 ))}
               </div>
@@ -761,15 +833,15 @@ export default function NgoBoardPage() {
           return (
             <div style={detailCard}>
               {header(locNames[c.id] ?? `${c.lat.toFixed(3)}, ${c.lon.toFixed(3)}`, `${c.confidence_score}% · ${c.report_count} report${c.report_count === 1 ? '' : 's'} · ${timeAgo(c.created_at)}`)}
-              <div style={{ fontSize: 11, color: STATUS_HEX[c.status] ?? '#8b949e', marginBottom: 8 }}>● {STATUS_LABEL[c.status] ?? c.status}{!c.covered && <span style={{ color: '#f85149' }}> · unassigned</span>}</div>
+              <div style={{ fontSize: 11, color: STATUS_HEX[c.status] ?? '#8b949e', marginBottom: 8 }}>● {t(`st_${c.status}`)}{!c.covered && <span style={{ color: '#f85149' }}> · {t('unassigned')}</span>}</div>
               {d
                 ? <>
-                    <div style={{ fontSize: 12, color: '#3fb950', marginBottom: 6 }}>🚑 {d.team_name} · {DISPATCH_LABEL[d.status] ?? d.status}</div>
-                    <button type="button" onClick={() => { setRecallFor({ id: d.id, team: d.team_name }); setRecallReason(''); close() }} style={{ ...assignBtn, marginTop: 0, color: '#f85149', borderColor: 'rgba(248,81,73,0.35)', background: 'rgba(248,81,73,0.08)' }}>Recall</button>
+                    <div style={{ fontSize: 12, color: '#3fb950', marginBottom: 6 }}>🚑 {d.team_name} · {t(`disp_${d.status}`)}</div>
+                    <button type="button" onClick={() => { setRecallFor({ id: d.id, team: d.team_name }); setRecallReason(''); close() }} style={{ ...assignBtn, marginTop: 0, color: '#f85149', borderColor: 'rgba(248,81,73,0.35)', background: 'rgba(248,81,73,0.08)' }}>{t('recall')}</button>
                   </>
                 : <div style={{ display: 'flex', gap: 6 }}>
-                    <button type="button" onClick={() => { openAssign(c); close() }} style={{ ...assignBtn, marginTop: 0 }}>Assign</button>
-                    <button type="button" onClick={() => setClusterHandling(c.id, 'dismiss', 'Dismiss this incident? It leaves your board but can be reopened. The public verification is unaffected.')} style={{ ...assignBtn, marginTop: 0, color: '#8b949e', borderColor: '#21262d', background: 'rgba(255,255,255,0.04)' }}>Dismiss</button>
+                    <button type="button" onClick={() => { openAssign(c); close() }} style={{ ...assignBtn, marginTop: 0 }}>{t('assign')}</button>
+                    <button type="button" onClick={() => setClusterHandling(c.id, 'dismiss', t('cf_dismiss_cluster'))} style={{ ...assignBtn, marginTop: 0, color: '#8b949e', borderColor: '#21262d', background: 'rgba(255,255,255,0.04)' }}>{t('dismiss')}</button>
                   </div>}
             </div>
           )
@@ -784,10 +856,10 @@ export default function NgoBoardPage() {
               <div style={{ fontSize: 11, color: SEVERITY_COLOUR[i.severity] ?? '#8b949e', marginBottom: 6 }}>● {i.severity}</div>
               {i.description && <div style={{ fontSize: 12, color: '#c9d1d9', marginBottom: 8, lineHeight: 1.4 }}>{i.description}</div>}
               {d
-                ? <div style={{ fontSize: 12, color: '#3fb950' }}>🚑 {d.team_name} · {DISPATCH_LABEL[d.status] ?? d.status}</div>
+                ? <div style={{ fontSize: 12, color: '#3fb950' }}>🚑 {d.team_name} · {t(`disp_${d.status}`)}</div>
                 : <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                    <button type="button" onClick={() => { openAssignIncident(i); close() }} style={{ ...assignBtn, marginTop: 0 }}>Assign</button>
-                    <button type="button" onClick={() => { resolveIncident(i.id); close() }} style={{ ...assignBtn, marginTop: 0, color: '#8b949e', borderColor: '#21262d', background: 'rgba(255,255,255,0.04)' }}>Resolve</button>
+                    <button type="button" onClick={() => { openAssignIncident(i); close() }} style={{ ...assignBtn, marginTop: 0 }}>{t('assign')}</button>
+                    <button type="button" onClick={() => { resolveIncident(i.id); close() }} style={{ ...assignBtn, marginTop: 0, color: '#8b949e', borderColor: '#21262d', background: 'rgba(255,255,255,0.04)' }}>{t('resolve')}</button>
                   </div>}
             </div>
           )
@@ -795,12 +867,12 @@ export default function NgoBoardPage() {
         if (selected.kind === 'team') {
           const tm = teams.find((x) => x.id === selected.id)
           if (!tm) return null
-          return <div style={detailCard}>{header(tm.name, `${tm.type} · ${tm.status}`)}<div style={{ fontSize: 12, color: '#8b949e' }}>Last seen {timeAgo(tm.last_seen_at)}</div></div>
+          return <div style={detailCard}>{header(tm.name, `${tm.type} · ${tm.status}`)}<div style={{ fontSize: 12, color: '#8b949e' }}>{t('last_seen')} {timeAgo(tm.last_seen_at)}</div></div>
         }
         if (selected.kind === 'worker') {
           const w = workers.find((x) => x.ngo_user_id === selected.id)
           if (!w) return null
-          return <div style={detailCard}>{header(w.name, w.role ?? undefined)}<div style={{ fontSize: 12, color: '#8b949e' }}>Last seen {timeAgo(w.last_seen_at)}{w.source === 'panic' ? ' · 🆘 duress' : ''}</div></div>
+          return <div style={detailCard}>{header(w.name, w.role ?? undefined)}<div style={{ fontSize: 12, color: '#8b949e' }}>{t('last_seen')} {timeAgo(w.last_seen_at)}{w.source === 'panic' ? ` · 🆘 ${t('duress')}` : ''}</div></div>
         }
         if (selected.kind === 'panic') {
           const p = panics.find((x) => x.id === selected.id)
@@ -808,13 +880,13 @@ export default function NgoBoardPage() {
           return (
             <div style={{ ...detailCard, borderColor: 'rgba(248,81,73,0.5)' }}>
               {header(`🆘 ${p.name}`, `${timeAgo(p.created_at)}${p.reason ? ` · ${p.reason}` : ''}`)}
-              <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 8 }}>{p.lat != null && p.lon != null ? `Last known ${p.lat.toFixed(4)}, ${p.lon.toFixed(4)}` : 'No location'}</div>
-              <div style={{ fontSize: 12, marginBottom: 8 }}>{p.acknowledged_at ? <span style={{ color: '#3fb950' }}>✓ Acknowledged by {p.acknowledged_by_name}</span> : <span style={{ color: '#d29922' }}>● Not yet acknowledged</span>}</div>
+              <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 8 }}>{p.lat != null && p.lon != null ? `${t('last_known')} ${p.lat.toFixed(4)}, ${p.lon.toFixed(4)}` : t('no_location')}</div>
+              <div style={{ fontSize: 12, marginBottom: 8 }}>{p.acknowledged_at ? <span style={{ color: '#3fb950' }}>✓ {t('ack_by')} {p.acknowledged_by_name}</span> : <span style={{ color: '#d29922' }}>● {t('not_acked')}</span>}</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {!p.acknowledged_at && <button type="button" onClick={() => acknowledgePanic(p.id)} style={{ ...resolveBtn, color: '#58a6ff', borderColor: 'rgba(88,166,255,0.4)', background: 'rgba(88,166,255,0.1)' }}>Acknowledge</button>}
-                {p.phone && <a href={`tel:${p.phone}`} style={{ ...resolveBtn, textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>Call</a>}
-                <button type="button" onClick={() => openPanicDispatch(p)} style={{ ...resolveBtn, color: '#58a6ff', borderColor: 'rgba(88,166,255,0.4)', background: 'rgba(88,166,255,0.1)' }}>Send team</button>
-                <button type="button" onClick={() => { setResolvePanicFor(p); setPanicNote('') }} style={resolveBtn}>Resolve</button>
+                {!p.acknowledged_at && <button type="button" onClick={() => acknowledgePanic(p.id)} style={{ ...resolveBtn, color: '#58a6ff', borderColor: 'rgba(88,166,255,0.4)', background: 'rgba(88,166,255,0.1)' }}>{t('acknowledge')}</button>}
+                {p.phone && <a href={`tel:${p.phone}`} style={{ ...resolveBtn, textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>{t('call')}</a>}
+                <button type="button" onClick={() => openPanicDispatch(p)} style={{ ...resolveBtn, color: '#58a6ff', borderColor: 'rgba(88,166,255,0.4)', background: 'rgba(88,166,255,0.1)' }}>{t('send_team')}</button>
+                <button type="button" onClick={() => { setResolvePanicFor(p); setPanicNote('') }} style={resolveBtn}>{t('resolve')}</button>
               </div>
             </div>
           )
@@ -822,7 +894,7 @@ export default function NgoBoardPage() {
         if (selected.kind === 'facility') {
           const f = facilities.find((x) => x.id === selected.id)
           if (!f) return null
-          return <div style={detailCard}>{header(f.name, f.status)}{f.status_updated_at && <div style={{ fontSize: 11, color: '#8b949e' }}>Updated {timeAgo(f.status_updated_at)}</div>}</div>
+          return <div style={detailCard}>{header(f.name, f.status)}{f.status_updated_at && <div style={{ fontSize: 11, color: '#8b949e' }}>{t('updated_w')} {timeAgo(f.status_updated_at)}</div>}</div>
         }
         return null
       })()}
@@ -830,14 +902,14 @@ export default function NgoBoardPage() {
       {/* Base-map style switcher + worker-pins toggle */}
       <div style={styleSwitcher}>
         {MAP_STYLES.map((s) => (
-          <button key={s.id} type="button" onClick={() => changeMapStyle(s.id)} style={styleBtn(mapStyle === s.id)}>{s.label}</button>
+          <button key={s.id} type="button" onClick={() => changeMapStyle(s.id)} style={styleBtn(mapStyle === s.id)}>{t(`style_${s.id}`)}</button>
         ))}
         <div style={{ width: 1, background: '#21262d', margin: '0 2px' }} />
         <button type="button" onClick={() => { const next = !showWorkers; setShowWorkers(next); showWorkersRef.current = next; renderSources() }} style={styleBtn(showWorkers)}>
-          Workers{workers.length ? ` (${workers.length})` : ''}
+          {t('workers')}{workers.length ? ` (${workers.length})` : ''}
         </button>
         <button type="button" onClick={() => { const next = !showFacilities; setShowFacilities(next); showFacilitiesRef.current = next; renderSources() }} style={styleBtn(showFacilities)}>
-          Facilities{facilities.length ? ` (${facilities.length})` : ''}
+          {t('facilities')}{facilities.length ? ` (${facilities.length})` : ''}
         </button>
       </div>
 
@@ -852,17 +924,17 @@ export default function NgoBoardPage() {
           {/* Custom incidents (911-style) */}
           <div style={{ padding: '12px 16px', borderBottom: '1px solid #21262d' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontSize: 14, fontWeight: 600 }}>Incidents</div>
-              <button type="button" onClick={() => { setCreating(true); setAddr('') }} style={rollBtn}>+ New incident</button>
+              <div style={{ fontSize: 14, fontWeight: 600 }}>{t('inc_title')}</div>
+              <button type="button" onClick={() => { setCreating(true); setAddr('') }} style={rollBtn}>{t('new_incident')}</button>
             </div>
-            {creating && <div style={{ fontSize: 12, color: '#58a6ff', marginTop: 8 }}>Click the map to place the incident, or type an address below.</div>}
+            {creating && <div style={{ fontSize: 12, color: '#58a6ff', marginTop: 8 }}>{t('click_map')}</div>}
             {creating && (
               <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                <input style={{ ...noteField, flex: 1 }} placeholder="Type an address…" value={addr} onChange={(e) => setAddr(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') geocodeAddress() }} />
-                <button type="button" onClick={geocodeAddress} disabled={incBusy} style={rollBtn}>Find</button>
+                <input style={{ ...noteField, flex: 1 }} placeholder={t('type_address')} value={addr} onChange={(e) => setAddr(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') geocodeAddress() }} />
+                <button type="button" onClick={geocodeAddress} disabled={incBusy} style={rollBtn}>{t('find')}</button>
               </div>
             )}
-            {customIncidents.length === 0 && !creating && <div style={{ fontSize: 12, color: '#8b949e', marginTop: 8 }}>No active incidents.</div>}
+            {customIncidents.length === 0 && !creating && <div style={{ fontSize: 12, color: '#8b949e', marginTop: 8 }}>{t('no_active_inc')}</div>}
             {customIncidents.map((i) => {
               const d = dispatches.find((x) => x.ngo_incident_id === i.id && ACTIVE_DISPATCH.includes(x.status))
               return (
@@ -875,12 +947,12 @@ export default function NgoBoardPage() {
                     {[i.category, i.address].filter(Boolean).join(' · ') || `${i.lat.toFixed(3)}, ${i.lon.toFixed(3)}`}
                   </div>
                   {d
-                    ? <div style={{ fontSize: 12, color: '#3fb950', marginTop: 6 }}>🚑 {d.team_name} · {DISPATCH_LABEL[d.status] ?? d.status}</div>
-                    : <span style={{ fontSize: 11, color: '#f97316' }}>unassigned</span>}
+                    ? <div style={{ fontSize: 12, color: '#3fb950', marginTop: 6 }}>🚑 {d.team_name} · {t(`disp_${d.status}`)}</div>
+                    : <span style={{ fontSize: 11, color: '#f97316' }}>{t('unassigned')}</span>}
                   <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-                    {!d && <button type="button" onClick={() => openAssignIncident(i)} style={assignBtn}>Assign</button>}
-                    <button type="button" onClick={() => resolveIncident(i.id)} style={{ ...assignBtn, color: '#8b949e', borderColor: '#21262d', background: 'rgba(255,255,255,0.04)' }}>Resolve</button>
-                    <button type="button" onClick={() => setCustomStatus(i.id, 'dismissed', 'Dismiss this incident? It leaves the board but can be reopened.')} style={{ ...assignBtn, color: '#8b949e', borderColor: '#21262d', background: 'rgba(255,255,255,0.04)' }}>Dismiss</button>
+                    {!d && <button type="button" onClick={() => openAssignIncident(i)} style={assignBtn}>{t('assign')}</button>}
+                    <button type="button" onClick={() => resolveIncident(i.id)} style={{ ...assignBtn, color: '#8b949e', borderColor: '#21262d', background: 'rgba(255,255,255,0.04)' }}>{t('resolve')}</button>
+                    <button type="button" onClick={() => setCustomStatus(i.id, 'dismissed', t('cf_dismiss_custom'))} style={{ ...assignBtn, color: '#8b949e', borderColor: '#21262d', background: 'rgba(255,255,255,0.04)' }}>{t('dismiss')}</button>
                   </div>
                 </div>
               )
@@ -890,24 +962,24 @@ export default function NgoBoardPage() {
           {/* Active panics — top priority */}
           {panics.length > 0 && (
             <div style={{ padding: '12px 16px', borderBottom: '1px solid #21262d', background: 'rgba(248,81,73,0.08)' }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#f85149' }}>🆘 {panics.length} active panic{panics.length === 1 ? '' : 's'}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#f85149' }}>🆘 {panics.length} {panics.length === 1 ? t('ps_active') : t('ps_active_pl')}</div>
               {panics.map((p) => (
                 <div key={p.id} style={{ borderTop: '1px solid rgba(248,81,73,0.2)', paddingTop: 8, marginTop: 8 }}>
                   <div style={{ fontSize: 12, color: '#e6edf3' }}>
                     <strong>{p.name}</strong> · {timeAgo(p.created_at)}
-                    {p.silent && <span style={{ fontSize: 10, color: '#8b949e', marginLeft: 6 }}>silent</span>}
+                    {p.silent && <span style={{ fontSize: 10, color: '#8b949e', marginLeft: 6 }}>{t('silent')}</span>}
                     {p.reason && <span style={{ fontSize: 10, color: '#d29922', marginLeft: 6 }}>{p.reason}</span>}
-                    <div style={{ color: '#8b949e' }}>{p.lat != null && p.lon != null ? `last known ${p.lat.toFixed(4)}, ${p.lon.toFixed(4)} · ${timeAgo(p.created_at)}` : 'no location'}</div>
+                    <div style={{ color: '#8b949e' }}>{p.lat != null && p.lon != null ? `${t('last_known_lc')} ${p.lat.toFixed(4)}, ${p.lon.toFixed(4)} · ${timeAgo(p.created_at)}` : t('no_location_lc')}</div>
                     {p.acknowledged_at
-                      ? <div style={{ color: '#3fb950' }}>✓ Acknowledged by {p.acknowledged_by_name}</div>
-                      : <div style={{ color: '#d29922' }}>● Not yet acknowledged</div>}
+                      ? <div style={{ color: '#3fb950' }}>✓ {t('ack_by')} {p.acknowledged_by_name}</div>
+                      : <div style={{ color: '#d29922' }}>● {t('not_acked')}</div>}
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
-                    {!p.acknowledged_at && <button type="button" onClick={() => acknowledgePanic(p.id)} style={{ ...resolveBtn, color: '#58a6ff', borderColor: 'rgba(88,166,255,0.4)', background: 'rgba(88,166,255,0.1)' }}>Acknowledge</button>}
-                    {p.phone && <a href={`tel:${p.phone}`} style={{ ...resolveBtn, textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>Call</a>}
-                    {p.lat != null && p.lon != null && <button type="button" onClick={() => locatePanic(p)} style={{ ...resolveBtn, color: '#a371f7', borderColor: 'rgba(163,113,247,0.4)', background: 'rgba(163,113,247,0.1)' }}>Locate</button>}
-                    <button type="button" onClick={() => openPanicDispatch(p)} style={{ ...resolveBtn, color: '#58a6ff', borderColor: 'rgba(88,166,255,0.4)', background: 'rgba(88,166,255,0.1)' }}>Send team</button>
-                    <button type="button" onClick={() => { setResolvePanicFor(p); setPanicNote('') }} style={resolveBtn}>Resolve</button>
+                    {!p.acknowledged_at && <button type="button" onClick={() => acknowledgePanic(p.id)} style={{ ...resolveBtn, color: '#58a6ff', borderColor: 'rgba(88,166,255,0.4)', background: 'rgba(88,166,255,0.1)' }}>{t('acknowledge')}</button>}
+                    {p.phone && <a href={`tel:${p.phone}`} style={{ ...resolveBtn, textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>{t('call')}</a>}
+                    {p.lat != null && p.lon != null && <button type="button" onClick={() => locatePanic(p)} style={{ ...resolveBtn, color: '#a371f7', borderColor: 'rgba(163,113,247,0.4)', background: 'rgba(163,113,247,0.1)' }}>{t('locate_btn')}</button>}
+                    <button type="button" onClick={() => openPanicDispatch(p)} style={{ ...resolveBtn, color: '#58a6ff', borderColor: 'rgba(88,166,255,0.4)', background: 'rgba(88,166,255,0.1)' }}>{t('send_team')}</button>
+                    <button type="button" onClick={() => { setResolvePanicFor(p); setPanicNote('') }} style={resolveBtn}>{t('resolve')}</button>
                   </div>
                 </div>
               ))}
@@ -917,17 +989,17 @@ export default function NgoBoardPage() {
           {/* Roll call */}
           <div style={{ padding: '12px 16px', borderBottom: '1px solid #21262d' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontSize: 14, fontWeight: 600 }}>Roll call</div>
-              <button type="button" onClick={startRollCall} disabled={rcBusy} style={rollBtn}>{rcBusy ? '…' : rollCall ? 'New roll call' : 'Roll call'}</button>
+              <div style={{ fontSize: 14, fontWeight: 600 }}>{t('rc_title')}</div>
+              <button type="button" onClick={startRollCall} disabled={rcBusy} style={rollBtn}>{rcBusy ? '…' : rollCall ? t('rc_new') : t('rc_start')}</button>
             </div>
             {rollCall ? (
               <>
                 {/* Headcount: X of Y safe (Y excludes off-duty exempt). Off-duty workers are
                     NEVER counted as missing. awaiting (on-duty, no answer) ≠ unsafe. */}
                 <div style={{ fontSize: 12, color: '#8b949e', margin: '8px 0 4px' }}>
-                  <span style={{ color: '#3fb950', fontWeight: 600 }}>{rollCall.safe_count} of {rollCall.total} safe</span>
-                  {rollCall.awaiting_count > 0 && <span style={{ color: '#8b949e' }}> · {rollCall.awaiting_count} awaiting</span>}
-                  {rollCall.unsafe_count > 0 && <span style={{ color: '#f85149' }}> · {rollCall.unsafe_count} unsafe</span>}
+                  <span style={{ color: '#3fb950', fontWeight: 600 }}>{rollCall.safe_count} {t('rc_of')} {rollCall.total} {t('rc_safe')}</span>
+                  {rollCall.awaiting_count > 0 && <span style={{ color: '#8b949e' }}> · {rollCall.awaiting_count} {t('awaiting')}</span>}
+                  {rollCall.unsafe_count > 0 && <span style={{ color: '#f85149' }}> · {rollCall.unsafe_count} {t('unsafe')}</span>}
                   {' · '}{timeAgo(rollCall.created_at)}
                 </div>
                 {rollCall.total > 0 && (
@@ -941,66 +1013,66 @@ export default function NgoBoardPage() {
                     const icon = m.state === 'safe' ? '✓' : m.state === 'unsafe' ? '⚠' : '○'
                     return (
                       <span key={m.id} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 999, background: `${c}26`, color: c }}>
-                        {icon} {m.name}{m.state === 'awaiting' ? ' · awaiting' : ''}
+                        {icon} {m.name}{m.state === 'awaiting' ? ` · ${t('awaiting')}` : ''}
                       </span>
                     )
                   })}
-                  {rollCall.total === 0 && rollCall.off_duty_count > 0 && <span style={{ fontSize: 11, color: '#8b949e' }}>All field coordinators off duty.</span>}
-                  {rollCall.members.length === 0 && <span style={{ fontSize: 11, color: '#8b949e' }}>No field coordinators.</span>}
+                  {rollCall.total === 0 && rollCall.off_duty_count > 0 && <span style={{ fontSize: 11, color: '#8b949e' }}>{t('rc_all_off')}</span>}
+                  {rollCall.members.length === 0 && <span style={{ fontSize: 11, color: '#8b949e' }}>{t('rc_no_fc')}</span>}
                 </div>
                 {/* Off-duty = exempt, shown separately so they're never mistaken for missing. */}
                 {rollCall.off_duty_count > 0 && (
                   <div style={{ fontSize: 11, color: '#a371f7', marginTop: 8 }}>
-                    🌙 Off duty (exempt): {rollCall.members.filter((m) => m.state === 'off_duty').map((m) => m.name).join(', ')}
+                    {t('rc_off_exempt')} {rollCall.members.filter((m) => m.state === 'off_duty').map((m) => m.name).join(', ')}
                   </div>
                 )}
               </>
             ) : (
-              <div style={{ fontSize: 12, color: '#8b949e', marginTop: 6 }}>No active roll call.</div>
+              <div style={{ fontSize: 12, color: '#8b949e', marginTop: 6 }}>{t('rc_none')}</div>
             )}
           </div>
 
           <div style={{ padding: '14px 16px', borderBottom: '1px solid #21262d' }}>
-            <div style={{ fontSize: 15, fontWeight: 600 }}>Incident feed</div>
+            <div style={{ fontSize: 15, fontWeight: 600 }}>{t('feed_title')}</div>
             <div style={{ fontSize: 12, color: '#8b949e', marginTop: 2 }}>
-              {feed.length} in your area · {gapCount > 0 ? <span style={{ color: '#f85149' }}>{gapCount} unassigned</span> : 'all assigned'}
+              {feed.length} {t('in_area')} · {gapCount > 0 ? <span style={{ color: '#f85149' }}>{gapCount} unassigned</span> : t('all_assigned')}
             </div>
             {/* Time window — default last 10 days, expand to show older. */}
             <div style={{ display: 'flex', gap: 4, marginTop: 8 }}>
-              {([['10', '10d'], ['30', '30d'], ['90', '90d'], ['all', 'All']] as const).map(([v, label]) => (
+              {([['10', '10d'], ['30', '30d'], ['90', '90d'], ['all', t('range_all')]]).map(([v, label]) => (
                 <button key={v} type="button" onClick={() => setWindow(v)} style={rangeBtn(windowDays === v)}>{label}</button>
               ))}
             </div>
           </div>
           <div style={{ overflowY: 'auto', flex: 1 }}>
-            {feed.length === 0 && <div style={{ padding: 16, fontSize: 13, color: '#8b949e' }}>No incidents in your operational area.</div>}
+            {feed.length === 0 && <div style={{ padding: 16, fontSize: 13, color: '#8b949e' }}>{t('no_in_area')}</div>}
             {feed.map((c) => {
               const overdue = !c.covered && Date.now() - new Date(c.created_at).getTime() > 30 * 60000
               return (
                 <div key={c.id} style={{ ...feedCard, borderLeft: selected?.kind === 'incident' && selected.id === c.id ? '3px solid #58a6ff' : overdue ? '3px solid #f85149' : '3px solid transparent', background: selected?.kind === 'incident' && selected.id === c.id ? 'rgba(88,166,255,0.06)' : undefined }}>
                   <div onClick={() => selectAndFly('incident', c.id, c.lon, c.lat)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, cursor: 'pointer' }}>
-                    <div style={{ fontSize: 13, fontWeight: 500 }}>{locNames[c.id] ?? 'Locating…'}</div>
-                    <span style={{ fontSize: 10, color: STATUS_HEX[c.status] ?? '#8b949e', whiteSpace: 'nowrap' }}>● {STATUS_LABEL[c.status] ?? c.status}</span>
+                    <div style={{ fontSize: 13, fontWeight: 500 }}>{locNames[c.id] ?? t('locating')}</div>
+                    <span style={{ fontSize: 10, color: STATUS_HEX[c.status] ?? '#8b949e', whiteSpace: 'nowrap' }}>● {t(`st_${c.status}`)}</span>
                   </div>
                   <div style={{ fontSize: 11, color: '#8b949e', marginTop: 4 }}>
-                    {c.confidence_score}% · {c.report_count} report{c.report_count === 1 ? '' : 's'} · {timeAgo(c.created_at)}
-                    {!c.covered && <span style={{ color: '#f85149' }}> · unassigned</span>}
+                    {c.confidence_score}% · {c.report_count} {c.report_count === 1 ? t('report') : t('reports')} · {timeAgo(c.created_at)}
+                    {!c.covered && <span style={{ color: '#f85149' }}> · {t('unassigned')}</span>}
                   </div>
                   {(() => {
                     const d = activeDispatchFor(c.id)
                     if (d) return (
                       <div style={{ marginTop: 8 }}>
                         <div style={{ fontSize: 12, color: '#3fb950' }}>
-                          🚑 {d.team_name} · {DISPATCH_LABEL[d.status] ?? d.status}
-                          {d.response_minutes != null && <span style={{ color: '#8b949e' }}> · {d.response_minutes}m response</span>}
+                          🚑 {d.team_name} · {t(`disp_${d.status}`)}
+                          {d.response_minutes != null && <span style={{ color: '#8b949e' }}> · {d.response_minutes}m {t('response')}</span>}
                         </div>
-                        <button type="button" onClick={() => { setRecallFor({ id: d.id, team: d.team_name }); setRecallReason('') }} style={{ ...assignBtn, color: '#f85149', borderColor: 'rgba(248,81,73,0.35)', background: 'rgba(248,81,73,0.08)' }}>Recall</button>
+                        <button type="button" onClick={() => { setRecallFor({ id: d.id, team: d.team_name }); setRecallReason('') }} style={{ ...assignBtn, color: '#f85149', borderColor: 'rgba(248,81,73,0.35)', background: 'rgba(248,81,73,0.08)' }}>{t('recall')}</button>
                       </div>
                     )
                     return (
                       <div style={{ display: 'flex', gap: 6 }}>
-                        <button type="button" onClick={() => openAssign(c)} style={assignBtn}>Assign</button>
-                        <button type="button" onClick={() => setClusterHandling(c.id, 'dismiss', 'Dismiss this incident? It leaves your board but can be reopened. The public verification is unaffected.')} style={{ ...assignBtn, color: '#8b949e', borderColor: '#21262d', background: 'rgba(255,255,255,0.04)' }}>Dismiss</button>
+                        <button type="button" onClick={() => openAssign(c)} style={assignBtn}>{t('assign')}</button>
+                        <button type="button" onClick={() => setClusterHandling(c.id, 'dismiss', t('cf_dismiss_cluster'))} style={{ ...assignBtn, color: '#8b949e', borderColor: '#21262d', background: 'rgba(255,255,255,0.04)' }}>{t('dismiss')}</button>
                       </div>
                     )
                   })()}
@@ -1017,24 +1089,24 @@ export default function NgoBoardPage() {
             {handledOpen && (
               <div style={{ maxHeight: 220, overflowY: 'auto' }}>
                 {handledIncidents.length + handledCustom.length === 0 && (
-                  <div style={{ padding: '8px 16px', fontSize: 12, color: '#8b949e' }}>Nothing handled yet. Dismissed incidents and those a team completed appear here.</div>
+                  <div style={{ padding: '8px 16px', fontSize: 12, color: '#8b949e' }}>{t('nothing_handled')}</div>
                 )}
                 {handledIncidents.map((c) => (
                   <div key={c.id} style={handledRow}>
                     <div style={{ minWidth: 0 }}>
                       <div style={{ fontSize: 12, color: '#e6edf3', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{locNames[c.id] ?? 'Incident'}</div>
-                      <div style={{ fontSize: 11, color: '#8b949e' }}>{c.handling === 'completed' ? '✓ Completed' : 'Dismissed'} · {STATUS_LABEL[c.status] ?? c.status}</div>
+                      <div style={{ fontSize: 11, color: '#8b949e' }}>{c.handling === 'completed' ? t('completed') : t('dismissed_w')} · {t(`st_${c.status}`)}</div>
                     </div>
-                    <button type="button" onClick={() => setClusterHandling(c.id, 'reopen')} style={reopenBtn}>Reopen</button>
+                    <button type="button" onClick={() => setClusterHandling(c.id, 'reopen')} style={reopenBtn}>{t('reopen')}</button>
                   </div>
                 ))}
                 {handledCustom.map((i) => (
                   <div key={i.id} style={handledRow}>
                     <div style={{ minWidth: 0 }}>
                       <div style={{ fontSize: 12, color: '#e6edf3', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{i.title}</div>
-                      <div style={{ fontSize: 11, color: '#8b949e' }}>{i.status === 'resolved' ? '✓ Resolved' : 'Dismissed'} · incident</div>
+                      <div style={{ fontSize: 11, color: '#8b949e' }}>{i.status === 'resolved' ? t('resolved_w') : t('dismissed_w')} · {t('incident_w')}</div>
                     </div>
-                    <button type="button" onClick={() => setCustomStatus(i.id, 'open')} style={reopenBtn}>Reopen</button>
+                    <button type="button" onClick={() => setCustomStatus(i.id, 'open')} style={reopenBtn}>{t('reopen')}</button>
                   </div>
                 ))}
               </div>
@@ -1047,9 +1119,9 @@ export default function NgoBoardPage() {
       {newInc && (
         <div onClick={() => setNewInc(null)} style={modalBackdrop}>
           <div onClick={(e) => e.stopPropagation()} style={{ ...modalBox, width: 380 }}>
-            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>New incident</div>
+            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>{t('ni_title')}</div>
             <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 12 }}>{newInc.address || `${newInc.lat.toFixed(4)}, ${newInc.lon.toFixed(4)}`}</div>
-            <input style={noteField} placeholder="Title (what's happening)" value={newInc.title} onChange={(e) => setNewInc({ ...newInc, title: e.target.value })} />
+            <input style={noteField} placeholder={t('ni_title_ph')} value={newInc.title} onChange={(e) => setNewInc({ ...newInc, title: e.target.value })} />
             <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
               <select style={{ ...noteField, flex: 1 }} value={newInc.category} onChange={(e) => setNewInc({ ...newInc, category: e.target.value })}>
                 {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
@@ -1058,10 +1130,10 @@ export default function NgoBoardPage() {
                 {['low', 'medium', 'high', 'critical'].map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
-            <textarea style={{ ...noteField, height: 70, paddingTop: 8, marginTop: 8 }} placeholder="Details for the responding team…" value={newInc.description} onChange={(e) => setNewInc({ ...newInc, description: e.target.value })} />
+            <textarea style={{ ...noteField, height: 70, paddingTop: 8, marginTop: 8 }} placeholder={t('ni_details_ph')} value={newInc.description} onChange={(e) => setNewInc({ ...newInc, description: e.target.value })} />
             <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-              <button type="button" onClick={createIncident} disabled={incBusy || !newInc.title.trim()} style={{ ...assignBtn, flex: 1, opacity: incBusy || !newInc.title.trim() ? 0.6 : 1 }}>{incBusy ? 'Creating…' : 'Create incident'}</button>
-              <button type="button" onClick={() => setNewInc(null)} style={{ ...assignBtn, flex: 1 }}>Cancel</button>
+              <button type="button" onClick={createIncident} disabled={incBusy || !newInc.title.trim()} style={{ ...assignBtn, flex: 1, opacity: incBusy || !newInc.title.trim() ? 0.6 : 1 }}>{incBusy ? t('creating') : t('create_inc')}</button>
+              <button type="button" onClick={() => setNewInc(null)} style={{ ...assignBtn, flex: 1 }}>{t('cancel')}</button>
             </div>
           </div>
         </div>
@@ -1071,19 +1143,19 @@ export default function NgoBoardPage() {
       {assignIncFor && (
         <div onClick={() => setAssignIncFor(null)} style={modalBackdrop}>
           <div onClick={(e) => e.stopPropagation()} style={{ ...modalBox, width: 360 }}>
-            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Assign a team — {assignIncFor.title}</div>
-            <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 12 }}>{assignIncFor.address || `${assignIncFor.lat.toFixed(4)}, ${assignIncFor.lon.toFixed(4)}`} · team alerted by push</div>
+            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>{t('ai_title')} {assignIncFor.title}</div>
+            <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 12 }}>{assignIncFor.address || `${assignIncFor.lat.toFixed(4)}, ${assignIncFor.lon.toFixed(4)}`} · {t('alerted_push')}</div>
             <div style={{ maxHeight: 280, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {incTeams.length === 0 && <div style={{ fontSize: 13, color: '#8b949e' }}>No teams.</div>}
-              {incTeams.map((t) => (
-                <button key={t.id} type="button" disabled={incBusy} onClick={() => assignIncidentTeam(t.id)} style={teamRow}>
-                  <span style={{ fontWeight: 600 }}>{t.name}</span>
-                  <span style={{ fontSize: 11, color: '#8b949e', marginLeft: 8 }}>{t.type} · {t.status}</span>
-                  {t.notifiable_count === 0 && <span style={{ fontSize: 11, color: '#d29922', marginLeft: 8 }}>⚠ no app access</span>}
+              {incTeams.length === 0 && <div style={{ fontSize: 13, color: '#8b949e' }}>{t('no_teams')}</div>}
+              {incTeams.map((it) => (
+                <button key={it.id} type="button" disabled={incBusy} onClick={() => assignIncidentTeam(it.id)} style={teamRow}>
+                  <span style={{ fontWeight: 600 }}>{it.name}</span>
+                  <span style={{ fontSize: 11, color: '#8b949e', marginInlineStart: 8 }}>{it.type} · {it.status}</span>
+                  {it.notifiable_count === 0 && <span style={{ fontSize: 11, color: '#d29922', marginInlineStart: 8 }}>{t('no_app')}</span>}
                 </button>
               ))}
             </div>
-            <button type="button" onClick={() => setAssignIncFor(null)} style={{ ...assignBtn, marginTop: 12 }}>Cancel</button>
+            <button type="button" onClick={() => setAssignIncFor(null)} style={{ ...assignBtn, marginTop: 12 }}>{t('cancel')}</button>
           </div>
         </div>
       )}
@@ -1092,21 +1164,21 @@ export default function NgoBoardPage() {
       {panicDispatchFor && (
         <div onClick={() => setPanicDispatchFor(null)} style={modalBackdrop}>
           <div onClick={(e) => e.stopPropagation()} style={{ ...modalBox, width: 360 }}>
-            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Send a team to {panicDispatchFor.name}</div>
+            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>{t('pd_title')} {panicDispatchFor.name}</div>
             <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 12 }}>
-              {panicDispatchFor.lat != null && panicDispatchFor.lon != null ? `Last seen ${panicDispatchFor.lat.toFixed(4)}, ${panicDispatchFor.lon.toFixed(4)}` : 'No location reported'} · the team is alerted by push.
+              {panicDispatchFor.lat != null && panicDispatchFor.lon != null ? `${t('pd_last_seen')} ${panicDispatchFor.lat.toFixed(4)}, ${panicDispatchFor.lon.toFixed(4)}` : t('pd_no_loc')} · {t('pd_alerted')}
             </div>
             <div style={{ maxHeight: 280, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {panicTeams.length === 0 && <div style={{ fontSize: 13, color: '#8b949e' }}>No teams.</div>}
-              {panicTeams.map((t) => (
-                <button key={t.id} type="button" disabled={panicBusy} onClick={() => sendPanicTeam(t.id)} style={teamRow}>
-                  <span style={{ fontWeight: 600 }}>{t.name}</span>
-                  <span style={{ fontSize: 11, color: '#8b949e', marginLeft: 8 }}>{t.type} · {t.status}</span>
-                  {t.notifiable_count === 0 && <span style={{ fontSize: 11, color: '#d29922', marginLeft: 8 }}>⚠ no app access</span>}
+              {panicTeams.length === 0 && <div style={{ fontSize: 13, color: '#8b949e' }}>{t('no_teams')}</div>}
+              {panicTeams.map((pt) => (
+                <button key={pt.id} type="button" disabled={panicBusy} onClick={() => sendPanicTeam(pt.id)} style={teamRow}>
+                  <span style={{ fontWeight: 600 }}>{pt.name}</span>
+                  <span style={{ fontSize: 11, color: '#8b949e', marginInlineStart: 8 }}>{pt.type} · {pt.status}</span>
+                  {pt.notifiable_count === 0 && <span style={{ fontSize: 11, color: '#d29922', marginInlineStart: 8 }}>{t('no_app')}</span>}
                 </button>
               ))}
             </div>
-            <button type="button" onClick={() => setPanicDispatchFor(null)} style={{ ...assignBtn, marginTop: 12 }}>Cancel</button>
+            <button type="button" onClick={() => setPanicDispatchFor(null)} style={{ ...assignBtn, marginTop: 12 }}>{t('cancel')}</button>
           </div>
         </div>
       )}
@@ -1115,12 +1187,12 @@ export default function NgoBoardPage() {
       {resolvePanicFor && (
         <div onClick={() => setResolvePanicFor(null)} style={modalBackdrop}>
           <div onClick={(e) => e.stopPropagation()} style={{ ...modalBox, width: 360 }}>
-            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>Resolve {resolvePanicFor.name}’s panic</div>
-            <div style={{ fontSize: 13, color: '#8b949e', marginBottom: 12 }}>Only resolve once the person is confirmed safe. A meaningful outcome note (at least 10 characters) is required.</div>
-            <textarea value={panicNote} onChange={(e) => setPanicNote(e.target.value)} placeholder="What happened / outcome…" style={{ ...noteField, height: 84, paddingTop: 8 }} />
+            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>{t('rp_title')} {resolvePanicFor.name}{t('rp_poss')}</div>
+            <div style={{ fontSize: 13, color: '#8b949e', marginBottom: 12 }}>{t('rp_note')}</div>
+            <textarea value={panicNote} onChange={(e) => setPanicNote(e.target.value)} placeholder={t('rp_ph')} style={{ ...noteField, height: 84, paddingTop: 8 }} />
             <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-              <button type="button" disabled={panicNote.trim().length < 10} onClick={() => resolvePanic(resolvePanicFor.id, panicNote)} style={{ ...assignBtn, flex: 1, color: '#3fb950', borderColor: 'rgba(63,185,80,0.4)', background: 'rgba(63,185,80,0.1)', opacity: panicNote.trim().length < 10 ? 0.5 : 1 }}>Resolve</button>
-              <button type="button" onClick={() => setResolvePanicFor(null)} style={{ ...assignBtn, flex: 1 }}>Cancel</button>
+              <button type="button" disabled={panicNote.trim().length < 10} onClick={() => resolvePanic(resolvePanicFor.id, panicNote)} style={{ ...assignBtn, flex: 1, color: '#3fb950', borderColor: 'rgba(63,185,80,0.4)', background: 'rgba(63,185,80,0.1)', opacity: panicNote.trim().length < 10 ? 0.5 : 1 }}>{t('resolve')}</button>
+              <button type="button" onClick={() => setResolvePanicFor(null)} style={{ ...assignBtn, flex: 1 }}>{t('cancel')}</button>
             </div>
           </div>
         </div>
@@ -1130,12 +1202,12 @@ export default function NgoBoardPage() {
       {recallFor && (
         <div onClick={() => setRecallFor(null)} style={modalBackdrop}>
           <div onClick={(e) => e.stopPropagation()} style={{ ...modalBox, width: 340 }}>
-            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>Recall {recallFor.team ?? 'team'}?</div>
-            <div style={{ fontSize: 13, color: '#8b949e', marginBottom: 12 }}>The team is told to stand down and the incident reopens as a coverage gap.</div>
-            <input style={noteField} placeholder="Reason (optional)" value={recallReason} onChange={(e) => setRecallReason(e.target.value)} />
+            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>{t('rec_title')} {recallFor.team ?? ''}?</div>
+            <div style={{ fontSize: 13, color: '#8b949e', marginBottom: 12 }}>{t('rec_note')}</div>
+            <input style={noteField} placeholder={t('reason_opt')} value={recallReason} onChange={(e) => setRecallReason(e.target.value)} />
             <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-              <button type="button" onClick={confirmRecall} style={{ ...assignBtn, flex: 1, color: '#f85149', borderColor: 'rgba(248,81,73,0.4)', background: 'rgba(248,81,73,0.08)' }}>Recall</button>
-              <button type="button" onClick={() => setRecallFor(null)} style={{ ...assignBtn, flex: 1 }}>Cancel</button>
+              <button type="button" onClick={confirmRecall} style={{ ...assignBtn, flex: 1, color: '#f85149', borderColor: 'rgba(248,81,73,0.4)', background: 'rgba(248,81,73,0.08)' }}>{t('recall')}</button>
+              <button type="button" onClick={() => setRecallFor(null)} style={{ ...assignBtn, flex: 1 }}>{t('cancel')}</button>
             </div>
           </div>
         </div>
@@ -1145,27 +1217,27 @@ export default function NgoBoardPage() {
       {assignFor && (
         <div onClick={() => setAssignFor(null)} style={modalBackdrop}>
           <div onClick={(e) => e.stopPropagation()} style={{ ...modalBox, width: 380 }}>
-            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Assign a team</div>
+            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>{t('as_title')}</div>
             <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 12 }}>
               {locNames[assignFor.id] ?? `${assignFor.lat.toFixed(3)}, ${assignFor.lon.toFixed(3)}`}
             </div>
-            <input style={noteField} placeholder="Note (optional)" value={assignNote} onChange={(e) => setAssignNote(e.target.value)} />
+            <input style={noteField} placeholder={t('note_opt')} value={assignNote} onChange={(e) => setAssignNote(e.target.value)} />
             <div style={{ maxHeight: 280, overflowY: 'auto', marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {rankedTeams.length === 0 && <div style={{ fontSize: 13, color: '#8b949e' }}>No teams available.</div>}
-              {rankedTeams.map((t) => (
-                <button key={t.id} type="button" disabled={assignBusy} onClick={() => assignTeam(t.id)} style={teamRow}>
+              {rankedTeams.length === 0 && <div style={{ fontSize: 13, color: '#8b949e' }}>{t('no_teams_avail')}</div>}
+              {rankedTeams.map((rt) => (
+                <button key={rt.id} type="button" disabled={assignBusy} onClick={() => assignTeam(rt.id)} style={teamRow}>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ fontWeight: 600 }}>{t.name} {t.type_match && <span style={{ color: '#3fb950' }}>✓match</span>}</span>
-                    <span style={{ color: '#8b949e' }}>{t.distance_km != null ? `${t.distance_km} km` : 'no loc'}</span>
+                    <span style={{ fontWeight: 600 }}>{rt.name} {rt.type_match && <span style={{ color: '#3fb950' }}>{t('match')}</span>}</span>
+                    <span style={{ color: '#8b949e' }}>{rt.distance_km != null ? `${rt.distance_km} ${t('km')}` : t('no_loc')}</span>
                   </div>
                   <div style={{ fontSize: 11, color: '#8b949e', marginTop: 2 }}>
-                    {t.type} · {t.status}{t.busy && <span style={{ color: '#d29922' }}> · busy</span>}
+                    {rt.type} · {rt.status}{rt.busy && <span style={{ color: '#d29922' }}> · {t('busy_w')}</span>}
                   </div>
-                  {t.notifiable_count === 0 && <div style={{ fontSize: 11, color: '#d29922', marginTop: 2 }}>⚠ No members with app access — they won’t be notified</div>}
+                  {rt.notifiable_count === 0 && <div style={{ fontSize: 11, color: '#d29922', marginTop: 2 }}>{t('no_app_members')}</div>}
                 </button>
               ))}
             </div>
-            <button type="button" onClick={() => setAssignFor(null)} style={{ ...assignBtn, marginTop: 12 }}>Cancel</button>
+            <button type="button" onClick={() => setAssignFor(null)} style={{ ...assignBtn, marginTop: 12 }}>{t('cancel')}</button>
           </div>
         </div>
       )}
