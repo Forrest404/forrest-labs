@@ -96,7 +96,7 @@ const LANG = {
     open_chat: 'OPEN GROUP CHAT', actions: 'Actions', map: 'Map',
     chats: 'Chats', no_chats: 'No group chats shared with you yet.', chats_trust: 'Opens an external app NOUR doesn’t control. Only join groups you trust.', open: 'Open', team_chat: 'Team', org_chat: 'Organisation', account: 'Account', logged_in_as: 'Logged in as', your_team: 'Your team', team_lead: 'Lead', no_team: 'Not assigned to a team', not_you: 'Not you? Log out', setup_alerts: 'Set up alerts', setup_alerts_sub: 'Get panic & dispatch notifications on your phone', already_setup: 'Already set up — hide', on_duty: 'On duty', off_duty: 'Off duty', off_duty_note: 'Off duty — you get no notifications at all (not even panic or roll call) until you go back on duty. Your own panic button still alerts your team.', off_duty_banner: '🌙 YOU ARE OFF DUTY — no alerts reach you, not even panic or roll call. Your panic button still alerts your team.', broadcasts: 'Broadcasts', no_broadcasts: 'No broadcasts yet.', urgent: 'Urgent', acknowledge: 'Acknowledge', acknowledged: 'Acknowledged',
     silent_mode: 'Silent', alert_active: 'Alert active', help_seen: 'Help has seen this',
-    choose_reason: 'What’s happening? (optional)', cancel_false_alarm: 'Cancel — false alarm',
+    choose_reason: 'What’s happening? (optional)', cancel_false_alarm: 'Cancel — false alarm', confirm_cancel: 'Tap again to confirm', no_gps: 'no location', gps_hint: 'Location unavailable — enable location to share where you are.',
     locked_note: 'Locked — only a responder can resolve this now', cancelled: 'Alert cancelled',
     r_injured: 'Injured', r_under_fire: 'Under fire', r_detained: 'Detained', r_vehicle: 'Vehicle', r_medical: 'Medical', r_moving: 'Unsafe — moving',
   },
@@ -118,7 +118,7 @@ const LANG = {
     open_chat: 'OUVRIR LE GROUPE', actions: 'Actions', map: 'Carte',
     chats: 'Groupes', no_chats: 'Aucun groupe partagé pour l’instant.', chats_trust: 'Ouvre une app externe que NOUR ne contrôle pas. Ne rejoignez que des groupes de confiance.', open: 'Ouvrir', team_chat: 'Équipe', org_chat: 'Organisation', account: 'Compte', logged_in_as: 'Connecté en tant que', your_team: 'Votre équipe', team_lead: 'Resp.', no_team: 'Aucune équipe assignée', not_you: 'Pas vous ? Déconnexion', setup_alerts: 'Configurer les alertes', setup_alerts_sub: 'Recevoir les alertes panique et missions sur votre téléphone', already_setup: 'Déjà configuré — masquer', on_duty: 'En service', off_duty: 'Hors service', off_duty_note: 'Hors service — vous ne recevez aucune notification (ni panique ni appel) jusqu’à votre retour en service. Votre propre bouton panique alerte toujours votre équipe.', off_duty_banner: '🌙 VOUS ÊTES HORS SERVICE — aucune alerte ne vous parvient, ni panique ni appel. Votre bouton panique alerte toujours votre équipe.', broadcasts: 'Annonces', no_broadcasts: 'Aucune annonce pour l’instant.', urgent: 'Urgent', acknowledge: 'Accuser réception', acknowledged: 'Reçu',
     silent_mode: 'Silencieux', alert_active: 'Alerte active', help_seen: 'Les secours ont vu',
-    choose_reason: 'Que se passe-t-il ? (facultatif)', cancel_false_alarm: 'Annuler — fausse alerte',
+    choose_reason: 'Que se passe-t-il ? (facultatif)', cancel_false_alarm: 'Annuler — fausse alerte', confirm_cancel: 'Touchez encore pour confirmer', no_gps: 'sans position', gps_hint: 'Position indisponible — activez la localisation pour la partager.',
     locked_note: 'Verrouillé — seul un répondant peut clôturer', cancelled: 'Alerte annulée',
     r_injured: 'Blessé', r_under_fire: 'Sous le feu', r_detained: 'Détenu', r_vehicle: 'Véhicule', r_medical: 'Médical', r_moving: 'En danger — en mouvement',
   },
@@ -140,7 +140,7 @@ const LANG = {
     open_chat: 'فتح مجموعة الدردشة', actions: 'الإجراءات', map: 'الخريطة',
     chats: 'الدردشات', no_chats: 'لا توجد مجموعات دردشة متاحة لك بعد.', chats_trust: 'يفتح تطبيقًا خارجيًا لا تتحكم به نور. انضمّ فقط إلى المجموعات الموثوقة.', open: 'فتح', team_chat: 'الفريق', org_chat: 'المنظمة', account: 'الحساب', logged_in_as: 'تسجيل الدخول باسم', your_team: 'فريقك', team_lead: 'المسؤول', no_team: 'غير معيّن لفريق', not_you: 'لست أنت؟ تسجيل الخروج', setup_alerts: 'إعداد التنبيهات', setup_alerts_sub: 'استلام تنبيهات الاستغاثة والمهام على هاتفك', already_setup: 'تم الإعداد — إخفاء', on_duty: 'في الخدمة', off_duty: 'خارج الخدمة', off_duty_note: 'خارج الخدمة — لن تصلك أي إشعارات (ولا حتى الاستغاثة أو النداء) حتى تعود إلى الخدمة. زر الاستغاثة الخاص بك ما زال ينبّه فريقك.', off_duty_banner: '🌙 أنت خارج الخدمة — لا تصلك أي تنبيهات، ولا حتى الاستغاثة أو النداء. زر الاستغاثة ما زال ينبّه فريقك.', broadcasts: 'الإعلانات', no_broadcasts: 'لا توجد إعلانات بعد.', urgent: 'عاجل', acknowledge: 'تأكيد الاستلام', acknowledged: 'تم الاستلام',
     silent_mode: 'صامت', alert_active: 'الاستغاثة نشطة', help_seen: 'شاهد المنقذون التنبيه',
-    choose_reason: 'ماذا يحدث؟ (اختياري)', cancel_false_alarm: 'إلغاء — إنذار خاطئ',
+    choose_reason: 'ماذا يحدث؟ (اختياري)', cancel_false_alarm: 'إلغاء — إنذار خاطئ', confirm_cancel: 'اضغط مرة أخرى للتأكيد', no_gps: 'بدون موقع', gps_hint: 'الموقع غير متاح — فعِّل تحديد الموقع لمشاركته.',
     locked_note: 'مقفل — لا يمكن إنهاؤه إلا من قبل المنقذ', cancelled: 'تم إلغاء الاستغاثة',
     r_injured: 'مصاب', r_under_fire: 'تحت إطلاق نار', r_detained: 'محتجز', r_vehicle: 'مركبة', r_medical: 'طبي', r_moving: 'غير آمن — يتحرك',
   },
@@ -183,6 +183,9 @@ export default function NgoFieldPage() {
   const [flash, setFlash] = useState(false)
   const [safeFlash, setSafeFlash] = useState(false) // brief green "marked safe ✓" after a roll-call answer
   const [checkinQueued, setCheckinQueued] = useState(false)
+  const [noGps, setNoGps] = useState(false) // last located action got no coordinates (denied / no fix)
+  const [cancelArmed, setCancelArmed] = useState(false) // two-tap guard on panic-cancel
+  const cancelArmTimer = useRef<any>(null)
   // Per-action busy flags — every async action disables its button + shows a visual change
   // the instant it's tapped, so on a slow/2G link nobody thinks "nothing happened" and taps
   // again (which had let people double-advance a dispatch).
@@ -445,9 +448,11 @@ export default function NgoFieldPage() {
     setMsg(t('getting_loc'))
     try {
       const { lat, lon } = await resolveCoords()
+      const noLoc = lat == null || lon == null
+      setNoGps(noLoc && !manual)
       const sent = await send('/api/ngo/safety/check-in', { lat, lon }, 'check-in')
       setCheckinQueued(!sent)
-      setMsg(sent ? `${t('checked')} ✓` : t('queued_send'))
+      setMsg(sent ? `${t('checked')} ✓${noLoc ? ` · ${t('no_gps')}` : ''}` : t('queued_send'))
       await loadState()
     } finally { setCheckingIn(false) }
   }
@@ -517,6 +522,18 @@ export default function NgoFieldPage() {
     if (r.ok) { setMsg(t('cancelled')); loadState() }
     else { setMsg(t('locked_note')); loadState() }
   }
+  // Two-tap guard so a panic is never cancelled by an accidental single tap under stress:
+  // first tap arms (auto-disarms after 3s), second tap actually cancels.
+  function onCancelTap() {
+    if (cancelArmed) {
+      if (cancelArmTimer.current) clearTimeout(cancelArmTimer.current)
+      setCancelArmed(false)
+      cancelPanic()
+    } else {
+      setCancelArmed(true)
+      cancelArmTimer.current = setTimeout(() => setCancelArmed(false), 3000)
+    }
+  }
   // 1s tick to drive the cancel-window countdown while a panic is active.
   useEffect(() => {
     if (!state?.active_panic) return
@@ -539,8 +556,10 @@ export default function NgoFieldPage() {
     setMsg(t('sharing_loc'))
     try {
       const { lat, lon } = await resolveCoords()
+      const noLoc = lat == null || lon == null
+      setNoGps(noLoc && !manual)
       const sent = await send('/api/ngo/safety/roll-call/respond', { roll_call_id: state.active_roll_call.id, lat, lon }, 'roll-call')
-      setMsg(sent ? t('marked_safe') : t('queued_send'))
+      setMsg(sent ? `${t('marked_safe')}${noLoc ? ` · ${t('no_gps')}` : ''}` : t('queued_send'))
       // Prominent confirmation — a roll-call answer is a safety signal, not a small toast.
       if (sent) { setSafeFlash(true); setTimeout(() => setSafeFlash(false), 2200) }
       await loadState()
@@ -762,7 +781,7 @@ export default function NgoFieldPage() {
               ))}
             </div>
             {left > 0
-              ? <button type="button" onClick={cancelPanic} style={cancelBtn}>{t('cancel_false_alarm')} · {left}s</button>
+              ? <button type="button" onClick={onCancelTap} style={cancelArmed ? { ...cancelBtn, background: 'rgba(248,81,73,0.25)', borderColor: '#f85149', color: '#fff' } : cancelBtn}>{cancelArmed ? t('confirm_cancel') : `${t('cancel_false_alarm')} · ${left}s`}</button>
               : <div style={{ fontSize: 12, color: '#8b949e', marginTop: 10 }}>{t('locked_note')}</div>}
           </div>
         )
@@ -790,6 +809,12 @@ export default function NgoFieldPage() {
         <span style={{ fontSize: 32, fontWeight: 800 }}>{checkingIn ? `${t('getting_loc')}…` : t('check_in')}</span>
         <span style={{ fontSize: 15, fontWeight: 600, opacity: 0.95, color: ci.tone === 'overdue' ? '#ffd7d5' : ci.tone === 'warn' ? '#ffe8b3' : '#fff' }}>{checkingIn ? '' : ci.sub}</span>
       </button>
+      {/* Honest GPS warning: the last located action shared no coordinates (denied / no fix). */}
+      {noGps && !manual && (
+        <div style={{ background: 'rgba(210,153,34,0.14)', border: '1px solid rgba(210,153,34,0.5)', color: '#e3b341', borderRadius: 10, padding: '9px 12px', fontSize: 13, lineHeight: 1.35, textAlign: 'center' }}>
+          ⚠ {t('gps_hint')}
+        </div>
+      )}
 
       {/* STATUS */}
       <div>

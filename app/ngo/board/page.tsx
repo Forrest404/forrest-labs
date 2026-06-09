@@ -585,7 +585,7 @@ export default function NgoBoardPage() {
     setWindowDays(v); daysRef.current = v; fetchBoard()
   }
   async function resolvePanic(panicId: string, note: string) {
-    if (note.trim().length < 3) return
+    if (note.trim().length < 10) return
     const res = await fetch(`/api/ngo/safety/panic/${panicId}/resolve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ resolution_note: note.trim() }) })
     if (res.ok) { setResolvePanicFor(null); setPanicNote(''); toast('Panic resolved'); fetchBoard() } else toast('Could not resolve', 'error')
   }
@@ -1116,10 +1116,10 @@ export default function NgoBoardPage() {
         <div onClick={() => setResolvePanicFor(null)} style={modalBackdrop}>
           <div onClick={(e) => e.stopPropagation()} style={{ ...modalBox, width: 360 }}>
             <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>Resolve {resolvePanicFor.name}’s panic</div>
-            <div style={{ fontSize: 13, color: '#8b949e', marginBottom: 12 }}>Only resolve once the person is confirmed safe. An outcome note is required.</div>
+            <div style={{ fontSize: 13, color: '#8b949e', marginBottom: 12 }}>Only resolve once the person is confirmed safe. A meaningful outcome note (at least 10 characters) is required.</div>
             <textarea value={panicNote} onChange={(e) => setPanicNote(e.target.value)} placeholder="What happened / outcome…" style={{ ...noteField, height: 84, paddingTop: 8 }} />
             <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-              <button type="button" disabled={panicNote.trim().length < 3} onClick={() => resolvePanic(resolvePanicFor.id, panicNote)} style={{ ...assignBtn, flex: 1, color: '#3fb950', borderColor: 'rgba(63,185,80,0.4)', background: 'rgba(63,185,80,0.1)', opacity: panicNote.trim().length < 3 ? 0.5 : 1 }}>Resolve</button>
+              <button type="button" disabled={panicNote.trim().length < 10} onClick={() => resolvePanic(resolvePanicFor.id, panicNote)} style={{ ...assignBtn, flex: 1, color: '#3fb950', borderColor: 'rgba(63,185,80,0.4)', background: 'rgba(63,185,80,0.1)', opacity: panicNote.trim().length < 10 ? 0.5 : 1 }}>Resolve</button>
               <button type="button" onClick={() => setResolvePanicFor(null)} style={{ ...assignBtn, flex: 1 }}>Cancel</button>
             </div>
           </div>

@@ -90,8 +90,9 @@ export default function NgoPanicPage() {
     try { const r = await fetch(`/api/ngo/safety/panic/${sendFor.id}/dispatch`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ team_id: teamId }) }); if (r.ok) { setSendFor(null); load() } }
     finally { setBusy(null) }
   }
+  const RESOLVE_NOTE_MIN = 10
   async function doResolve() {
-    if (!resolveFor || note.trim().length < 3) return
+    if (!resolveFor || note.trim().length < RESOLVE_NOTE_MIN) return
     setBusy(resolveFor.id)
     try {
       const r = await fetch(`/api/ngo/safety/panic/${resolveFor.id}/resolve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ resolution_note: note.trim() }) })
@@ -205,10 +206,11 @@ export default function NgoPanicPage() {
         <div onClick={() => setResolveFor(null)} style={backdrop}>
           <div onClick={(e) => e.stopPropagation()} style={modal}>
             <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>Resolve {resolveFor.name}’s panic</div>
-            <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 10 }}>Only resolve once the person is confirmed safe. An outcome note is required.</div>
+            <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 10 }}>Only resolve once the person is confirmed safe. A meaningful outcome note (at least {RESOLVE_NOTE_MIN} characters) is required and kept on record.</div>
             <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="What happened / outcome…" style={{ width: '100%', minHeight: 90, boxSizing: 'border-box', background: '#0d1117', border: '1px solid #21262d', borderRadius: 8, color: '#e6edf3', fontSize: 14, padding: 10, fontFamily: 'system-ui', outline: 'none' }} />
+            {note.trim().length > 0 && note.trim().length < RESOLVE_NOTE_MIN && <div style={{ fontSize: 11, color: '#d29922', marginTop: 4 }}>{RESOLVE_NOTE_MIN - note.trim().length} more character{RESOLVE_NOTE_MIN - note.trim().length === 1 ? '' : 's'} needed</div>}
             <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-              <button type="button" disabled={note.trim().length < 3 || busy === resolveFor.id} onClick={doResolve} style={{ ...btn('#3fb950'), flex: 1, opacity: note.trim().length < 3 ? 0.5 : 1 }}>Resolve</button>
+              <button type="button" disabled={note.trim().length < RESOLVE_NOTE_MIN || busy === resolveFor.id} onClick={doResolve} style={{ ...btn('#3fb950'), flex: 1, opacity: note.trim().length < RESOLVE_NOTE_MIN ? 0.5 : 1 }}>Resolve</button>
               <button type="button" onClick={() => setResolveFor(null)} style={{ ...btn('#8b949e'), flex: 1 }}>Cancel</button>
             </div>
           </div>
@@ -229,4 +231,4 @@ const backdrop: React.CSSProperties = { position: 'fixed', inset: 0, background:
 const modal: React.CSSProperties = { width: 380, maxWidth: '100%', background: '#161b22', border: '1px solid #21262d', borderRadius: 12, padding: 20, fontFamily: 'system-ui', color: '#e6edf3' }
 const teamRow: React.CSSProperties = { textAlign: 'left', background: '#0d1117', border: '1px solid #21262d', borderRadius: 8, padding: '10px 12px', color: '#e6edf3', fontSize: 14, cursor: 'pointer', fontFamily: 'system-ui' }
 const muteBtn: React.CSSProperties = { flexShrink: 0, height: 30, padding: '0 10px', background: 'rgba(255,255,255,0.04)', border: '1px solid #21262d', color: '#8b949e', borderRadius: 6, fontSize: 12, cursor: 'pointer', fontFamily: 'system-ui' }
-const alertBanner: React.CSSProperties = { background: '#da3633', color: '#fff', borderRadius: 10, padding: '12px 14px', fontSize: 15, fontWeight: 700, marginBottom: 14, cursor: 'pointer', boxShadow: '0 0 0 1px #f85149, 0 4px 14px rgba(248,81,73,0.4)' }
+const alertBanner: React.CSSProperties = { position: 'sticky', top: 0, zIndex: 5, background: '#da3633', color: '#fff', borderRadius: 10, padding: '12px 14px', fontSize: 15, fontWeight: 700, marginBottom: 14, cursor: 'pointer', boxShadow: '0 0 0 1px #f85149, 0 4px 14px rgba(248,81,73,0.4)' }
