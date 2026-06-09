@@ -1,5 +1,7 @@
 'use client'
 
+import Link from 'next/link'
+
 // Full legal privacy policy for the NOUR NGO dashboard. Linked from Settings and from the
 // plain-language data statement (/ngo/privacy). Reachable by every role.
 //
@@ -39,7 +41,7 @@ const TOC: { id: string; n: number; t: string }[] = [
 export default function NgoPrivacyPolicyPage() {
   return (
     <div style={wrap}>
-      <a href="/ngo/privacy" style={{ ...link, fontSize: 13 }}>← Back to the data summary</a>
+      <Link href="/ngo/privacy" style={{ ...link, fontSize: 13 }}>← Back to the data summary</Link>
       <h1 style={h1}>Privacy Policy</h1>
       <p style={meta}>Version {VERSION} · Effective {EFFECTIVE}</p>
       <p style={lede}>
@@ -257,7 +259,7 @@ export default function NgoPrivacyPolicyPage() {
       <S id="exercise" n={15} t="How to exercise your rights">
         <P>Many actions are available to you directly in the product: you can view and update
         your profile and notification preferences, change your password or PIN, and sign out
-        of all devices from <a href="/ngo/settings" style={link}>Settings</a>. Organisation
+        of all devices from <Link href="/ngo/settings" style={link}>Settings</Link>. Organisation
         administrators can manage users, adjust the location-retention window, and run an
         immediate purge of old location data. For any other request, contact us using the
         details in Section 21. We will respond within the timeframe required by applicable
@@ -322,9 +324,9 @@ export default function NgoPrivacyPolicyPage() {
       </S>
 
       <div style={{ marginTop: 28, paddingTop: 16, borderTop: '1px solid #21262d' }}>
-        <a href="/ngo/settings" style={link}>← Back to settings</a>
+        <Link href="/ngo/settings" style={link}>← Back to settings</Link>
         <span style={{ color: '#484f58' }}>{'  ·  '}</span>
-        <a href="/ngo/privacy" style={link}>Data summary</a>
+        <Link href="/ngo/privacy" style={link}>Data summary</Link>
       </div>
       <p style={{ ...meta, marginTop: 16 }}>Version {VERSION} · Effective {EFFECTIVE}</p>
     </div>

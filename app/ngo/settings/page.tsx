@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import Link from 'next/link'
 import { useConfirm } from '@/lib/ngo-ui'
 import { useNgoLang, makeT } from '@/lib/use-ngo-lang'
 
@@ -253,7 +254,7 @@ export default function NgoSettingsPage() {
       {/* Field coordinators reach Settings via the field-screen "Account" link and have no
           sidebar — give them an obvious one-tap way back to their field page. */}
       {role === 'field_coordinator' && (
-        <a href="/ngo/field" style={{ display: 'inline-block', marginBottom: 14, color: '#58a6ff', textDecoration: 'none', fontSize: 14, fontWeight: 600 }}>{t('back_field')}</a>
+        <Link href="/ngo/field" style={{ display: 'inline-block', marginBottom: 14, color: '#58a6ff', textDecoration: 'none', fontSize: 14, fontWeight: 600 }}>{t('back_field')}</Link>
       )}
       <h1 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>{t('title')}</h1>
       <div style={{ fontSize: 13, color: '#8b949e', marginTop: 2, marginBottom: 18 }}>{isAdmin ? t('sub_admin') : role === 'team_leader' ? t('sub_leader') : t('sub_basic')}</div>
@@ -316,7 +317,7 @@ export default function NgoSettingsPage() {
                 {account.role !== 'field_coordinator' && (
                   <div style={{ fontSize: 13, marginTop: 12 }}>
                     {t('twofa_label')} {account.totp_enabled ? <span style={{ color: '#3fb950' }}>{t('on')}</span> : <span style={{ color: '#d29922' }}>{t('off')}</span>}
-                    {' · '}<a href="/ngo/security" style={link}>{t('manage_2fa')}</a>
+                    {' · '}<Link href="/ngo/security" style={link}>{t('manage_2fa')}</Link>
                   </div>
                 )}
                 <div style={{ marginTop: 14 }}>
@@ -327,8 +328,8 @@ export default function NgoSettingsPage() {
 
               <Section title={t('sec_privacy')}>
                 <div style={{ fontSize: 13, display: 'grid', gap: 8 }}>
-                  <a href="/ngo/privacy" style={link}>{t('privacy_summary')}</a>
-                  <a href="/ngo/privacy/policy" style={link}>{t('privacy_policy')}</a>
+                  <Link href="/ngo/privacy" style={link}>{t('privacy_summary')}</Link>
+                  <Link href="/ngo/privacy/policy" style={link}>{t('privacy_policy')}</Link>
                 </div>
               </Section>
             </div>
@@ -361,7 +362,7 @@ export default function NgoSettingsPage() {
                 <Toggle label={t('share_area')} checked={org.share_operational_area} onChange={(v) => setO('share_operational_area', v)} />
                 <button type="button" onClick={() => patchOrg({ share_team_presence: org.share_team_presence, share_operational_area: org.share_operational_area }, t('sharing_saved'))} disabled={busy} style={primaryBtn}>{busy ? t('saving') : t('save_sharing')}</button>
               </Section>
-              <div style={{ fontSize: 13 }}><a href="/ngo/privacy" style={link}>{t('how_handles')}</a></div>
+              <div style={{ fontSize: 13 }}><Link href="/ngo/privacy" style={link}>{t('how_handles')}</Link></div>
             </div>
           )}
 
@@ -374,7 +375,7 @@ export default function NgoSettingsPage() {
               <button type="button" onClick={() => patchOrg({ name: org.name, type: org.type, country: org.country }, t('org_saved'))} disabled={busy || !org.name.trim()} style={{ ...primaryBtn, opacity: busy || !org.name.trim() ? 0.6 : 1 }}>{busy ? t('saving') : t('save_org')}</button>
               <div style={{ fontSize: 13, marginTop: 4 }}>
                 {t('op_area')} {org.has_operational_area ? <span style={{ color: '#3fb950' }}>{t('defined')}</span> : <span style={{ color: '#8b949e' }}>{t('not_set')}</span>}
-                {' · '}<a href="/ngo/setup" style={link}>{t('edit_map')}</a>
+                {' · '}<Link href="/ngo/setup" style={link}>{t('edit_map')}</Link>
               </div>
 
               {/* ── DANGER ZONE — org_admin only (this whole tab is). Both actions require typing

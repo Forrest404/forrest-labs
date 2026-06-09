@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import Link from 'next/link'
 import { useConfirm } from '@/lib/ngo-ui'
 import { useNgoLang, makeT } from '@/lib/use-ngo-lang'
 
@@ -199,7 +200,7 @@ export default function NgoFacilitiesPage() {
       {tab === 'facilities' && (
         <>
           {/* Jump to the situation board with the facilities layer switched on. */}
-          <a href="/ngo/board?layer=facilities" className="fac-add" style={{ ...mapLinkBtn, marginBottom: 10 }}>{t('show_map')}</a>
+          <Link href="/ngo/board?layer=facilities" className="fac-add" style={{ ...mapLinkBtn, marginBottom: 10 }}>{t('show_map')}</Link>
           {canManage && <button type="button" onClick={openNewFac} className="fac-add" style={{ ...primaryBtn, marginBottom: 14 }}>{t('add_facility')}</button>}
 
           {/* Filters */}

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import Link from 'next/link'
 import { useConfirm, useToast } from '@/lib/ngo-ui'
 import { useNgoLang, makeT } from '@/lib/use-ngo-lang'
 
@@ -324,7 +325,7 @@ export default function NgoTeamsPage() {
       {inviteResult && (
         <Modal title={`${inviteResult.name} ${t('can_sign_in')}`} onClose={() => setInviteResult(null)}>
           <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 12 }}>
-            {t('share_code_a')} {inviteResult.name}. {t('share_code_b')} <a href="/ngo/users" style={{ color: '#58a6ff', textDecoration: 'none' }}>{t('users_link')}</a>.
+            {t('share_code_a')} {inviteResult.name}. {t('share_code_b')} <Link href="/ngo/users" style={{ color: '#58a6ff', textDecoration: 'none' }}>{t('users_link')}</Link>.
           </div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, background: '#0d1117', border: '1px solid #21262d', borderRadius: 6, padding: '12px 14px' }}>
             <span style={{ fontSize: 22, fontWeight: 700, letterSpacing: '0.18em' }}>{inviteResult.code}</span>

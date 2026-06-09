@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
+import Link from 'next/link'
 
 declare global {
   interface Window { mapboxgl: any }
@@ -690,7 +691,7 @@ export default function NgoFieldPage() {
                 <button key={l} type="button" onClick={() => changeLang(l)} style={langBtn(lang === l)}>{l === 'ar' ? 'ع' : l.toUpperCase()}</button>
               ))}
             </div>
-            <a href="/ngo/settings" style={{ ...logoutBtn, color: '#8b949e', textDecoration: 'none' }}>{t('account')}</a>
+            <Link href="/ngo/settings" style={{ ...logoutBtn, color: '#8b949e', textDecoration: 'none' }}>{t('account')}</Link>
             <button type="button" onClick={logout} style={logoutBtn}>{t('logout')}</button>
           </div>
         </div>
