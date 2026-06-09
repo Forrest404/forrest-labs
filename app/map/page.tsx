@@ -205,6 +205,7 @@ const MAP_STRINGS: Record<MapLang, Record<string, string>> = {
     radius_label: 'Alert radius', subscribe: 'Subscribe', subscribing: 'Subscribing…',
     alerts_ready: 'Subscription ready', alerts_howto: 'Open this link on your phone to get alerts — it uses the free ntfy app, no account needed:',
     copy_link: 'Copy link', copied: 'Copied ✓', open_link: 'Open', done: 'Done', alerts_err: 'Could not subscribe. Please try again.', km: 'km',
+    emergency_help: 'Emergency help', how_it_works: 'How it works',
   },
   fr: {
     search_ph: 'Rechercher un lieu au Liban…', clear: 'Effacer', locate: 'Ma position',
@@ -220,6 +221,7 @@ const MAP_STRINGS: Record<MapLang, Record<string, string>> = {
     radius_label: 'Rayon d’alerte', subscribe: 'S’abonner', subscribing: 'Abonnement…',
     alerts_ready: 'Abonnement prêt', alerts_howto: 'Ouvrez ce lien sur votre téléphone pour recevoir les alertes — via l’app gratuite ntfy, sans compte :',
     copy_link: 'Copier le lien', copied: 'Copié ✓', open_link: 'Ouvrir', done: 'Terminé', alerts_err: 'Échec de l’abonnement. Réessayez.', km: 'km',
+    emergency_help: 'Aide d’urgence', how_it_works: 'Comment ça marche',
   },
   ar: {
     search_ph: 'ابحث عن مكان في لبنان…', clear: 'مسح', locate: 'موقعي',
@@ -235,6 +237,7 @@ const MAP_STRINGS: Record<MapLang, Record<string, string>> = {
     radius_label: 'نطاق التنبيه', subscribe: 'اشترك', subscribing: 'جارٍ الاشتراك…',
     alerts_ready: 'تم تجهيز الاشتراك', alerts_howto: 'افتح هذا الرابط على هاتفك لتصلك التنبيهات — عبر تطبيق ntfy المجاني، دون حساب:',
     copy_link: 'نسخ الرابط', copied: 'تم النسخ ✓', open_link: 'فتح', done: 'تم', alerts_err: 'تعذّر الاشتراك. حاول مرة أخرى.', km: 'كم',
+    emergency_help: 'مساعدة طارئة', how_it_works: 'كيف يعمل',
   },
 }
 
@@ -498,6 +501,14 @@ export default function MapPage() {
     try { const c = map.current?.getCenter?.(); if (c) area = { lat: c.lat, lon: c.lng } } catch { /* map not ready */ }
     setAlertArea(area); setAlertResult(null); setAlertErr(null); setAlertCopied(false); setAlertsOpen(true)
   }, [])
+
+  // Landing entry point: /map?alerts=1 opens the area-alert modal once the map has settled
+  // (so getCenter() reflects any ?lat/lon deep-link rather than the default centre).
+  useEffect(() => {
+    if (!new URLSearchParams(window.location.search).get('alerts')) return
+    const id = setTimeout(() => openAlerts(), 700)
+    return () => clearTimeout(id)
+  }, [openAlerts])
 
   const subscribeAlerts = useCallback(async () => {
     if (!alertArea || alertBusy) return
@@ -2307,6 +2318,12 @@ export default function MapPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', flexShrink: 0, marginLeft: 6, marginRight: 6 }} />
           {t('warn_clear')}
+        </div>
+        {/* Help links */}
+        <div style={{ borderTop: '0.5px solid rgba(255,255,255,0.1)', margin: '8px 0' }} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+          <a href="/resources" style={{ fontSize: 11, color: '#f85149', textDecoration: 'none' }}>{t('emergency_help')} →</a>
+          <a href="/methodology" style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', textDecoration: 'none' }}>{t('how_it_works')} →</a>
         </div>
       </div>
 
