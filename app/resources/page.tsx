@@ -8,12 +8,23 @@ import { useEffect, useState } from 'react'
 
 type Lang = 'en' | 'fr' | 'ar'
 
-// Canonical Lebanese emergency numbers.
+// Canonical Lebanese emergency numbers (cross-referenced against the Lebanese National News
+// Agency and other authoritative listings).
 const HOTLINES: { tel: string; key: string }[] = [
-  { tel: '140', key: 'red_cross' },     // Lebanese Red Cross — ambulance
-  { tel: '125', key: 'civil_defence' }, // Civil Defence — rescue / fire / disasters
-  { tel: '112', key: 'police' },        // Internal Security Forces — police
-  { tel: '175', key: 'fire' },          // Fire Brigade
+  { tel: '140', key: 'red_cross' },       // Lebanese Red Cross — ambulance
+  { tel: '125', key: 'civil_defence' },   // Civil Defence — rescue / fire / disasters
+  { tel: '112', key: 'police' },          // Internal Security Forces — police
+  { tel: '175', key: 'fire' },            // Fire Brigade
+  { tel: '1701', key: 'army' },           // Lebanese Army
+  { tel: '1717', key: 'general_security' }, // General Security
+]
+
+// Support / crisis helplines (emotional support, child protection, LGBTQIA+). These carry
+// hours + a short description, so they render as richer cards below the emergency numbers.
+const HELPLINES: { tel: string; key: string }[] = [
+  { tel: '1564', key: 'embrace' },          // Embrace Lifeline
+  { tel: '+9611611611', key: 'cypp' },      // Child & Youth Protection Program
+  { tel: '+96171916146', key: 'helem' },    // Helem LGBTQIA+ support line
 ]
 
 const S: Record<Lang, Record<string, string>> = {
@@ -22,6 +33,11 @@ const S: Record<Lang, Record<string, string>> = {
     back: '← Home', call_now: 'Call for help now', tap_to_call: 'Tap to call',
     red_cross: 'Lebanese Red Cross — ambulance', civil_defence: 'Civil Defence — rescue & fire',
     police: 'Internal Security Forces — police', fire: 'Fire Brigade',
+    army: 'Lebanese Army', general_security: 'General Security',
+    helplines_title: 'Support helplines',
+    embrace_name: 'Embrace Lifeline — emotional support & suicide prevention', embrace_hours: '24/7 · Arabic, English, French', embrace_desc: 'Lebanon’s national confidential emotional-support and suicide-prevention helpline.',
+    cypp_name: 'Child & Youth Protection — youth helpline', cypp_hours: 'Mon–Fri, 9 AM–6 PM', cypp_desc: 'Emotional support for children and adolescents in distress.',
+    helem_name: 'Helem — LGBTQIA+ support line', helem_hours: 'Daily, 5 PM–9 PM', helem_desc: 'Crisis support and mental-health services for LGBTQIA+ people.',
     guidance_title: 'If there is a strike or evacuation order',
     g1: 'Move away from the area and from windows; get to the lowest, most sheltered floor.',
     g2: 'Follow official evacuation orders immediately — do not wait for confirmation.',
@@ -37,6 +53,11 @@ const S: Record<Lang, Record<string, string>> = {
     back: '← Accueil', call_now: 'Appeler à l’aide maintenant', tap_to_call: 'Appuyez pour appeler',
     red_cross: 'Croix-Rouge libanaise — ambulance', civil_defence: 'Défense civile — secours & incendie',
     police: 'Forces de sécurité intérieure — police', fire: 'Brigade des pompiers',
+    army: 'Armée libanaise', general_security: 'Sûreté générale',
+    helplines_title: 'Lignes d’écoute',
+    embrace_name: 'Embrace Lifeline — soutien émotionnel & prévention du suicide', embrace_hours: '24h/24 7j/7 · arabe, anglais, français', embrace_desc: 'Ligne nationale et confidentielle de soutien émotionnel et de prévention du suicide.',
+    cypp_name: 'Protection de l’enfance et de la jeunesse — ligne jeunes', cypp_hours: 'Lun–Ven, 9h–18h', cypp_desc: 'Soutien émotionnel pour les enfants et adolescents en détresse.',
+    helem_name: 'Helem — ligne de soutien LGBTQIA+', helem_hours: 'Tous les jours, 17h–21h', helem_desc: 'Soutien de crise et services de santé mentale pour les personnes LGBTQIA+.',
     guidance_title: 'En cas de frappe ou d’ordre d’évacuation',
     g1: 'Éloignez-vous de la zone et des fenêtres ; gagnez l’étage le plus bas et le plus abrité.',
     g2: 'Suivez immédiatement les ordres d’évacuation officiels — n’attendez pas de confirmation.',
@@ -52,6 +73,11 @@ const S: Record<Lang, Record<string, string>> = {
     back: '← الرئيسية', call_now: 'اتصل للمساعدة الآن', tap_to_call: 'اضغط للاتصال',
     red_cross: 'الصليب الأحمر اللبناني — إسعاف', civil_defence: 'الدفاع المدني — إنقاذ وإطفاء',
     police: 'قوى الأمن الداخلي — الشرطة', fire: 'فوج الإطفاء',
+    army: 'الجيش اللبناني', general_security: 'الأمن العام',
+    helplines_title: 'خطوط الدعم',
+    embrace_name: 'Embrace Lifeline — دعم نفسي والوقاية من الانتحار', embrace_hours: '٢٤/٧ · العربية والإنجليزية والفرنسية', embrace_desc: 'الخط الوطني السري للدعم النفسي والوقاية من الانتحار في لبنان.',
+    cypp_name: 'حماية الطفل والشباب — خط مساندة الشباب', cypp_hours: 'الإثنين–الجمعة، ٩ ص–٦ م', cypp_desc: 'دعم نفسي للأطفال والمراهقين في حالات الضيق.',
+    helem_name: 'حلم — خط دعم مجتمع الميم', helem_hours: 'يومياً، ٥ م–٩ م', helem_desc: 'دعم في الأزمات وخدمات صحة نفسية لأفراد مجتمع الميم.',
     guidance_title: 'عند وقوع ضربة أو أمر إخلاء',
     g1: 'ابتعد عن المنطقة وعن النوافذ، وانتقل إلى أدنى طابق وأكثره حماية.',
     g2: 'اتبع أوامر الإخلاء الرسمية فوراً — لا تنتظر التأكيد.',
@@ -106,6 +132,26 @@ export default function ResourcesPage() {
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden>
                   <path d="M5 3.5c0-.6.5-1 1-1h2.2c.5 0 .9.3 1 .8l.7 3a1 1 0 0 1-.3 1l-1.4 1.3a11 11 0 0 0 4.7 4.7l1.3-1.4a1 1 0 0 1 1-.3l3 .7c.5.1.8.5.8 1V17c0 .5-.4 1-1 1A13 13 0 0 1 5 5.2V3.5Z" fill="#3fb950" />
                 </svg>
+              </span>
+            </a>
+          ))}
+        </div>
+
+        {/* Support helplines */}
+        <div style={{ fontSize: 12, color: '#8b949e', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 10 }}>{t('helplines_title')}</div>
+        <div style={{ display: 'grid', gap: 10, marginBottom: 28 }}>
+          {HELPLINES.map((h) => (
+            <a key={h.tel} href={`tel:${h.tel}`} style={{ display: 'block', background: '#161b22', border: '1px solid #21262d', borderRadius: 12, padding: '14px 16px', textDecoration: 'none', color: '#e6edf3' }}>
+              <span style={{ display: 'block', fontSize: 15, fontWeight: 600 }}>{t(`${h.key}_name`)}</span>
+              <span style={{ display: 'block', fontSize: 13, color: '#8b949e', margin: '4px 0 8px', lineHeight: 1.45 }}>{t(`${h.key}_desc`)}</span>
+              <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                <span style={{ fontSize: 12, color: '#6e7681' }}>{t(`${h.key}_hours`)}</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#58a6ff', fontWeight: 700, fontSize: 15, direction: 'ltr' }}>
+                  {h.tel}
+                  <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden>
+                    <path d="M5 3.5c0-.6.5-1 1-1h2.2c.5 0 .9.3 1 .8l.7 3a1 1 0 0 1-.3 1l-1.4 1.3a11 11 0 0 0 4.7 4.7l1.3-1.4a1 1 0 0 1 1-.3l3 .7c.5.1.8.5.8 1V17c0 .5-.4 1-1 1A13 13 0 0 1 5 5.2V3.5Z" fill="#3fb950" />
+                  </svg>
+                </span>
               </span>
             </a>
           ))}
