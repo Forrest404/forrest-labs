@@ -40,7 +40,7 @@ const LANG = {
     org_dash_title: 'Partner dashboard', org_dash_body: 'NGO coordinators get real-time access to confirmed incidents and team dispatch — separate from civilian data.', org_dash_link: 'Request access →',
     org_export_title: 'Data export', org_export_body: 'All confirmed incident data is available as GeoJSON and CSV for import into your existing GIS and reporting tools.', org_export_link: 'Download sample →',
     org_api_title: 'API access', org_api_body: 'Live incident feed available for programmatic integration with existing humanitarian information systems.', org_api_link: 'View documentation →',
-    footer_built: 'Built to protect civilians', footer_year: 'NOUR · 2026', nav_privacy: 'Privacy', nav_resources: 'Emergency help',
+    footer_built: 'Built to protect civilians', footer_year: 'NOUR · 2026', nav_privacy: 'Privacy', nav_resources: 'Emergency help', nav_methodology: 'How it works',
   },
   fr: {
     nav_map: 'Carte Opérationnelle',
@@ -76,7 +76,7 @@ const LANG = {
     org_dash_title: 'Tableau de bord partenaire', org_dash_body: "Les coordinateurs ONG accèdent en temps réel aux incidents confirmés et au déploiement des équipes — séparément des données civiles.", org_dash_link: "Demander l'accès →",
     org_export_title: 'Export de données', org_export_body: 'Toutes les données confirmées sont disponibles en GeoJSON et CSV pour vos outils SIG et de rapport existants.', org_export_link: 'Télécharger un exemple →',
     org_api_title: 'Accès API', org_api_body: "Flux d'incidents en direct pour l'intégration programmatique avec les systèmes d'information humanitaires existants.", org_api_link: 'Voir la documentation →',
-    footer_built: 'Conçu pour protéger les civils', footer_year: 'NOUR · 2026', nav_privacy: 'Confidentialité', nav_resources: 'Aide d’urgence',
+    footer_built: 'Conçu pour protéger les civils', footer_year: 'NOUR · 2026', nav_privacy: 'Confidentialité', nav_resources: 'Aide d’urgence', nav_methodology: 'Comment ça marche',
   },
   ar: {
     nav_map: 'خريطة العمليات',
@@ -112,7 +112,7 @@ const LANG = {
     org_dash_title: 'لوحة الشريك', org_dash_body: 'منسّقو المنظمات بيوصلوا بالوقت الحقيقي للحوادث المؤكدة وتوزيع الفرق — منفصل عن بيانات المدنيين.', org_dash_link: 'اطلب الوصول →',
     org_export_title: 'تصدير البيانات', org_export_body: 'كل بيانات الحوادث المؤكدة متوفرة بصيغة GeoJSON و CSV لاستيرادها بأدوات GIS والتقارير.', org_export_link: 'حمّل عيّنة →',
     org_api_title: 'وصول API', org_api_body: 'تدفق الحوادث المباشر متاح للتكامل البرمجي مع أنظمة المعلومات الإنسانية الموجودة.', org_api_link: 'شوف التوثيق →',
-    footer_built: 'مبني لحماية المدنيين', footer_year: 'فورست لابس · ٢٠٢٦', nav_privacy: 'الخصوصية', nav_resources: 'مساعدة طارئة',
+    footer_built: 'مبني لحماية المدنيين', footer_year: 'فورست لابس · ٢٠٢٦', nav_privacy: 'الخصوصية', nav_resources: 'مساعدة طارئة', nav_methodology: 'كيف يعمل',
   },
 } as const
 
@@ -666,6 +666,7 @@ export default function HomePage() {
           <div style={{ display: 'flex', gap: 16 }}>
             <a href="/report" style={{ color: '#ef4444', textDecoration: 'none', fontFamily: 'monospace', fontSize: 12 }}>{t('nav_report')} →</a>
             <a href="/map" style={{ color: 'rgba(255,255,255,0.3)', textDecoration: 'none', fontFamily: 'monospace', fontSize: 12 }}>{t('nav_map')}</a>
+            <a href="/methodology" style={{ color: 'rgba(255,255,255,0.3)', textDecoration: 'none', fontFamily: 'monospace', fontSize: 12 }}>{t('nav_methodology')}</a>
             <a href="/resources" style={{ color: '#f85149', textDecoration: 'none', fontFamily: 'monospace', fontSize: 12 }}>{t('nav_resources')}</a>
             <a href="/privacy" style={{ color: 'rgba(255,255,255,0.3)', textDecoration: 'none', fontFamily: 'monospace', fontSize: 12 }}>{t('nav_privacy')}</a>
           </div>
