@@ -495,13 +495,19 @@ export default function NgoBoardPage() {
         setupBoardLayers(map.current)
         setMapLoaded(true)
       })
-      // Pick-on-map for a new custom incident.
+      // Pick-on-map for a new custom incident; otherwise a click on empty map clears any
+      // selected marker (background-tap to dismiss the detail card).
       map.current.on('click', (e: any) => {
-        if (!creatingRef.current) return
-        const lat = e.lngLat.lat, lon = e.lngLat.lng
-        setCreating(false)
-        setNewInc({ lat, lon, address: '', title: '', category: 'medical', severity: 'medium', description: '' })
-        reverseForForm(lat, lon)
+        if (creatingRef.current) {
+          const lat = e.lngLat.lat, lon = e.lngLat.lng
+          setCreating(false)
+          setNewInc({ lat, lon, address: '', title: '', category: 'medical', severity: 'medium', description: '' })
+          reverseForForm(lat, lon)
+          return
+        }
+        const m = map.current
+        const layers = ['inc-dots', 'custom-inc-dot', 'team-dots', 'worker-dot', 'panic-dot', 'fac-dots'].filter((l) => m.getLayer(l))
+        if (!m.queryRenderedFeatures(e.point, { layers }).length) setSelected(null)
       })
       map.current.getCanvas().style.cursor = ''
     }
@@ -575,6 +581,13 @@ export default function NgoBoardPage() {
     }
     return () => { bound.forEach((b) => { try { m.off('click', b.layer, b.onClick); m.off('mouseenter', b.layer, b.onEnter); m.off('mouseleave', b.layer, b.onLeave) } catch { /* map gone */ } }) }
   }, [mapLoaded])
+
+  // Esc dismisses the selected-marker detail card and the search dropdown.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { setSelected(null); setSearchOpen(false) } }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   // Select an entity from the feed/list and centre the map on it (feed ↔ map link).
   function selectAndFly(kind: 'incident' | 'custom', id: string, lon: number, lat: number) {
