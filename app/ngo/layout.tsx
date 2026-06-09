@@ -2,6 +2,7 @@
 
 import { type ReactNode, useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
+import Link from 'next/link'
 import { NgoUiProvider } from '@/lib/ngo-ui'
 import { NgoLangContext, useNgoLangState, makeT, type Lang } from '@/lib/use-ngo-lang'
 
@@ -268,7 +269,7 @@ function NavBody({
 function NavLink({ href, label, active, badge, danger }: { href: string; label: string; active: boolean; badge?: number; danger?: boolean }) {
   const hasBadge = !!badge && badge > 0
   return (
-    <a
+    <Link
       href={href}
       style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderRadius: 6, fontSize: 13, textDecoration: 'none',
@@ -280,6 +281,6 @@ function NavLink({ href, label, active, badge, danger }: { href: string; label: 
       {hasBadge && (
         <span style={{ background: '#da3633', color: '#fff', fontSize: 11, fontWeight: 700, borderRadius: 999, minWidth: 18, height: 18, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 5px' }}>{badge}</span>
       )}
-    </a>
+    </Link>
   )
 }
