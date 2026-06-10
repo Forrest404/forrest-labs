@@ -2,14 +2,14 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useConfirm, useToast, SkeletonRows } from '@/lib/ngo-ui'
-import { useNgoLang, makeT } from '@/lib/use-ngo-lang'
+import { useNgoLang, makeT, type Lang } from '@/lib/use-ngo-lang'
+import { StatusPill, ModalShell, TeamPicker, RecallDialog } from '@/lib/ngo-dispatch-ui'
 
 // Leader/admin dispatch board: every dispatch (active + history) with team,
 // status, response time, the note, and the on-scene report. Reassign / recall
 // in two taps. Incident choices for reassign come from the live board feed.
-
-const STATUS_COLOUR: Record<string, string> = { assigned: '#58a6ff', en_route: '#d29922', on_scene: '#3fb950', done: '#8b949e', cancelled: '#f85149' }
-const STATUS_KEY: Record<string, string> = { assigned: 'st_assigned', en_route: 'st_en_route', on_scene: 'st_on_scene', done: 'st_done', cancelled: 'st_cancelled' }
+// Status pill, modal shell, team picker and recall dialog are shared with the
+// situation board via lib/ngo-dispatch-ui so both surfaces stay identical.
 
 const LANG = {
   en: { title: 'Dispatch', subtitle: 'Teams in the field and their response.', loading: 'Loading…', refresh_fail: 'Couldn’t refresh dispatches.', retry: 'Retry', active: 'Active', history: 'History', clear_history: 'Clear history', clearing: 'Clearing…', none: 'None.', team: 'Team', assigned: 'assigned', response: 'response', onscene: 'On-scene report', people: 'People assisted', services: 'Services', hazards: 'New hazards', change_team: 'Change team', change_incident: 'Change incident', recall: 'Recall', cancel: 'Cancel', reason_opt: 'Reason (optional)', reassign_inc_title: 'Reassign', move_to_inc: 'Move to incident:', no_in_area: 'No in-area incidents.', reassign_team_title: 'Reassign to another team', currently: 'Currently', team_swap_note: 'The new team is dispatched; the current team stands down.', move_to_team: 'Move to team:', no_other_teams: 'No other teams.', off_duty: 'off duty', no_app: 'no app access', recall_sub: 'The team stands down and the incident reopens as a coverage gap.', st_assigned: 'Assigned', st_en_route: 'En route', st_on_scene: 'On scene', st_done: 'Done', st_cancelled: 'Cancelled', clear_confirm_title: 'Delete all closed dispatches?', clear_confirm_body: 'This removes done & cancelled dispatches and their on-scene reports. Active dispatches are kept. This cannot be undone.', del: 'Delete', t_recalled: 'Team recalled', t_reassigned: 'Dispatch reassigned', t_team_reassigned: 'Team reassigned', t_cleared: 'History cleared', e_recall: 'Could not recall team', e_reassign: 'Could not reassign', e_team: 'Could not reassign team', e_clear: 'Could not clear history' },
@@ -71,10 +71,10 @@ export default function NgoDispatchPage() {
     }
   }, [load])
 
-  async function confirmRecall() {
+  async function confirmRecall(reasonArg: string) {
     if (!recallFor) return
-    const res = await fetch(`/api/ngo/dispatch/${recallFor.id}/recall`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason }) })
-    if (res.ok) { setRecallFor(null); setReason(''); toast(t('t_recalled')); load() } else toast(t('e_recall'), 'error')
+    const res = await fetch(`/api/ngo/dispatch/${recallFor.id}/recall`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: reasonArg }) })
+    if (res.ok) { setRecallFor(null); toast(t('t_recalled')); load() } else toast(t('e_recall'), 'error')
   }
   async function doReassign(clusterId: string) {
     if (!reassignFor) return
@@ -111,9 +111,10 @@ export default function NgoDispatchPage() {
         </div>
       )}
 
-      <Section t={t} title={`${t('active')} (${active.length})`} rows={active} onRecall={(d) => { setRecallFor(d); setReason('') }} onReassign={(d) => { setReassignFor(d); setReason('') }} onReassignTeam={(d) => { setReassignTeamFor(d); setReason('') }} />
+      <Section t={t} lang={lang} title={`${t('active')} (${active.length})`} rows={active} onRecall={(d) => { setRecallFor(d); setReason('') }} onReassign={(d) => { setReassignFor(d); setReason('') }} onReassignTeam={(d) => { setReassignTeamFor(d); setReason('') }} />
       <Section
         t={t}
+        lang={lang}
         title={`${t('history')} (${closed.length})`}
         rows={closed}
         onRecall={(d) => { setRecallFor(d); setReason('') }}
@@ -125,63 +126,36 @@ export default function NgoDispatchPage() {
       />
 
       {reassignFor && (
-        <div onClick={() => setReassignFor(null)} style={backdrop}>
-          <div onClick={(e) => e.stopPropagation()} style={modal}>
-            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>{t('reassign_inc_title')} — {reassignFor.team_name}</div>
-            <input style={input} placeholder={t('reason_opt')} value={reason} onChange={(e) => setReason(e.target.value)} />
-            <div style={{ fontSize: 12, color: '#8b949e', margin: '10px 0 6px' }}>{t('move_to_inc')}</div>
-            <div style={{ maxHeight: 260, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {incidents.filter((i) => i.id !== reassignFor.cluster_id).map((i) => (
-                <button key={i.id} type="button" onClick={() => doReassign(i.id)} style={incBtn}>{i.lat.toFixed(3)}, {i.lon.toFixed(3)}</button>
-              ))}
-              {incidents.length === 0 && <div style={{ fontSize: 13, color: '#8b949e' }}>{t('no_in_area')}</div>}
-            </div>
-            <button type="button" onClick={() => setReassignFor(null)} style={{ ...incBtn, marginTop: 12, borderColor: '#21262d', color: '#8b949e' }}>{t('cancel')}</button>
+        <ModalShell onClose={() => setReassignFor(null)} width={360} title={`${t('reassign_inc_title')} — ${reassignFor.team_name}`}>
+          <input style={input} placeholder={t('reason_opt')} value={reason} onChange={(e) => setReason(e.target.value)} />
+          <div style={{ fontSize: 12, color: '#8b949e', margin: '10px 0 6px' }}>{t('move_to_inc')}</div>
+          <div style={{ maxHeight: 260, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {incidents.filter((i) => i.id !== reassignFor.cluster_id).map((i) => (
+              <button key={i.id} type="button" onClick={() => doReassign(i.id)} style={incBtn}>{i.lat.toFixed(3)}, {i.lon.toFixed(3)}</button>
+            ))}
+            {incidents.length === 0 && <div style={{ fontSize: 13, color: '#8b949e' }}>{t('no_in_area')}</div>}
           </div>
-        </div>
+          <button type="button" onClick={() => setReassignFor(null)} style={{ ...incBtn, marginTop: 12, borderColor: '#21262d', color: '#8b949e' }}>{t('cancel')}</button>
+        </ModalShell>
       )}
 
       {reassignTeamFor && (
-        <div onClick={() => setReassignTeamFor(null)} style={backdrop}>
-          <div onClick={(e) => e.stopPropagation()} style={modal}>
-            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>{t('reassign_team_title')}</div>
-            <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 10 }}>{t('currently')} {reassignTeamFor.team_name ?? t('team')}. {t('team_swap_note')}</div>
-            <input style={input} placeholder={t('reason_opt')} value={reason} onChange={(e) => setReason(e.target.value)} />
-            <div style={{ fontSize: 12, color: '#8b949e', margin: '10px 0 6px' }}>{t('move_to_team')}</div>
-            <div style={{ maxHeight: 260, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {teams.filter((tm) => tm.id !== reassignTeamFor.team_id).map((tm) => (
-                <button key={tm.id} type="button" onClick={() => doReassignTeam(tm.id)} style={incBtn}>
-                  <div>{tm.name} <span style={{ color: '#8b949e' }}>· {tm.type}</span></div>
-                  <div style={{ fontSize: 11, color: '#8b949e', marginTop: 2 }}>
-                    {tm.all_off_duty ? `🌙 ${t('off_duty')}` : tm.status}{tm.notifiable_count === 0 ? ` · ⚠ ${t('no_app')}` : ''}
-                  </div>
-                </button>
-              ))}
-              {teams.filter((tm) => tm.id !== reassignTeamFor.team_id).length === 0 && <div style={{ fontSize: 13, color: '#8b949e' }}>{t('no_other_teams')}</div>}
-            </div>
-            <button type="button" onClick={() => setReassignTeamFor(null)} style={{ ...incBtn, marginTop: 12, borderColor: '#21262d', color: '#8b949e' }}>{t('cancel')}</button>
-          </div>
-        </div>
+        <ModalShell onClose={() => setReassignTeamFor(null)} width={360} title={t('reassign_team_title')} subtitle={`${t('currently')} ${reassignTeamFor.team_name ?? t('team')}. ${t('team_swap_note')}`}>
+          <input style={input} placeholder={t('reason_opt')} value={reason} onChange={(e) => setReason(e.target.value)} />
+          <div style={{ fontSize: 12, color: '#8b949e', margin: '10px 0 6px' }}>{t('move_to_team')}</div>
+          <TeamPicker lang={lang} teams={teams.filter((tm) => tm.id !== reassignTeamFor.team_id)} onPick={doReassignTeam} emptyText={t('no_other_teams')} />
+          <button type="button" onClick={() => setReassignTeamFor(null)} style={{ ...incBtn, marginTop: 12, borderColor: '#21262d', color: '#8b949e' }}>{t('cancel')}</button>
+        </ModalShell>
       )}
 
       {recallFor && (
-        <div onClick={() => setRecallFor(null)} style={backdrop}>
-          <div onClick={(e) => e.stopPropagation()} style={modal}>
-            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>{t('recall')} {recallFor.team_name}?</div>
-            <div style={{ fontSize: 13, color: '#8b949e', marginBottom: 12 }}>{t('recall_sub')}</div>
-            <input style={input} placeholder={t('reason_opt')} value={reason} onChange={(e) => setReason(e.target.value)} />
-            <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-              <button type="button" onClick={confirmRecall} style={{ ...incBtn, flex: 1, color: '#f85149', borderColor: 'rgba(248,81,73,0.4)' }}>{t('recall')}</button>
-              <button type="button" onClick={() => setRecallFor(null)} style={{ ...incBtn, flex: 1, color: '#8b949e' }}>{t('cancel')}</button>
-            </div>
-          </div>
-        </div>
+        <RecallDialog lang={lang} teamName={recallFor.team_name} onClose={() => setRecallFor(null)} onConfirm={(r) => confirmRecall(r)} />
       )}
     </div>
   )
 }
 
-function Section({ title, rows, onRecall, onReassign, onReassignTeam, action, t }: { title: string; rows: Dispatch[]; onRecall: (d: Dispatch) => void; onReassign: (d: Dispatch) => void; onReassignTeam: (d: Dispatch) => void; action?: React.ReactNode; t: (k: string) => string }) {
+function Section({ title, rows, onRecall, onReassign, onReassignTeam, action, t, lang }: { title: string; rows: Dispatch[]; onRecall: (d: Dispatch) => void; onReassign: (d: Dispatch) => void; onReassignTeam: (d: Dispatch) => void; action?: React.ReactNode; t: (k: string) => string; lang: Lang }) {
   return (
     <div style={{ marginBottom: 24 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
@@ -195,7 +169,7 @@ function Section({ title, rows, onRecall, onReassign, onReassignTeam, action, t 
           <div key={d.id} style={card}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ fontWeight: 600 }}>{d.team_name ?? t('team')} <span style={{ fontSize: 12, color: '#8b949e', fontWeight: 400 }}>· {d.team_type}</span></div>
-              <span style={{ fontSize: 12, color: STATUS_COLOUR[d.status] }}>● {t(STATUS_KEY[d.status]) ?? d.status}</span>
+              <StatusPill status={d.status} lang={lang} />
             </div>
             <div style={{ fontSize: 12, color: '#8b949e', marginTop: 4 }}>
               {t('assigned')} {timeAgo(d.assigned_at)}{d.response_minutes != null ? ` · ${t('response')} ${d.response_minutes}m` : ''}
@@ -225,7 +199,5 @@ function Section({ title, rows, onRecall, onReassign, onReassignTeam, action, t 
 
 const card: React.CSSProperties = { background: '#161b22', border: '1px solid #21262d', borderRadius: 10, padding: 14, marginBottom: 8 }
 const smallBtn: React.CSSProperties = { height: 30, padding: '0 12px', background: 'rgba(255,255,255,0.04)', border: '1px solid #21262d', color: '#8b949e', borderRadius: 6, fontSize: 12, cursor: 'pointer', fontFamily: 'system-ui' }
-const backdrop: React.CSSProperties = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }
-const modal: React.CSSProperties = { width: 360, background: '#161b22', border: '1px solid #21262d', borderRadius: 12, padding: 22 }
 const input: React.CSSProperties = { width: '100%', height: 38, padding: '0 10px', boxSizing: 'border-box', background: '#0d1117', border: '1px solid #21262d', borderRadius: 6, color: '#e6edf3', fontSize: 13, fontFamily: 'system-ui', outline: 'none' }
 const incBtn: React.CSSProperties = { textAlign: 'left', background: '#0d1117', border: '1px solid #21262d', borderRadius: 6, padding: '8px 10px', color: '#e6edf3', fontSize: 13, cursor: 'pointer', fontFamily: 'system-ui' }

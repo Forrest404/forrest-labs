@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { useNewPanicAlert } from '@/lib/use-new-panic-alert'
 import { useConfirm, useToast } from '@/lib/ngo-ui'
 import { useNgoLang, makeT } from '@/lib/use-ngo-lang'
+import { StatusPill, ModalShell, TeamPicker, RecallDialog, type PickableTeam } from '@/lib/ngo-dispatch-ui'
 
 const BLANG = {
   en: {
@@ -25,7 +26,7 @@ const BLANG = {
     rp_title: 'Resolve', rp_poss: '’s panic', rp_note: 'Only resolve once the person is confirmed safe. A meaningful outcome note (at least 10 characters) is required.', rp_ph: 'What happened / outcome…',
     rec_title: 'Recall', rec_note: 'The team is told to stand down and the incident reopens as a coverage gap.', reason_opt: 'Reason (optional)',
     as_title: 'Assign a team', note_opt: 'Note (optional)', no_teams_avail: 'No teams available.', match: '✓match', km: 'km', no_loc: 'no loc', busy_w: 'busy', no_app_members: '⚠ No members with app access — they won’t be notified',
-    t_inc_resolved: 'Incident resolved', t_e_resolve: 'Could not resolve incident', t_dismissed: 'Incident dismissed', t_reopened: 'Incident reopened', t_action_fail: 'Action failed', t_dispatched: 'Team dispatched', t_e_dispatch: 'Could not dispatch team', t_panic_resolved: 'Panic resolved', t_e_resolve2: 'Could not resolve', t_panic_ack: 'Panic acknowledged', t_team_sent: 'Team sent', t_e_send: 'Could not send team', t_inc_created: 'Incident created', t_e_create: 'Could not create incident', t_team_recalled: 'Team recalled', t_e_recall: 'Could not recall team', t_loc_fail: 'Could not get your location — check permissions', t_loc_na: 'Location not available on this device',
+    t_inc_resolved: 'Incident resolved', t_e_resolve: 'Could not resolve incident', t_dismissed: 'Incident dismissed', t_reopened: 'Incident reopened', t_action_fail: 'Action failed', t_dispatched: 'Team dispatched', t_e_dispatch: 'Could not dispatch team', t_panic_resolved: 'Panic resolved', t_e_resolve2: 'Could not resolve', t_panic_ack: 'Panic acknowledged', t_team_sent: 'Team sent', t_e_send: 'Could not send team', t_inc_created: 'Incident created', t_e_create: 'Could not create incident', t_team_recalled: 'Team recalled', t_e_recall: 'Could not recall team', change_team: 'Change team', change_incident: 'Change incident', rs_currently: 'Currently', rs_swap_note: 'The new team is dispatched; the current team stands down.', rs_no_other_teams: 'No other teams.', rs_move_to_inc: 'Move this team to another incident:', rs_no_other_inc: 'No other in-area incidents.', t_reassigned: 'Dispatch reassigned', t_team_reassigned: 'Team reassigned', t_e_reassign: 'Could not reassign', t_loc_fail: 'Could not get your location — check permissions', t_loc_na: 'Location not available on this device',
     cf_resolve_t: 'Mark this incident resolved?', cf_resolve_b: 'It leaves the board.', cf_dismiss_cluster: 'Dismiss this incident? It leaves your board but can be reopened. The public verification is unaffected.', cf_dismiss_custom: 'Dismiss this incident? It leaves the board but can be reopened.',
   },
   fr: {
@@ -47,7 +48,7 @@ const BLANG = {
     rp_title: 'Clôturer la panique de', rp_poss: '', rp_note: 'Ne clôturez qu’une fois la personne en sécurité. Une note d’issue (au moins 10 caractères) est requise.', rp_ph: 'Ce qui s’est passé / issue…',
     rec_title: 'Rappeler', rec_note: 'L’équipe se retire et l’incident redevient une lacune de couverture.', reason_opt: 'Raison (facultatif)',
     as_title: 'Assigner une équipe', note_opt: 'Note (facultatif)', no_teams_avail: 'Aucune équipe disponible.', match: '✓correspond', km: 'km', no_loc: 'sans pos.', busy_w: 'occupé', no_app_members: '⚠ Aucun membre avec accès à l’app — ils ne seront pas notifiés',
-    t_inc_resolved: 'Incident résolu', t_e_resolve: 'Impossible de résoudre l’incident', t_dismissed: 'Incident rejeté', t_reopened: 'Incident rouvert', t_action_fail: 'Échec de l’action', t_dispatched: 'Équipe déployée', t_e_dispatch: 'Impossible de déployer l’équipe', t_panic_resolved: 'Panique clôturée', t_e_resolve2: 'Impossible de clôturer', t_panic_ack: 'Panique confirmée', t_team_sent: 'Équipe envoyée', t_e_send: 'Impossible d’envoyer l’équipe', t_inc_created: 'Incident créé', t_e_create: 'Impossible de créer l’incident', t_team_recalled: 'Équipe rappelée', t_e_recall: 'Impossible de rappeler l’équipe', t_loc_fail: 'Impossible d’obtenir votre position — vérifiez les autorisations', t_loc_na: 'Localisation non disponible sur cet appareil',
+    t_inc_resolved: 'Incident résolu', t_e_resolve: 'Impossible de résoudre l’incident', t_dismissed: 'Incident rejeté', t_reopened: 'Incident rouvert', t_action_fail: 'Échec de l’action', t_dispatched: 'Équipe déployée', t_e_dispatch: 'Impossible de déployer l’équipe', t_panic_resolved: 'Panique clôturée', t_e_resolve2: 'Impossible de clôturer', t_panic_ack: 'Panique confirmée', t_team_sent: 'Équipe envoyée', t_e_send: 'Impossible d’envoyer l’équipe', t_inc_created: 'Incident créé', t_e_create: 'Impossible de créer l’incident', t_team_recalled: 'Équipe rappelée', t_e_recall: 'Impossible de rappeler l’équipe', change_team: 'Changer d’équipe', change_incident: 'Changer d’incident', rs_currently: 'Actuellement', rs_swap_note: 'La nouvelle équipe est déployée ; l’équipe actuelle se retire.', rs_no_other_teams: 'Aucune autre équipe.', rs_move_to_inc: 'Déplacer cette équipe vers un autre incident :', rs_no_other_inc: 'Aucun autre incident dans la zone.', t_reassigned: 'Déploiement réaffecté', t_team_reassigned: 'Équipe réaffectée', t_e_reassign: 'Échec de la réaffectation', t_loc_fail: 'Impossible d’obtenir votre position — vérifiez les autorisations', t_loc_na: 'Localisation non disponible sur cet appareil',
     cf_resolve_t: 'Marquer cet incident comme résolu ?', cf_resolve_b: 'Il quitte le tableau.', cf_dismiss_cluster: 'Rejeter cet incident ? Il quitte votre tableau mais peut être rouvert. La vérification publique n’est pas affectée.', cf_dismiss_custom: 'Rejeter cet incident ? Il quitte le tableau mais peut être rouvert.',
   },
   ar: {
@@ -69,7 +70,7 @@ const BLANG = {
     rp_title: 'إنهاء استغاثة', rp_poss: '', rp_note: 'لا تُنهِها إلا بعد التأكد من سلامة الشخص. مطلوب ملاحظة عن النتيجة (10 أحرف على الأقل).', rp_ph: 'ماذا حدث / النتيجة…',
     rec_title: 'استدعاء', rec_note: 'يُطلب من الفريق التوقف وتعود الحادثة كفجوة تغطية.', reason_opt: 'السبب (اختياري)',
     as_title: 'تعيين فريق', note_opt: 'ملاحظة (اختياري)', no_teams_avail: 'لا فِرق متاحة.', match: '✓مطابق', km: 'كم', no_loc: 'لا موقع', busy_w: 'مشغول', no_app_members: '⚠ لا أعضاء لديهم وصول للتطبيق — لن يُنبَّهوا',
-    t_inc_resolved: 'تم إنهاء الحادثة', t_e_resolve: 'تعذّر إنهاء الحادثة', t_dismissed: 'تم رفض الحادثة', t_reopened: 'أُعيد فتح الحادثة', t_action_fail: 'فشل الإجراء', t_dispatched: 'تم إيفاد الفريق', t_e_dispatch: 'تعذّر إيفاد الفريق', t_panic_resolved: 'تم إنهاء الاستغاثة', t_e_resolve2: 'تعذّر الإنهاء', t_panic_ack: 'تم تأكيد الاستغاثة', t_team_sent: 'أُرسل الفريق', t_e_send: 'تعذّر إرسال الفريق', t_inc_created: 'تم إنشاء الحادثة', t_e_create: 'تعذّر إنشاء الحادثة', t_team_recalled: 'تم استدعاء الفريق', t_e_recall: 'تعذّر استدعاء الفريق', t_loc_fail: 'تعذّر تحديد موقعك — تحقق من الأذونات', t_loc_na: 'تحديد الموقع غير متاح على هذا الجهاز',
+    t_inc_resolved: 'تم إنهاء الحادثة', t_e_resolve: 'تعذّر إنهاء الحادثة', t_dismissed: 'تم رفض الحادثة', t_reopened: 'أُعيد فتح الحادثة', t_action_fail: 'فشل الإجراء', t_dispatched: 'تم إيفاد الفريق', t_e_dispatch: 'تعذّر إيفاد الفريق', t_panic_resolved: 'تم إنهاء الاستغاثة', t_e_resolve2: 'تعذّر الإنهاء', t_panic_ack: 'تم تأكيد الاستغاثة', t_team_sent: 'أُرسل الفريق', t_e_send: 'تعذّر إرسال الفريق', t_inc_created: 'تم إنشاء الحادثة', t_e_create: 'تعذّر إنشاء الحادثة', t_team_recalled: 'تم استدعاء الفريق', t_e_recall: 'تعذّر استدعاء الفريق', change_team: 'تغيير الفريق', change_incident: 'تغيير الحادثة', rs_currently: 'حالياً', rs_swap_note: 'يُرسَل الفريق الجديد ويتوقف الفريق الحالي.', rs_no_other_teams: 'لا توجد فِرق أخرى.', rs_move_to_inc: 'نقل هذا الفريق إلى حادثة أخرى:', rs_no_other_inc: 'لا حوادث أخرى في المنطقة.', t_reassigned: 'أُعيد تعيين الإيفاد', t_team_reassigned: 'أُعيد تعيين الفريق', t_e_reassign: 'تعذّرت إعادة التعيين', t_loc_fail: 'تعذّر تحديد موقعك — تحقق من الأذونات', t_loc_na: 'تحديد الموقع غير متاح على هذا الجهاز',
     cf_resolve_t: 'وضع علامة على الحادثة كمُنهاة؟', cf_resolve_b: 'ستغادر اللوحة.', cf_dismiss_cluster: 'رفض هذه الحادثة؟ تغادر لوحتك لكن يمكن إعادة فتحها. لا يتأثّر التحقق العام.', cf_dismiss_custom: 'رفض هذه الحادثة؟ تغادر اللوحة لكن يمكن إعادة فتحها.',
   },
 } as const
@@ -269,7 +270,11 @@ export default function NgoBoardPage() {
   const [assignNote, setAssignNote] = useState('')
   const [assignBusy, setAssignBusy] = useState(false)
   const [recallFor, setRecallFor] = useState<{ id: string; team: string | null } | null>(null)
-  const [recallReason, setRecallReason] = useState('')
+  // Inline reassign from the feed (change team / change incident) — mirrors the dispatch log.
+  const [reassignFor, setReassignFor] = useState<Dispatch | null>(null)
+  const [reassignTeamFor, setReassignTeamFor] = useState<Dispatch | null>(null)
+  const [reassignTeams, setReassignTeams] = useState<PickableTeam[]>([])
+  const [reason, setReason] = useState('')
   const [loaded, setLoaded] = useState(false)
   const [loadError, setLoadError] = useState(false)
   const [windowDays, setWindowDays] = useState<string>('10') // '10' | '30' | '90' | 'all'
@@ -765,10 +770,26 @@ export default function NgoBoardPage() {
       if (res.ok) { setAssignIncFor(null); toast(t('t_dispatched')); fetchBoard() } else toast(t('t_e_dispatch'), 'error')
     } finally { setIncBusy(false) }
   }
-  async function confirmRecall() {
+  async function confirmRecall(reasonArg: string) {
     if (!recallFor) return
-    const res = await fetch(`/api/ngo/dispatch/${recallFor.id}/recall`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: recallReason }) })
-    if (res.ok) { setRecallFor(null); setRecallReason(''); toast(t('t_team_recalled')); fetchBoard() } else toast(t('t_e_recall'), 'error')
+    const res = await fetch(`/api/ngo/dispatch/${recallFor.id}/recall`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: reasonArg }) })
+    if (res.ok) { setRecallFor(null); toast(t('t_team_recalled')); fetchBoard() } else toast(t('t_e_recall'), 'error')
+  }
+  // Change incident (keep team) / change team (keep incident) for an active dispatch.
+  function openChangeIncident(d: Dispatch) { setReassignFor(d); setReason('') }
+  async function doReassign(clusterId: string) {
+    if (!reassignFor) return
+    const res = await fetch(`/api/ngo/dispatch/${reassignFor.id}/reassign`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cluster_id: clusterId, reason }) })
+    if (res.ok) { setReassignFor(null); setReason(''); toast(t('t_reassigned')); fetchBoard() } else toast(t('t_e_reassign'), 'error')
+  }
+  async function openChangeTeam(d: Dispatch) {
+    setReassignTeamFor(d); setReason(''); setReassignTeams([])
+    try { const res = await fetch('/api/ngo/teams'); if (res.ok) setReassignTeams((await res.json()).teams ?? []) } catch { /* show empty */ }
+  }
+  async function doReassignTeam(teamId: string) {
+    if (!reassignTeamFor) return
+    const res = await fetch(`/api/ngo/dispatch/${reassignTeamFor.id}/reassign-team`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ team_id: teamId, reason }) })
+    if (res.ok) { setReassignTeamFor(null); setReason(''); toast(t('t_team_reassigned')); fetchBoard() } else toast(t('t_e_reassign'), 'error')
   }
   const activeDispatchFor = (clusterId: string) => dispatches.find((d) => d.cluster_id === clusterId && ACTIVE_DISPATCH.includes(d.status))
 
@@ -857,8 +878,8 @@ export default function NgoBoardPage() {
               <div style={{ fontSize: 11, color: STATUS_HEX[c.status] ?? '#8b949e', marginBottom: 8 }}>● {t(`st_${c.status}`)}{!c.covered && <span style={{ color: '#f85149' }}> · {t('unassigned')}</span>}</div>
               {d
                 ? <>
-                    <div style={{ fontSize: 12, color: '#3fb950', marginBottom: 6 }}>🚑 {d.team_name} · {t(`disp_${d.status}`)}</div>
-                    <button type="button" onClick={() => { setRecallFor({ id: d.id, team: d.team_name }); setRecallReason(''); close() }} style={{ ...assignBtn, marginTop: 0, color: '#f85149', borderColor: 'rgba(248,81,73,0.35)', background: 'rgba(248,81,73,0.08)' }}>{t('recall')}</button>
+                    <div style={{ fontSize: 12, color: '#3fb950', marginBottom: 6 }}>🚑 {d.team_name} · <StatusPill status={d.status} lang={lang} /></div>
+                    <button type="button" onClick={() => { setRecallFor({ id: d.id, team: d.team_name }); close() }} style={{ ...assignBtn, marginTop: 0, color: '#f85149', borderColor: 'rgba(248,81,73,0.35)', background: 'rgba(248,81,73,0.08)' }}>{t('recall')}</button>
                   </>
                 : <div style={{ display: 'flex', gap: 6 }}>
                     <button type="button" onClick={() => { openAssign(c); close() }} style={{ ...assignBtn, marginTop: 0 }}>{t('assign')}</button>
@@ -877,7 +898,7 @@ export default function NgoBoardPage() {
               <div style={{ fontSize: 11, color: SEVERITY_COLOUR[i.severity] ?? '#8b949e', marginBottom: 6 }}>● {i.severity}</div>
               {i.description && <div style={{ fontSize: 12, color: '#c9d1d9', marginBottom: 8, lineHeight: 1.4 }}>{i.description}</div>}
               {d
-                ? <div style={{ fontSize: 12, color: '#3fb950' }}>🚑 {d.team_name} · {t(`disp_${d.status}`)}</div>
+                ? <div style={{ fontSize: 12, color: '#3fb950' }}>🚑 {d.team_name} · <StatusPill status={d.status} lang={lang} /></div>
                 : <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     <button type="button" onClick={() => { openAssignIncident(i); close() }} style={{ ...assignBtn, marginTop: 0 }}>{t('assign')}</button>
                     <button type="button" onClick={() => { resolveIncident(i.id); close() }} style={{ ...assignBtn, marginTop: 0, color: '#8b949e', borderColor: '#21262d', background: 'rgba(255,255,255,0.04)' }}>{t('resolve')}</button>
@@ -968,7 +989,7 @@ export default function NgoBoardPage() {
                     {[i.category, i.address].filter(Boolean).join(' · ') || `${i.lat.toFixed(3)}, ${i.lon.toFixed(3)}`}
                   </div>
                   {d
-                    ? <div style={{ fontSize: 12, color: '#3fb950', marginTop: 6 }}>🚑 {d.team_name} · {t(`disp_${d.status}`)}</div>
+                    ? <div style={{ fontSize: 12, color: '#3fb950', marginTop: 6 }}>🚑 {d.team_name} · <StatusPill status={d.status} lang={lang} /></div>
                     : <span style={{ fontSize: 11, color: '#f97316' }}>{t('unassigned')}</span>}
                   <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
                     {!d && <button type="button" onClick={() => openAssignIncident(i)} style={assignBtn}>{t('assign')}</button>}
@@ -1083,11 +1104,15 @@ export default function NgoBoardPage() {
                     const d = activeDispatchFor(c.id)
                     if (d) return (
                       <div style={{ marginTop: 8 }}>
-                        <div style={{ fontSize: 12, color: '#3fb950' }}>
-                          🚑 {d.team_name} · {t(`disp_${d.status}`)}
-                          {d.response_minutes != null && <span style={{ color: '#8b949e' }}> · {d.response_minutes}m {t('response')}</span>}
+                        <div style={{ fontSize: 12, color: '#8b949e', display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                          🚑 {d.team_name} · <StatusPill status={d.status} lang={lang} />
+                          {d.response_minutes != null && <span> · {d.response_minutes}m {t('response')}</span>}
                         </div>
-                        <button type="button" onClick={() => { setRecallFor({ id: d.id, team: d.team_name }); setRecallReason('') }} style={{ ...assignBtn, color: '#f85149', borderColor: 'rgba(248,81,73,0.35)', background: 'rgba(248,81,73,0.08)' }}>{t('recall')}</button>
+                        <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+                          <button type="button" onClick={() => openChangeTeam(d)} style={{ ...assignBtn, marginTop: 0 }}>{t('change_team')}</button>
+                          <button type="button" onClick={() => openChangeIncident(d)} style={{ ...assignBtn, marginTop: 0 }}>{t('change_incident')}</button>
+                          <button type="button" onClick={() => { setRecallFor({ id: d.id, team: d.team_name }) }} style={{ ...assignBtn, marginTop: 0, color: '#f85149', borderColor: 'rgba(248,81,73,0.35)', background: 'rgba(248,81,73,0.08)' }}>{t('recall')}</button>
+                        </div>
                       </div>
                     )
                     return (
@@ -1138,129 +1163,90 @@ export default function NgoBoardPage() {
 
       {/* New custom incident — details form (location already chosen) */}
       {newInc && (
-        <div onClick={() => setNewInc(null)} style={modalBackdrop}>
-          <div onClick={(e) => e.stopPropagation()} style={{ ...modalBox, width: 380 }}>
-            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>{t('ni_title')}</div>
-            <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 12 }}>{newInc.address || `${newInc.lat.toFixed(4)}, ${newInc.lon.toFixed(4)}`}</div>
-            <input style={noteField} placeholder={t('ni_title_ph')} value={newInc.title} onChange={(e) => setNewInc({ ...newInc, title: e.target.value })} />
-            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-              <select style={{ ...noteField, flex: 1 }} value={newInc.category} onChange={(e) => setNewInc({ ...newInc, category: e.target.value })}>
-                {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-              </select>
-              <select style={{ ...noteField, flex: 1 }} value={newInc.severity} onChange={(e) => setNewInc({ ...newInc, severity: e.target.value })}>
-                {['low', 'medium', 'high', 'critical'].map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
-            <textarea style={{ ...noteField, height: 70, paddingTop: 8, marginTop: 8 }} placeholder={t('ni_details_ph')} value={newInc.description} onChange={(e) => setNewInc({ ...newInc, description: e.target.value })} />
-            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-              <button type="button" onClick={createIncident} disabled={incBusy || !newInc.title.trim()} style={{ ...assignBtn, flex: 1, opacity: incBusy || !newInc.title.trim() ? 0.6 : 1 }}>{incBusy ? t('creating') : t('create_inc')}</button>
-              <button type="button" onClick={() => setNewInc(null)} style={{ ...assignBtn, flex: 1 }}>{t('cancel')}</button>
-            </div>
+        <ModalShell onClose={() => setNewInc(null)} width={380} title={t('ni_title')} subtitle={newInc.address || `${newInc.lat.toFixed(4)}, ${newInc.lon.toFixed(4)}`}>
+          <input style={noteField} placeholder={t('ni_title_ph')} value={newInc.title} onChange={(e) => setNewInc({ ...newInc, title: e.target.value })} />
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            <select style={{ ...noteField, flex: 1 }} value={newInc.category} onChange={(e) => setNewInc({ ...newInc, category: e.target.value })}>
+              {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <select style={{ ...noteField, flex: 1 }} value={newInc.severity} onChange={(e) => setNewInc({ ...newInc, severity: e.target.value })}>
+              {['low', 'medium', 'high', 'critical'].map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
           </div>
-        </div>
+          <textarea style={{ ...noteField, height: 70, paddingTop: 8, marginTop: 8 }} placeholder={t('ni_details_ph')} value={newInc.description} onChange={(e) => setNewInc({ ...newInc, description: e.target.value })} />
+          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+            <button type="button" onClick={createIncident} disabled={incBusy || !newInc.title.trim()} style={{ ...assignBtn, flex: 1, opacity: incBusy || !newInc.title.trim() ? 0.6 : 1 }}>{incBusy ? t('creating') : t('create_inc')}</button>
+            <button type="button" onClick={() => setNewInc(null)} style={{ ...assignBtn, flex: 1 }}>{t('cancel')}</button>
+          </div>
+        </ModalShell>
       )}
 
       {/* Assign a team to a custom incident */}
       {assignIncFor && (
-        <div onClick={() => setAssignIncFor(null)} style={modalBackdrop}>
-          <div onClick={(e) => e.stopPropagation()} style={{ ...modalBox, width: 360 }}>
-            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>{t('ai_title')} {assignIncFor.title}</div>
-            <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 12 }}>{assignIncFor.address || `${assignIncFor.lat.toFixed(4)}, ${assignIncFor.lon.toFixed(4)}`} · {t('alerted_push')}</div>
-            <div style={{ maxHeight: 280, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {incTeams.length === 0 && <div style={{ fontSize: 13, color: '#8b949e' }}>{t('no_teams')}</div>}
-              {incTeams.map((it) => (
-                <button key={it.id} type="button" disabled={incBusy} onClick={() => assignIncidentTeam(it.id)} style={teamRow}>
-                  <span style={{ fontWeight: 600 }}>{it.name}</span>
-                  <span style={{ fontSize: 11, color: '#8b949e', marginInlineStart: 8 }}>{it.type} · {it.status}</span>
-                  {it.notifiable_count === 0 && <span style={{ fontSize: 11, color: '#d29922', marginInlineStart: 8 }}>{t('no_app')}</span>}
-                </button>
-              ))}
-            </div>
-            <button type="button" onClick={() => setAssignIncFor(null)} style={{ ...assignBtn, marginTop: 12 }}>{t('cancel')}</button>
-          </div>
-        </div>
+        <ModalShell onClose={() => setAssignIncFor(null)} width={360} title={`${t('ai_title')} ${assignIncFor.title}`} subtitle={`${assignIncFor.address || `${assignIncFor.lat.toFixed(4)}, ${assignIncFor.lon.toFixed(4)}`} · ${t('alerted_push')}`}>
+          <TeamPicker lang={lang} busy={incBusy} teams={incTeams} onPick={assignIncidentTeam} emptyText={t('no_teams')} />
+          <button type="button" onClick={() => setAssignIncFor(null)} style={{ ...assignBtn, marginTop: 12 }}>{t('cancel')}</button>
+        </ModalShell>
       )}
 
       {/* Send-a-crew-to-panic modal */}
       {panicDispatchFor && (
-        <div onClick={() => setPanicDispatchFor(null)} style={modalBackdrop}>
-          <div onClick={(e) => e.stopPropagation()} style={{ ...modalBox, width: 360 }}>
-            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>{t('pd_title')} {panicDispatchFor.name}</div>
-            <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 12 }}>
-              {panicDispatchFor.lat != null && panicDispatchFor.lon != null ? `${t('pd_last_seen')} ${panicDispatchFor.lat.toFixed(4)}, ${panicDispatchFor.lon.toFixed(4)}` : t('pd_no_loc')} · {t('pd_alerted')}
-            </div>
-            <div style={{ maxHeight: 280, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {panicTeams.length === 0 && <div style={{ fontSize: 13, color: '#8b949e' }}>{t('no_teams')}</div>}
-              {panicTeams.map((pt) => (
-                <button key={pt.id} type="button" disabled={panicBusy} onClick={() => sendPanicTeam(pt.id)} style={teamRow}>
-                  <span style={{ fontWeight: 600 }}>{pt.name}</span>
-                  <span style={{ fontSize: 11, color: '#8b949e', marginInlineStart: 8 }}>{pt.type} · {pt.status}</span>
-                  {pt.notifiable_count === 0 && <span style={{ fontSize: 11, color: '#d29922', marginInlineStart: 8 }}>{t('no_app')}</span>}
-                </button>
-              ))}
-            </div>
-            <button type="button" onClick={() => setPanicDispatchFor(null)} style={{ ...assignBtn, marginTop: 12 }}>{t('cancel')}</button>
-          </div>
-        </div>
+        <ModalShell onClose={() => setPanicDispatchFor(null)} width={360} title={`${t('pd_title')} ${panicDispatchFor.name}`}
+          subtitle={`${panicDispatchFor.lat != null && panicDispatchFor.lon != null ? `${t('pd_last_seen')} ${panicDispatchFor.lat.toFixed(4)}, ${panicDispatchFor.lon.toFixed(4)}` : t('pd_no_loc')} · ${t('pd_alerted')}`}>
+          <TeamPicker lang={lang} busy={panicBusy} teams={panicTeams} onPick={sendPanicTeam} emptyText={t('no_teams')} />
+          <button type="button" onClick={() => setPanicDispatchFor(null)} style={{ ...assignBtn, marginTop: 12 }}>{t('cancel')}</button>
+        </ModalShell>
       )}
 
       {/* Resolve-panic modal — outcome note required; a panic never auto-closes */}
       {resolvePanicFor && (
-        <div onClick={() => setResolvePanicFor(null)} style={modalBackdrop}>
-          <div onClick={(e) => e.stopPropagation()} style={{ ...modalBox, width: 360 }}>
-            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>{t('rp_title')} {resolvePanicFor.name}{t('rp_poss')}</div>
-            <div style={{ fontSize: 13, color: '#8b949e', marginBottom: 12 }}>{t('rp_note')}</div>
-            <textarea value={panicNote} onChange={(e) => setPanicNote(e.target.value)} placeholder={t('rp_ph')} style={{ ...noteField, height: 84, paddingTop: 8 }} />
-            <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-              <button type="button" disabled={panicNote.trim().length < 10} onClick={() => resolvePanic(resolvePanicFor.id, panicNote)} style={{ ...assignBtn, flex: 1, color: '#3fb950', borderColor: 'rgba(63,185,80,0.4)', background: 'rgba(63,185,80,0.1)', opacity: panicNote.trim().length < 10 ? 0.5 : 1 }}>{t('resolve')}</button>
-              <button type="button" onClick={() => setResolvePanicFor(null)} style={{ ...assignBtn, flex: 1 }}>{t('cancel')}</button>
-            </div>
+        <ModalShell onClose={() => setResolvePanicFor(null)} width={360} title={`${t('rp_title')} ${resolvePanicFor.name}${t('rp_poss')}`} subtitle={t('rp_note')}>
+          <textarea value={panicNote} onChange={(e) => setPanicNote(e.target.value)} placeholder={t('rp_ph')} style={{ ...noteField, height: 84, paddingTop: 8 }} />
+          <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+            <button type="button" disabled={panicNote.trim().length < 10} onClick={() => resolvePanic(resolvePanicFor.id, panicNote)} style={{ ...assignBtn, flex: 1, color: '#3fb950', borderColor: 'rgba(63,185,80,0.4)', background: 'rgba(63,185,80,0.1)', opacity: panicNote.trim().length < 10 ? 0.5 : 1 }}>{t('resolve')}</button>
+            <button type="button" onClick={() => setResolvePanicFor(null)} style={{ ...assignBtn, flex: 1 }}>{t('cancel')}</button>
           </div>
-        </div>
+        </ModalShell>
       )}
 
-      {/* Recall modal */}
+      {/* Recall modal — shared dialog */}
       {recallFor && (
-        <div onClick={() => setRecallFor(null)} style={modalBackdrop}>
-          <div onClick={(e) => e.stopPropagation()} style={{ ...modalBox, width: 340 }}>
-            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>{t('rec_title')} {recallFor.team ?? ''}?</div>
-            <div style={{ fontSize: 13, color: '#8b949e', marginBottom: 12 }}>{t('rec_note')}</div>
-            <input style={noteField} placeholder={t('reason_opt')} value={recallReason} onChange={(e) => setRecallReason(e.target.value)} />
-            <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-              <button type="button" onClick={confirmRecall} style={{ ...assignBtn, flex: 1, color: '#f85149', borderColor: 'rgba(248,81,73,0.4)', background: 'rgba(248,81,73,0.08)' }}>{t('recall')}</button>
-              <button type="button" onClick={() => setRecallFor(null)} style={{ ...assignBtn, flex: 1 }}>{t('cancel')}</button>
-            </div>
+        <RecallDialog lang={lang} teamName={recallFor.team} onClose={() => setRecallFor(null)} onConfirm={(r) => confirmRecall(r)} />
+      )}
+
+      {/* Change-team / change-incident reassign modals */}
+      {reassignTeamFor && (
+        <ModalShell onClose={() => setReassignTeamFor(null)} width={360} title={t('change_team')} subtitle={`${t('rs_currently')} ${reassignTeamFor.team_name ?? ''}. ${t('rs_swap_note')}`}>
+          <input style={noteField} placeholder={t('reason_opt')} value={reason} onChange={(e) => setReason(e.target.value)} />
+          <div style={{ marginTop: 10 }}>
+            <TeamPicker lang={lang} teams={reassignTeams.filter((tm) => tm.id !== reassignTeamFor.team_id)} onPick={doReassignTeam} emptyText={t('rs_no_other_teams')} />
           </div>
-        </div>
+          <button type="button" onClick={() => setReassignTeamFor(null)} style={{ ...assignBtn, marginTop: 12 }}>{t('cancel')}</button>
+        </ModalShell>
+      )}
+
+      {reassignFor && (
+        <ModalShell onClose={() => setReassignFor(null)} width={360} title={t('change_incident')} subtitle={t('rs_move_to_inc')}>
+          <input style={noteField} placeholder={t('reason_opt')} value={reason} onChange={(e) => setReason(e.target.value)} />
+          <div style={{ maxHeight: 280, overflowY: 'auto', marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {feed.filter((i) => i.id !== reassignFor.cluster_id).map((i) => (
+              <button key={i.id} type="button" onClick={() => doReassign(i.id)} style={teamRow}>{locNames[i.id] ?? `${i.lat.toFixed(3)}, ${i.lon.toFixed(3)}`}</button>
+            ))}
+            {feed.filter((i) => i.id !== reassignFor.cluster_id).length === 0 && <div style={{ fontSize: 13, color: '#8b949e' }}>{t('rs_no_other_inc')}</div>}
+          </div>
+          <button type="button" onClick={() => setReassignFor(null)} style={{ ...assignBtn, marginTop: 12 }}>{t('cancel')}</button>
+        </ModalShell>
       )}
 
       {/* Assign modal — teams ranked by type match + proximity */}
       {assignFor && (
-        <div onClick={() => setAssignFor(null)} style={modalBackdrop}>
-          <div onClick={(e) => e.stopPropagation()} style={{ ...modalBox, width: 380 }}>
-            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>{t('as_title')}</div>
-            <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 12 }}>
-              {locNames[assignFor.id] ?? `${assignFor.lat.toFixed(3)}, ${assignFor.lon.toFixed(3)}`}
-            </div>
-            <input style={noteField} placeholder={t('note_opt')} value={assignNote} onChange={(e) => setAssignNote(e.target.value)} />
-            <div style={{ maxHeight: 280, overflowY: 'auto', marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {rankedTeams.length === 0 && <div style={{ fontSize: 13, color: '#8b949e' }}>{t('no_teams_avail')}</div>}
-              {rankedTeams.map((rt) => (
-                <button key={rt.id} type="button" disabled={assignBusy} onClick={() => assignTeam(rt.id)} style={teamRow}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ fontWeight: 600 }}>{rt.name} {rt.type_match && <span style={{ color: '#3fb950' }}>{t('match')}</span>}</span>
-                    <span style={{ color: '#8b949e' }}>{rt.distance_km != null ? `${rt.distance_km} ${t('km')}` : t('no_loc')}</span>
-                  </div>
-                  <div style={{ fontSize: 11, color: '#8b949e', marginTop: 2 }}>
-                    {rt.type} · {rt.status}{rt.busy && <span style={{ color: '#d29922' }}> · {t('busy_w')}</span>}
-                  </div>
-                  {rt.notifiable_count === 0 && <div style={{ fontSize: 11, color: '#d29922', marginTop: 2 }}>{t('no_app_members')}</div>}
-                </button>
-              ))}
-            </div>
-            <button type="button" onClick={() => setAssignFor(null)} style={{ ...assignBtn, marginTop: 12 }}>{t('cancel')}</button>
+        <ModalShell onClose={() => setAssignFor(null)} width={380} title={t('as_title')} subtitle={locNames[assignFor.id] ?? `${assignFor.lat.toFixed(3)}, ${assignFor.lon.toFixed(3)}`}>
+          <input style={noteField} placeholder={t('note_opt')} value={assignNote} onChange={(e) => setAssignNote(e.target.value)} />
+          <div style={{ marginTop: 10 }}>
+            <TeamPicker lang={lang} busy={assignBusy} teams={rankedTeams} onPick={assignTeam} emptyText={t('no_teams_avail')} />
           </div>
-        </div>
+          <button type="button" onClick={() => setAssignFor(null)} style={{ ...assignBtn, marginTop: 12 }}>{t('cancel')}</button>
+        </ModalShell>
       )}
     </div>
   )
@@ -1315,5 +1301,3 @@ const assignBtn: React.CSSProperties = {
 }
 const noteField: React.CSSProperties = { width: '100%', height: 36, padding: '0 10px', boxSizing: 'border-box', background: '#0d1117', border: '1px solid #21262d', borderRadius: 6, color: '#e6edf3', fontSize: 13, fontFamily: 'system-ui', outline: 'none' }
 const teamRow: React.CSSProperties = { textAlign: 'left', background: '#0d1117', border: '1px solid #21262d', borderRadius: 8, padding: '8px 10px', color: '#e6edf3', fontSize: 13, cursor: 'pointer', fontFamily: 'system-ui' }
-const modalBackdrop: React.CSSProperties = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }
-const modalBox: React.CSSProperties = { width: 340, background: '#161b22', border: '1px solid #21262d', borderRadius: 12, padding: 22, fontFamily: 'system-ui', color: '#e6edf3' }
