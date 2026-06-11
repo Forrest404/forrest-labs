@@ -160,7 +160,7 @@ export default function NgoPanicPage() {
   }
 
   return (
-    <div style={wrap} dir={isRtl ? 'rtl' : 'ltr'}>
+    <div className="ngo-page" style={wrap} dir={isRtl ? 'rtl' : 'ltr'}>
       <div style={{ marginBottom: 18 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
           <h1 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>{t('title')}</h1>

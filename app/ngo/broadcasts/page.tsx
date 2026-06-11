@@ -133,7 +133,7 @@ export default function BroadcastsPage() {
   }
 
   return (
-    <div style={wrap} dir={isRtl ? 'rtl' : 'ltr'}>
+    <div className="ngo-page" style={wrap} dir={isRtl ? 'rtl' : 'ltr'}>
       <h1 style={{ fontSize: 20, fontWeight: 600, margin: '0 0 4px' }}>{t('title')}</h1>
       <p style={{ fontSize: 13, color: '#8b949e', margin: '0 0 18px' }}>{t('sub')}</p>
 

@@ -250,7 +250,7 @@ export default function NgoSettingsPage() {
   }
 
   return (
-    <div style={wrap} dir={isRtl ? 'rtl' : 'ltr'}>
+    <div className="ngo-page" style={wrap} dir={isRtl ? 'rtl' : 'ltr'}>
       {/* Field coordinators reach Settings via the field-screen "Account" link and have no
           sidebar — give them an obvious one-tap way back to their field page. */}
       {role === 'field_coordinator' && (

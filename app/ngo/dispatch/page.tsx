@@ -100,7 +100,7 @@ export default function NgoDispatchPage() {
   const closed = dispatches.filter((d) => ['done', 'cancelled'].includes(d.status))
 
   return (
-    <div style={{ padding: 24, maxWidth: 900, margin: '0 auto', color: '#e6edf3', fontFamily: 'system-ui, sans-serif' }} dir={isRtl ? 'rtl' : 'ltr'}>
+    <div className="ngo-page" style={{ padding: 24, maxWidth: 900, margin: '0 auto', color: '#e6edf3', fontFamily: 'system-ui, sans-serif' }} dir={isRtl ? 'rtl' : 'ltr'}>
       <h1 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>{t('title')}</h1>
       <div style={{ fontSize: 13, color: '#8b949e', marginTop: 2, marginBottom: 20 }}>{t('subtitle')}</div>
 
@@ -198,6 +198,6 @@ function Section({ title, rows, onRecall, onReassign, onReassignTeam, action, t,
 }
 
 const card: React.CSSProperties = { background: '#161b22', border: '1px solid #21262d', borderRadius: 10, padding: 14, marginBottom: 8 }
-const smallBtn: React.CSSProperties = { height: 30, padding: '0 12px', background: 'rgba(255,255,255,0.04)', border: '1px solid #21262d', color: '#8b949e', borderRadius: 6, fontSize: 12, cursor: 'pointer', fontFamily: 'system-ui' }
+const smallBtn: React.CSSProperties = { height: 34, padding: '0 12px', background: 'rgba(255,255,255,0.04)', border: '1px solid #21262d', color: '#8b949e', borderRadius: 6, fontSize: 12, cursor: 'pointer', fontFamily: 'system-ui' }
 const input: React.CSSProperties = { width: '100%', height: 38, padding: '0 10px', boxSizing: 'border-box', background: '#0d1117', border: '1px solid #21262d', borderRadius: 6, color: '#e6edf3', fontSize: 13, fontFamily: 'system-ui', outline: 'none' }
 const incBtn: React.CSSProperties = { textAlign: 'left', background: '#0d1117', border: '1px solid #21262d', borderRadius: 6, padding: '8px 10px', color: '#e6edf3', fontSize: 13, cursor: 'pointer', fontFamily: 'system-ui' }

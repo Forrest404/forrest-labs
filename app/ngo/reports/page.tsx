@@ -111,7 +111,7 @@ export default function NgoReportsPage() {
 
   if (forbidden) {
     return (
-      <div style={wrap} dir={isRtl ? 'rtl' : 'ltr'}>
+      <div className="ngo-page" style={wrap} dir={isRtl ? 'rtl' : 'ltr'}>
         <h1 style={h1}>{t('title')}</h1>
         <div style={emptyBox}>{t('forbidden')}</div>
       </div>
@@ -119,7 +119,7 @@ export default function NgoReportsPage() {
   }
 
   return (
-    <div style={wrap} dir={isRtl ? 'rtl' : 'ltr'}>
+    <div className="ngo-page" style={wrap} dir={isRtl ? 'rtl' : 'ltr'}>
       <h1 style={h1}>{t('title')}</h1>
       <p style={sub}>{t('sub')}</p>
 

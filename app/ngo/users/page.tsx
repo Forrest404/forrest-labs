@@ -162,7 +162,7 @@ export default function NgoUsersPage() {
   function copy(text: string) { navigator.clipboard?.writeText(text).then(() => setMsg(t('copied'))).catch(() => {}) }
 
   return (
-    <div style={wrap} dir={isRtl ? 'rtl' : 'ltr'}>
+    <div className="ngo-page" style={wrap} dir={isRtl ? 'rtl' : 'ltr'}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
         <div>
           <h1 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>{t('title')}</h1>
@@ -326,7 +326,7 @@ const field: React.CSSProperties = { width: '100%', height: 38, padding: '0 10px
 const labelStyle: React.CSSProperties = { fontSize: 12, color: '#8b949e', marginBottom: 6, display: 'block' }
 const primaryBtn: React.CSSProperties = { height: 38, padding: '0 16px', background: '#238636', border: '1px solid #2ea043', color: '#fff', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'system-ui' }
 const ghostBtn: React.CSSProperties = { height: 38, padding: '0 14px', background: 'rgba(255,255,255,0.04)', border: '1px solid #21262d', color: '#c9d1d9', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'system-ui' }
-const miniBtn: React.CSSProperties = { height: 30, padding: '0 10px', background: 'rgba(255,255,255,0.04)', border: '1px solid #21262d', color: '#8b949e', borderRadius: 6, fontSize: 12, cursor: 'pointer', fontFamily: 'system-ui' }
+const miniBtn: React.CSSProperties = { height: 34, padding: '0 12px', background: 'rgba(255,255,255,0.04)', border: '1px solid #21262d', color: '#8b949e', borderRadius: 6, fontSize: 12, cursor: 'pointer', fontFamily: 'system-ui' }
 const linkBtn: React.CSSProperties = { background: 'none', border: 'none', color: '#58a6ff', fontSize: 12, cursor: 'pointer', padding: 0, fontFamily: 'system-ui' }
 const codeChip: React.CSSProperties = { background: '#0d1117', border: '1px solid #21262d', borderRadius: 6, padding: '2px 8px', color: '#e6edf3', fontFamily: 'ui-monospace, monospace', fontWeight: 600 }
 const backdrop: React.CSSProperties = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }

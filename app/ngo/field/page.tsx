@@ -1023,7 +1023,9 @@ const dispatchCard: React.CSSProperties = { background: '#161b22', border: '1px 
 const groupChatBtn: React.CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', minHeight: 56, background: 'rgba(63,185,80,0.12)', border: '1px solid rgba(63,185,80,0.45)', color: '#3fb950', borderRadius: 12, fontSize: 16, fontWeight: 700, textDecoration: 'none', fontFamily: 'system-ui', boxSizing: 'border-box' }
 const offlineBanner: React.CSSProperties = { background: 'rgba(210,153,34,0.15)', border: '1px solid rgba(210,153,34,0.5)', color: '#d29922', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontWeight: 700, textAlign: 'center' }
 function tabBtn(active: boolean): React.CSSProperties {
-  return { flex: 1, height: 44, borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'system-ui', background: active ? 'rgba(88,166,255,0.18)' : '#161b22', border: active ? '2px solid #58a6ff' : '1px solid #21262d', color: active ? '#58a6ff' : '#8b949e' }
+  // flex:1 + minWidth:0 lets the four tabs share the row and shrink on a 360px phone;
+  // nowrap+ellipsis keeps a long label ("📢 Broadcasts (3)") from breaking the row.
+  return { flex: 1, minWidth: 0, height: 44, padding: '0 6px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'system-ui', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', background: active ? 'rgba(88,166,255,0.18)' : '#161b22', border: active ? '2px solid #58a6ff' : '1px solid #21262d', color: active ? '#58a6ff' : '#8b949e' }
 }
 const mapBox: React.CSSProperties = { width: '100%', height: 'calc(100dvh - 300px)', minHeight: 300, borderRadius: 12, overflow: 'hidden', background: '#161b22', border: '1px solid #21262d' }
 const mapOverlay: React.CSSProperties = { position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, padding: 16, textAlign: 'center' }
