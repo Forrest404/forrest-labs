@@ -70,3 +70,22 @@ a:active,
 
 button:disabled { cursor: not-allowed; }
 
+/* ──────────────────────────────────────────────────────────────────────────
+   Responsive layout utilities (opt-in via className on inline-styled elements).
+   Each only adds a <=768px override, so desktop inline styles are untouched.
+   !important is needed because they override inline style props (flex/grid/padding).
+   ────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  /* page shell: trim the 24px side padding to 16px on phones */
+  .ngo-page { padding-left: 16px !important; padding-right: 16px !important; }
+  /* two-column flex row → stacked, full width */
+  .ngo-split { flex-direction: column !important; }
+  .ngo-split > * { flex: 1 1 auto !important; width: 100% !important; max-width: 100% !important; }
+  /* 2-up grid → single column */
+  .ngo-grid-2 { grid-template-columns: 1fr !important; }
+  /* board overlays: drop the status chip + marker detail below the centred
+     search bar so they never sit under it on a narrow screen */
+  .board-chip { top: 54px !important; }
+  .board-detail { top: 92px !important; }
+}
+

@@ -156,7 +156,7 @@ export default function NgoTeamsPage() {
   const selectedTeam = teams.find((t) => t.id === selected)
 
   return (
-    <div style={{ padding: 24, maxWidth: 1100, margin: '0 auto', color: '#e6edf3', fontFamily: 'system-ui, sans-serif' }} dir={isRtl ? 'rtl' : 'ltr'}>
+    <div className="ngo-page" style={{ padding: 24, maxWidth: 1100, margin: '0 auto', color: '#e6edf3', fontFamily: 'system-ui, sans-serif' }} dir={isRtl ? 'rtl' : 'ltr'}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <div>
           <h1 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>{t('title')}</h1>
@@ -167,7 +167,7 @@ export default function NgoTeamsPage() {
 
       {err && <div style={errorBox}>{err}</div>}
 
-      <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
+      <div className="ngo-split" style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
         {/* Teams list */}
         <div style={{ flex: '0 0 340px' }}>
           {!loaded && <SkeletonRows rows={4} height={88} />}
@@ -181,7 +181,7 @@ export default function NgoTeamsPage() {
               <div style={{ fontSize: 12, color: '#8b949e', marginTop: 4 }}>
                 {tm.type}{tm.capacity != null ? ` · ${t('capacity')} ${tm.capacity}` : ''}
               </div>
-              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+              <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
                 <button type="button" onClick={(e) => { e.stopPropagation(); setTeamModal({ id: tm.id, name: tm.name, type: tm.type, capacity: tm.capacity?.toString() ?? '', chat: tm.group_chat_url ?? '' }) }} style={miniBtn}>{t('edit')}</button>
                 {isAdmin && <button type="button" onClick={(e) => { e.stopPropagation(); deleteTeam(tm.id) }} style={{ ...miniBtn, color: '#f85149', borderColor: 'rgba(248,81,73,0.4)' }}>{t('del')}</button>}
               </div>
@@ -205,7 +205,7 @@ export default function NgoTeamsPage() {
 
               {members.length === 0 && <div style={{ fontSize: 13, color: '#8b949e', marginBottom: 12 }}>{t('no_members')}</div>}
               {members.map((m) => (
-                <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #21262d' }}>
+                <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '8px 0', borderBottom: '1px solid #21262d' }}>
                   <div>
                     <div style={{ fontSize: 14 }}>
                       {m.name}
@@ -218,7 +218,7 @@ export default function NgoTeamsPage() {
                       {m.emergency_contact ? ` · ${t('ice')}: ${m.emergency_contact}` : ''}
                     </div>
                   </div>
-                  <div style={{ display: 'flex', gap: 8 }}>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                     <button type="button" onClick={() => setMemberEdit({ id: m.id, name: m.name, role: m.role ?? '', phone: m.phone ?? '', emergency_contact: m.emergency_contact ?? '' })} style={miniBtn}>{t('edit')}</button>
                     {isAdmin && !m.ngo_user_id && (
                       <button type="button" onClick={() => setInviteModal({ memberId: m.id, name: m.name, email: '' })} style={miniBtn}>{t('invite')}</button>
@@ -234,7 +234,7 @@ export default function NgoTeamsPage() {
               {/* Add member */}
               <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #21262d' }}>
                 <div style={{ fontSize: 13, color: '#8b949e', marginBottom: 8 }}>{t('add_member_h')}</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                <div className="ngo-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                   <input style={field} placeholder={t('ph_name')} value={memberForm.name} onChange={(e) => setMemberForm({ ...memberForm, name: e.target.value })} />
                   <input style={field} placeholder={t('ph_role')} value={memberForm.role} onChange={(e) => setMemberForm({ ...memberForm, role: e.target.value })} />
                   <input style={field} placeholder={t('ph_phone')} value={memberForm.phone} onChange={(e) => setMemberForm({ ...memberForm, phone: e.target.value })} />
@@ -354,5 +354,5 @@ const card: React.CSSProperties = { background: '#161b22', border: '1px solid #2
 const field: React.CSSProperties = { width: '100%', height: 38, padding: '0 10px', boxSizing: 'border-box', background: '#0d1117', border: '1px solid #21262d', borderRadius: 6, color: '#e6edf3', fontSize: 13, fontFamily: 'system-ui', outline: 'none' }
 const labelStyle: React.CSSProperties = { fontSize: 12, color: '#8b949e', marginBottom: 6, display: 'block' }
 const primaryBtn: React.CSSProperties = { height: 38, padding: '0 16px', background: '#238636', border: '1px solid #2ea043', color: '#fff', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'system-ui' }
-const miniBtn: React.CSSProperties = { height: 28, padding: '0 10px', background: 'rgba(255,255,255,0.04)', border: '1px solid #21262d', color: '#8b949e', borderRadius: 6, fontSize: 12, cursor: 'pointer', fontFamily: 'system-ui' }
+const miniBtn: React.CSSProperties = { height: 34, padding: '0 12px', background: 'rgba(255,255,255,0.04)', border: '1px solid #21262d', color: '#8b949e', borderRadius: 6, fontSize: 12, cursor: 'pointer', fontFamily: 'system-ui' }
 const errorBox: React.CSSProperties = { background: 'rgba(248,81,73,0.1)', border: '1px solid rgba(248,81,73,0.3)', color: '#f85149', borderRadius: 6, padding: '9px 12px', fontSize: 13, marginBottom: 14 }

@@ -812,14 +812,14 @@ export default function NgoBoardPage() {
 
       {/* Loading / refresh-error chip (top-left) + a live "updated Xs ago" so a silently-polling
           board never looks current when it's actually stale (e.g. offline). */}
-      {!loaded && <div style={statusChip}>{t('loading')}</div>}
+      {!loaded && <div className="board-chip" style={statusChip}>{t('loading')}</div>}
       {loaded && loadError && (
-        <div style={{ ...statusChip, color: '#f85149', borderColor: 'rgba(248,81,73,0.4)' }}>
+        <div className="board-chip" style={{ ...statusChip, color: '#f85149', borderColor: 'rgba(248,81,73,0.4)' }}>
           {typeof navigator !== 'undefined' && !navigator.onLine ? t('offline') : t('cant_refresh')} · {t('updated')} {freshAgo(updatedAt, agoTick)} <button type="button" onClick={fetchBoard} style={chipRetry}>{t('retry')}</button>
         </div>
       )}
       {loaded && !loadError && updatedAt != null && (
-        <div style={{ ...statusChip, color: '#8b949e' }}>{t('updated')} {freshAgo(updatedAt, agoTick)}</div>
+        <div className="board-chip" style={{ ...statusChip, color: '#8b949e' }}>{t('updated')} {freshAgo(updatedAt, agoTick)}</div>
       )}
 
       {/* Place search + find-my-location */}
@@ -873,7 +873,7 @@ export default function NgoBoardPage() {
           if (!c) return null
           const d = activeDispatchFor(c.id)
           return (
-            <div style={detailCard}>
+            <div className="board-detail" style={detailCard}>
               {header(locNames[c.id] ?? `${c.lat.toFixed(3)}, ${c.lon.toFixed(3)}`, `${c.confidence_score}% · ${c.report_count} report${c.report_count === 1 ? '' : 's'} · ${timeAgo(c.created_at)}`)}
               <div style={{ fontSize: 11, color: STATUS_HEX[c.status] ?? '#8b949e', marginBottom: 8 }}>● {t(`st_${c.status}`)}{!c.covered && <span style={{ color: '#f85149' }}> · {t('unassigned')}</span>}</div>
               {d
@@ -893,7 +893,7 @@ export default function NgoBoardPage() {
           if (!i) return null
           const d = dispatches.find((x) => x.ngo_incident_id === i.id && ACTIVE_DISPATCH.includes(x.status))
           return (
-            <div style={detailCard}>
+            <div className="board-detail" style={detailCard}>
               {header(i.title, [i.category, i.address].filter(Boolean).join(' · ') || `${i.lat.toFixed(3)}, ${i.lon.toFixed(3)}`)}
               <div style={{ fontSize: 11, color: SEVERITY_COLOUR[i.severity] ?? '#8b949e', marginBottom: 6 }}>● {i.severity}</div>
               {i.description && <div style={{ fontSize: 12, color: '#c9d1d9', marginBottom: 8, lineHeight: 1.4 }}>{i.description}</div>}
@@ -909,18 +909,18 @@ export default function NgoBoardPage() {
         if (selected.kind === 'team') {
           const tm = teams.find((x) => x.id === selected.id)
           if (!tm) return null
-          return <div style={detailCard}>{header(tm.name, `${tm.type} · ${tm.status}`)}<div style={{ fontSize: 12, color: '#8b949e' }}>{t('last_seen')} {timeAgo(tm.last_seen_at)}</div></div>
+          return <div className="board-detail" style={detailCard}>{header(tm.name, `${tm.type} · ${tm.status}`)}<div style={{ fontSize: 12, color: '#8b949e' }}>{t('last_seen')} {timeAgo(tm.last_seen_at)}</div></div>
         }
         if (selected.kind === 'worker') {
           const w = workers.find((x) => x.ngo_user_id === selected.id)
           if (!w) return null
-          return <div style={detailCard}>{header(w.name, w.role ?? undefined)}<div style={{ fontSize: 12, color: '#8b949e' }}>{t('last_seen')} {timeAgo(w.last_seen_at)}{w.source === 'panic' ? ` · 🆘 ${t('duress')}` : ''}</div></div>
+          return <div className="board-detail" style={detailCard}>{header(w.name, w.role ?? undefined)}<div style={{ fontSize: 12, color: '#8b949e' }}>{t('last_seen')} {timeAgo(w.last_seen_at)}{w.source === 'panic' ? ` · 🆘 ${t('duress')}` : ''}</div></div>
         }
         if (selected.kind === 'panic') {
           const p = panics.find((x) => x.id === selected.id)
           if (!p) return null
           return (
-            <div style={{ ...detailCard, borderColor: 'rgba(248,81,73,0.5)' }}>
+            <div className="board-detail" style={{ ...detailCard, borderColor: 'rgba(248,81,73,0.5)' }}>
               {header(`🆘 ${p.name}`, `${timeAgo(p.created_at)}${p.reason ? ` · ${p.reason}` : ''}`)}
               <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 8 }}>{p.lat != null && p.lon != null ? `${t('last_known')} ${p.lat.toFixed(4)}, ${p.lon.toFixed(4)}` : t('no_location')}</div>
               <div style={{ fontSize: 12, marginBottom: 8 }}>{p.acknowledged_at ? <span style={{ color: '#3fb950' }}>✓ {t('ack_by')} {p.acknowledged_by_name}</span> : <span style={{ color: '#d29922' }}>● {t('not_acked')}</span>}</div>
@@ -936,7 +936,7 @@ export default function NgoBoardPage() {
         if (selected.kind === 'facility') {
           const f = facilities.find((x) => x.id === selected.id)
           if (!f) return null
-          return <div style={detailCard}>{header(f.name, f.status)}{f.status_updated_at && <div style={{ fontSize: 11, color: '#8b949e' }}>{t('updated_w')} {timeAgo(f.status_updated_at)}</div>}</div>
+          return <div className="board-detail" style={detailCard}>{header(f.name, f.status)}{f.status_updated_at && <div style={{ fontSize: 11, color: '#8b949e' }}>{t('updated_w')} {timeAgo(f.status_updated_at)}</div>}</div>
         }
         return null
       })()}
@@ -1265,26 +1265,26 @@ const panel: React.CSSProperties = {
   display: 'flex', flexDirection: 'column', fontFamily: 'system-ui, sans-serif', color: '#e6edf3',
 }
 const toggleBtn: React.CSSProperties = {
-  position: 'absolute', top: 12, zIndex: 7, width: 28, height: 28, borderRadius: 6,
+  position: 'absolute', top: 12, zIndex: 7, width: 34, height: 34, borderRadius: 6,
   background: 'rgba(13,17,23,0.95)', border: '1px solid #21262d', color: '#8b949e', cursor: 'pointer', fontFamily: 'system-ui',
 }
-const statusChip: React.CSSProperties = { position: 'absolute', top: 12, left: 12, zIndex: 7, fontSize: 12, color: '#8b949e', background: 'rgba(13,17,23,0.95)', border: '1px solid #21262d', borderRadius: 999, padding: '4px 12px', fontFamily: 'system-ui' }
-const detailCard: React.CSSProperties = { position: 'absolute', top: 56, left: 12, zIndex: 8, width: 300, maxWidth: 'calc(100vw - 24px)', background: 'rgba(13,17,23,0.97)', border: '1px solid #21262d', borderRadius: 10, padding: 14, color: '#e6edf3', fontFamily: 'system-ui', boxShadow: '0 8px 28px rgba(0,0,0,0.5)' }
+const statusChip: React.CSSProperties = { position: 'absolute', top: 12, insetInlineStart: 12, zIndex: 7, fontSize: 12, color: '#8b949e', background: 'rgba(13,17,23,0.95)', border: '1px solid #21262d', borderRadius: 999, padding: '4px 12px', fontFamily: 'system-ui', whiteSpace: 'nowrap' }
+const detailCard: React.CSSProperties = { position: 'absolute', top: 56, insetInlineStart: 12, zIndex: 8, width: 300, maxWidth: 'calc(100vw - 24px)', background: 'rgba(13,17,23,0.97)', border: '1px solid #21262d', borderRadius: 10, padding: 14, color: '#e6edf3', fontFamily: 'system-ui', boxShadow: '0 8px 28px rgba(0,0,0,0.5)' }
 const searchWrap: React.CSSProperties = { position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', zIndex: 8, width: 'min(400px, calc(100vw - 24px))', display: 'flex', flexDirection: 'column', gap: 6 }
-const searchInput: React.CSSProperties = { flex: 1, height: 36, background: 'rgba(13,17,23,0.95)', border: '1px solid #21262d', borderRadius: 8, color: '#e6edf3', padding: '0 12px', fontSize: 13, outline: 'none', fontFamily: 'system-ui' }
-const searchIconBtn: React.CSSProperties = { flexShrink: 0, width: 38, height: 36, background: 'rgba(13,17,23,0.95)', border: '1px solid #21262d', borderRadius: 8, color: '#58a6ff', cursor: 'pointer', fontSize: 16, fontFamily: 'system-ui' }
-const searchResultsBox: React.CSSProperties = { background: 'rgba(13,17,23,0.97)', border: '1px solid #21262d', borderRadius: 8, overflow: 'hidden' }
-const searchResultRow: React.CSSProperties = { display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', background: 'transparent', border: 'none', borderBottom: '1px solid #1b2027', color: '#e6edf3', fontSize: 12, cursor: 'pointer', fontFamily: 'system-ui' }
-const legendBox: React.CSSProperties = { position: 'absolute', bottom: 52, left: 12, zIndex: 7, background: 'rgba(13,17,23,0.9)', border: '1px solid #21262d', borderRadius: 8, padding: '6px 10px', fontFamily: 'system-ui', maxWidth: 200 }
+const searchInput: React.CSSProperties = { flex: 1, height: 38, background: 'rgba(13,17,23,0.95)', border: '1px solid #21262d', borderRadius: 8, color: '#e6edf3', padding: '0 12px', fontSize: 13, outline: 'none', fontFamily: 'system-ui' }
+const searchIconBtn: React.CSSProperties = { flexShrink: 0, width: 40, height: 38, background: 'rgba(13,17,23,0.95)', border: '1px solid #21262d', borderRadius: 8, color: '#58a6ff', cursor: 'pointer', fontSize: 16, fontFamily: 'system-ui' }
+const searchResultsBox: React.CSSProperties = { background: 'rgba(13,17,23,0.97)', border: '1px solid #21262d', borderRadius: 8, overflow: 'hidden auto', maxHeight: 'min(50vh, 320px)' }
+const searchResultRow: React.CSSProperties = { display: 'block', width: '100%', textAlign: 'left', padding: '10px 12px', background: 'transparent', border: 'none', borderBottom: '1px solid #1b2027', color: '#e6edf3', fontSize: 12, cursor: 'pointer', fontFamily: 'system-ui', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }
+const legendBox: React.CSSProperties = { position: 'absolute', bottom: 52, insetInlineStart: 12, zIndex: 7, background: 'rgba(13,17,23,0.9)', border: '1px solid #21262d', borderRadius: 8, padding: '6px 10px', fontFamily: 'system-ui', maxWidth: 200 }
 const legendHeader: React.CSSProperties = { background: 'none', border: 'none', color: '#8b949e', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'system-ui', padding: 0 }
 const legendSectionLabel: React.CSSProperties = { fontSize: 9, color: '#484f58', letterSpacing: '0.08em', textTransform: 'uppercase', margin: '4px 0 2px' }
-const styleSwitcher: React.CSSProperties = { position: 'absolute', bottom: 12, left: 12, zIndex: 7, display: 'flex', gap: 4, background: 'rgba(13,17,23,0.9)', border: '1px solid #21262d', borderRadius: 8, padding: 4 }
+const styleSwitcher: React.CSSProperties = { position: 'absolute', bottom: 12, insetInlineStart: 12, zIndex: 7, display: 'flex', gap: 4, background: 'rgba(13,17,23,0.9)', border: '1px solid #21262d', borderRadius: 8, padding: 4 }
 function styleBtn(active: boolean): React.CSSProperties {
-  return { height: 26, padding: '0 10px', borderRadius: 6, fontSize: 11, cursor: 'pointer', fontFamily: 'system-ui', whiteSpace: 'nowrap', background: active ? 'rgba(88,166,255,0.15)' : 'transparent', border: active ? '1px solid #58a6ff' : '1px solid transparent', color: active ? '#58a6ff' : '#8b949e' }
+  return { height: 32, padding: '0 12px', borderRadius: 6, fontSize: 11, cursor: 'pointer', fontFamily: 'system-ui', whiteSpace: 'nowrap', background: active ? 'rgba(88,166,255,0.15)' : 'transparent', border: active ? '1px solid #58a6ff' : '1px solid transparent', color: active ? '#58a6ff' : '#8b949e' }
 }
-const chipRetry: React.CSSProperties = { marginLeft: 6, background: 'none', border: 'none', color: '#f85149', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }
+const chipRetry: React.CSSProperties = { marginInlineStart: 6, background: 'none', border: 'none', color: '#f85149', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }
 function rangeBtn(active: boolean): React.CSSProperties {
-  return { flex: 1, height: 26, borderRadius: 6, fontSize: 11, cursor: 'pointer', fontFamily: 'system-ui', background: active ? 'rgba(88,166,255,0.15)' : 'rgba(255,255,255,0.04)', border: active ? '1px solid #58a6ff' : '1px solid #21262d', color: active ? '#58a6ff' : '#8b949e' }
+  return { flex: 1, height: 32, borderRadius: 6, fontSize: 11, cursor: 'pointer', fontFamily: 'system-ui', background: active ? 'rgba(88,166,255,0.15)' : 'rgba(255,255,255,0.04)', border: active ? '1px solid #58a6ff' : '1px solid #21262d', color: active ? '#58a6ff' : '#8b949e' }
 }
 const resolveBtn: React.CSSProperties = { flexShrink: 0, height: 26, padding: '0 10px', background: 'rgba(63,185,80,0.12)', border: '1px solid rgba(63,185,80,0.4)', color: '#3fb950', borderRadius: 6, fontSize: 11, cursor: 'pointer', fontFamily: 'system-ui' }
 const rollBtn: React.CSSProperties = {
