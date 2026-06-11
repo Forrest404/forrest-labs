@@ -1,6 +1,7 @@
 import 'server-only'
 import { randomBytes } from 'crypto'
 import { sendEmail } from '@/lib/email'
+import { fetchWithTimeout } from '@/lib/fetch-timeout'
 
 // Notification fan-out for NGO safety events. Two channels:
 //  - push  → ntfy.sh (reuses the codebase's existing broadcast-channel pattern)
@@ -110,7 +111,7 @@ export async function sendPush(topic: string | null, opts: {
     // the header form silently FAILED every alert with an emoji title (panic/roll-call/
     // dispatch/broadcast). JSON carries them safely in the UTF-8 body. POST to the ntfy root;
     // the topic travels in the payload. ntfy JSON priority is 1..5.
-    const res = await fetch(NTFY_BASE_URL, {
+    const res = await fetchWithTimeout(NTFY_BASE_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -137,7 +138,7 @@ export async function sendSms(phone: string, body: string): Promise<{ ok: boolea
     return { ok: true, stubbed: true }
   }
   try {
-    await fetch(provider, {
+    await fetchWithTimeout(provider, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ to: phone, message: body }),

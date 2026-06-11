@@ -4,6 +4,7 @@ import { getNgoSession, requireRole } from '@/lib/ngo-auth'
 import { rateLimit, tooMany } from '@/lib/rate-limit'
 import { gatherOrgReportData } from '@/lib/ngo-reports'
 import { notifyUsers } from '@/lib/ngo-notify'
+import { fetchWithTimeout } from '@/lib/fetch-timeout'
 
 // POST /api/ngo/reports/generate — gather this org's incidents (within its
 // operational area), dispatches, and on-scene reports for a date range, then ask
@@ -70,7 +71,7 @@ export async function POST(request: NextRequest) {
         `VERIFIED INCIDENTS IN AREA (${gathered.incidents.length}):\n${JSON.stringify(gathered.incidents, null, 2)}\n\n` +
         `DISPATCHES & ON-SCENE REPORTS (${gathered.dispatches.length}):\n${JSON.stringify(gathered.dispatches, null, 2)}`
 
-      const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
+      const aiRes = await fetchWithTimeout('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
           'x-api-key': apiKey,
@@ -83,7 +84,7 @@ export async function POST(request: NextRequest) {
           system,
           messages: [{ role: 'user', content: userContent }],
         }),
-      })
+      }, 30000)
       if (!aiRes.ok) {
         aiError = `AI draft unavailable (model returned ${aiRes.status}). The gathered data has been saved.`
       } else {
