@@ -112,8 +112,10 @@ export async function GET(request: NextRequest) {
 }
 
 // Clear dispatch history: delete this org's CLOSED dispatches (done / cancelled).
-// Active dispatches (assigned/en_route/on_scene) are never touched. on_scene_reports
-// cascade. Optional ?all=1 (org_admin only) clears active ones too. Org-scoped.
+// Active dispatches (assigned/en_route/on_scene) are never touched. A routine clear
+// PRESERVES any closed dispatch that has an on-scene report (operational evidence —
+// people assisted, hazards found — which cascade-deletes with the dispatch, audit H4).
+// Optional ?all=1 (org_admin only) is the deliberate full purge that clears everything.
 export async function DELETE(request: NextRequest) {
   const session = await getNgoSession(request)
   if (!requireRole(session, ['org_admin', 'team_leader'])) {
@@ -124,9 +126,22 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'Only an org admin can clear active dispatches' }, { status: 403 })
   }
   const supabase = createServiceClient()
+
+  // On a routine clear, find closed dispatches that carry an on-scene report and keep them.
+  let keepIds: string[] = []
+  if (!all) {
+    const { data: reported } = await supabase
+      .from('on_scene_reports')
+      .select('dispatch_id, ngo_dispatches!inner(org_id, status)')
+      .eq('ngo_dispatches.org_id', session!.orgId)
+      .in('ngo_dispatches.status', ['done', 'cancelled'])
+    keepIds = [...new Set((reported ?? []).map((r: any) => r.dispatch_id).filter(Boolean))]
+  }
+
   let q = supabase.from('ngo_dispatches').delete().eq('org_id', session!.orgId)
   if (!all) q = q.in('status', ['done', 'cancelled'])
+  if (keepIds.length) q = q.not('id', 'in', `(${keepIds.join(',')})`)
   const { data, error } = await q.select('id')
   if (error) return NextResponse.json({ error: 'Could not clear history' }, { status: 500 })
-  return NextResponse.json({ success: true, deleted: data?.length ?? 0 })
+  return NextResponse.json({ success: true, deleted: data?.length ?? 0, kept: keepIds.length })
 }

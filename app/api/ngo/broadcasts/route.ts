@@ -204,9 +204,15 @@ export async function POST(request: NextRequest) {
   }
 
   if (audience.length) {
-    await supabase.from('broadcast_recipients').insert(
+    const { error: recErr } = await supabase.from('broadcast_recipients').insert(
       audience.map((uid) => ({ broadcast_id: bcast.id, org_id: orgId, ngo_user_id: uid })),
     )
+    // If recipient tracking fails, don't leave an untracked broadcast and then push anyway
+    // (the "sent to N" + delivery/ack would be a lie). Roll the broadcast back and fail (M2).
+    if (recErr) {
+      await supabase.from('broadcasts').delete().eq('id', bcast.id)
+      return NextResponse.json({ error: 'Could not save the broadcast.' }, { status: 500 })
+    }
   }
 
   // ── Send the PUSH via the existing engine (push channel only). ──

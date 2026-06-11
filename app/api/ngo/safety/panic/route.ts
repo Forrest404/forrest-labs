@@ -71,8 +71,10 @@ export async function POST(request: NextRequest) {
 
   let body: { lat?: number; lon?: number; silent?: boolean; client_token?: string } = {}
   try { body = await request.json() } catch { /* panic must fire even with no body */ }
-  const lat = typeof body.lat === 'number' ? body.lat : null
-  const lon = typeof body.lon === 'number' ? body.lon : null
+  // Range-guard coordinates (M5): store only valid lat/lon; a panic with bad/no coords
+  // still fires (location simply unknown) — a safety action must never be rejected.
+  const lat = (typeof body.lat === 'number' && body.lat >= -90 && body.lat <= 90) ? body.lat : null
+  const lon = (typeof body.lon === 'number' && body.lon >= -180 && body.lon <= 180) ? body.lon : null
   const silent = body.silent === true
   const token = typeof body.client_token === 'string' ? body.client_token.slice(0, 80) : null
 
