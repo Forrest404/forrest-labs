@@ -5,9 +5,9 @@ import { useConfirm } from '@/lib/ngo-ui'
 import { useNgoLang, makeT } from '@/lib/use-ngo-lang'
 
 const LANG = {
-  en: { title: 'Operational area', desc_edit: 'Draw the polygon covering your area of operations.', desc_view: 'View only — the operational area is managed by an org admin.', draw: 'Draw area', redraw: 'Redraw area', click_add: 'Click the map to add points', undo: 'Undo', cancel: 'Cancel', saving: 'Saving…', save: 'Save area', defined: '✓ Area defined', clear: 'Clear area', e_min: 'Add at least 3 points to define an area.', saved_msg: 'Operational area saved.', e_save: 'Could not save.', e_save_retry: 'Could not save. Please try again.', cleared_msg: 'Operational area cleared.', e_clear: 'Could not clear.', e_clear_retry: 'Could not clear. Please try again.', confirm_clear_title: 'Clear the operational area?', confirm_clear_body: 'Incidents will no longer be flagged inside/outside it until you draw a new one.', confirm_clear: 'Clear' },
-  fr: { title: 'Zone opérationnelle', desc_edit: 'Dessinez le polygone couvrant votre zone d’opérations.', desc_view: 'Lecture seule — la zone opérationnelle est gérée par un administrateur.', draw: 'Dessiner la zone', redraw: 'Redessiner la zone', click_add: 'Cliquez sur la carte pour ajouter des points', undo: 'Annuler le point', cancel: 'Annuler', saving: 'Enregistrement…', save: 'Enregistrer la zone', defined: '✓ Zone définie', clear: 'Effacer la zone', e_min: 'Ajoutez au moins 3 points pour définir une zone.', saved_msg: 'Zone opérationnelle enregistrée.', e_save: 'Échec de l’enregistrement.', e_save_retry: 'Échec de l’enregistrement. Réessayez.', cleared_msg: 'Zone opérationnelle effacée.', e_clear: 'Échec de l’effacement.', e_clear_retry: 'Échec de l’effacement. Réessayez.', confirm_clear_title: 'Effacer la zone opérationnelle ?', confirm_clear_body: 'Les incidents ne seront plus signalés dans/hors zone jusqu’à ce que vous en dessiniez une nouvelle.', confirm_clear: 'Effacer' },
-  ar: { title: 'منطقة العمليات', desc_edit: 'ارسم المضلّع الذي يغطي منطقة عملياتك.', desc_view: 'للعرض فقط — يدير منطقة العمليات مسؤول المنظمة.', draw: 'رسم المنطقة', redraw: 'إعادة رسم المنطقة', click_add: 'انقر على الخريطة لإضافة نقاط', undo: 'تراجع', cancel: 'إلغاء', saving: 'جارٍ الحفظ…', save: 'حفظ المنطقة', defined: '✓ تم تحديد المنطقة', clear: 'مسح المنطقة', e_min: 'أضف 3 نقاط على الأقل لتحديد منطقة.', saved_msg: 'تم حفظ منطقة العمليات.', e_save: 'تعذّر الحفظ.', e_save_retry: 'تعذّر الحفظ. حاول مرة أخرى.', cleared_msg: 'تم مسح منطقة العمليات.', e_clear: 'تعذّر المسح.', e_clear_retry: 'تعذّر المسح. حاول مرة أخرى.', confirm_clear_title: 'مسح منطقة العمليات؟', confirm_clear_body: 'لن تُصنَّف الحوادث داخل/خارج المنطقة حتى ترسم واحدة جديدة.', confirm_clear: 'مسح' },
+  en: { title: 'Operational area', desc_edit: 'Draw the polygon covering your area of operations.', desc_view: 'View only — the operational area is managed by an org admin.', draw: 'Draw area', redraw: 'Redraw area', click_add: 'Click the map to add points', undo: 'Undo', cancel: 'Cancel', saving: 'Saving…', save: 'Save area', defined: '✓ Area defined', clear: 'Clear area', e_min: 'Add at least 3 points to define an area.', saved_msg: 'Operational area saved.', e_save: 'Could not save.', e_save_retry: 'Could not save. Please try again.', cleared_msg: 'Operational area cleared.', e_clear: 'Could not clear.', e_clear_retry: 'Could not clear. Please try again.', confirm_clear_title: 'Clear the operational area?', confirm_clear_body: 'Incidents will no longer be flagged inside/outside it until you draw a new one.', confirm_clear: 'Clear', search_ph: 'Find a place — anywhere in the world', set_base: 'Set as our base location', base_saved: 'Base location saved — your maps open here now.', e_base: 'Could not save the base location.', base_prefix: 'Base:' },
+  fr: { title: 'Zone opérationnelle', desc_edit: 'Dessinez le polygone couvrant votre zone d’opérations.', desc_view: 'Lecture seule — la zone opérationnelle est gérée par un administrateur.', draw: 'Dessiner la zone', redraw: 'Redessiner la zone', click_add: 'Cliquez sur la carte pour ajouter des points', undo: 'Annuler le point', cancel: 'Annuler', saving: 'Enregistrement…', save: 'Enregistrer la zone', defined: '✓ Zone définie', clear: 'Effacer la zone', e_min: 'Ajoutez au moins 3 points pour définir une zone.', saved_msg: 'Zone opérationnelle enregistrée.', e_save: 'Échec de l’enregistrement.', e_save_retry: 'Échec de l’enregistrement. Réessayez.', cleared_msg: 'Zone opérationnelle effacée.', e_clear: 'Échec de l’effacement.', e_clear_retry: 'Échec de l’effacement. Réessayez.', confirm_clear_title: 'Effacer la zone opérationnelle ?', confirm_clear_body: 'Les incidents ne seront plus signalés dans/hors zone jusqu’à ce que vous en dessiniez une nouvelle.', confirm_clear: 'Effacer', search_ph: 'Trouver un lieu — partout dans le monde', set_base: 'Définir comme notre base', base_saved: 'Base enregistrée — vos cartes s’ouvrent ici désormais.', e_base: 'Impossible d’enregistrer la base.', base_prefix: 'Base :' },
+  ar: { title: 'منطقة العمليات', desc_edit: 'ارسم المضلّع الذي يغطي منطقة عملياتك.', desc_view: 'للعرض فقط — يدير منطقة العمليات مسؤول المنظمة.', draw: 'رسم المنطقة', redraw: 'إعادة رسم المنطقة', click_add: 'انقر على الخريطة لإضافة نقاط', undo: 'تراجع', cancel: 'إلغاء', saving: 'جارٍ الحفظ…', save: 'حفظ المنطقة', defined: '✓ تم تحديد المنطقة', clear: 'مسح المنطقة', e_min: 'أضف 3 نقاط على الأقل لتحديد منطقة.', saved_msg: 'تم حفظ منطقة العمليات.', e_save: 'تعذّر الحفظ.', e_save_retry: 'تعذّر الحفظ. حاول مرة أخرى.', cleared_msg: 'تم مسح منطقة العمليات.', e_clear: 'تعذّر المسح.', e_clear_retry: 'تعذّر المسح. حاول مرة أخرى.', confirm_clear_title: 'مسح منطقة العمليات؟', confirm_clear_body: 'لن تُصنَّف الحوادث داخل/خارج المنطقة حتى ترسم واحدة جديدة.', confirm_clear: 'مسح', search_ph: 'ابحث عن مكان — في أي مكان في العالم', set_base: 'تعيين كمقرّنا', base_saved: 'تم حفظ المقر — تفتح خرائطك هنا الآن.', e_base: 'تعذّر حفظ المقر.', base_prefix: 'المقر:' },
 } as const
 
 declare global {
@@ -15,12 +15,29 @@ declare global {
 }
 
 // Operational area editor. An org_admin draws a polygon over their area of
-// operations in Lebanon; it saves to ngo_organisations.operational_area as a
-// GeoJSON Polygon and re-renders on reload. Drawing is a simple click-to-add
-// tool (no mapbox-gl-draw dependency), mirroring app/admin/map.
+// operations — anywhere in the world; it saves to ngo_organisations.operational_area
+// as a GeoJSON Polygon and re-renders on reload. Drawing is a simple click-to-add
+// tool (no mapbox-gl-draw dependency), mirroring app/admin/map. The map centres on
+// the org's BASE location (set at signup / via the search here); the Lebanon centre
+// is only the last-resort fallback for legacy orgs with neither base nor polygon.
 
 type Pt = [number, number]
-const LEBANON_CENTER: Pt = [35.86, 33.87]
+const FALLBACK_CENTER: Pt = [35.86, 33.87] // legacy fallback (pre-worldwide orgs)
+
+interface OrgBase { lat: number; lon: number; zoom: number | null; label: string | null }
+interface PlaceHit { lat: number; lon: number; label: string }
+async function searchPlaces(q: string, bias: OrgBase | null): Promise<PlaceHit[]> {
+  const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
+  if (!token || !q.trim()) return []
+  try {
+    const prox = bias ? `&proximity=${bias.lon},${bias.lat}` : ''
+    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(q.trim())}.json` +
+      `?access_token=${token}&limit=5&types=country,region,place,locality,neighborhood${prox}`
+    const res = await fetch(url)
+    const data = (await res.json()) as { features?: { center: [number, number]; place_name: string }[] }
+    return (data.features ?? []).map((f) => ({ lon: f.center[0], lat: f.center[1], label: f.place_name }))
+  } catch { return [] }
+}
 
 type Polygon = { type: 'Polygon'; coordinates: number[][][] }
 // True only for an actual GeoJSON Polygon with a usable ring. Guards against the
@@ -47,6 +64,15 @@ export default function NgoSetupPage() {
   const [status, setStatus] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
+  // Org base location (worldwide onboarding) + place search.
+  const [base, setBase] = useState<OrgBase | null>(null)
+  const baseRef = useRef<OrgBase | null>(null)
+  useEffect(() => { baseRef.current = base }, [base])
+  const [query, setQuery] = useState('')
+  const [hits, setHits] = useState<PlaceHit[]>([])
+  const [picked, setPicked] = useState<PlaceHit | null>(null)
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   const canEdit = role === 'org_admin'
 
   // Keep refs in sync so the (once-bound) map click handler reads fresh values.
@@ -61,6 +87,28 @@ export default function NgoSetupPage() {
       .catch(() => {})
   }, [])
 
+  // ── Org base location ────────────────────────────────────────────────────
+  useEffect(() => {
+    fetch('/api/ngo/org')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        const o = d?.org
+        if (o && o.base_lat != null && o.base_lon != null) {
+          setBase({ lat: o.base_lat, lon: o.base_lon, zoom: o.base_zoom ?? null, label: o.base_label ?? null })
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  // Centre on the base once both the map and the base are known — unless a saved
+  // polygon exists (its fitBounds wins; it's the more specific signal).
+  const centredRef = useRef(false)
+  useEffect(() => {
+    if (!mapLoaded || !map.current || centredRef.current || !base || isPolygon(saved)) return
+    centredRef.current = true
+    map.current.jumpTo({ center: [base.lon, base.lat], zoom: base.zoom ?? 9 })
+  }, [mapLoaded, base, saved])
+
   // ── Map init ─────────────────────────────────────────────────────────────
   useEffect(() => {
     const link = document.createElement('link')
@@ -73,11 +121,14 @@ export default function NgoSetupPage() {
     script.onload = () => {
       if (!mapContainer.current) return
       window.mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
+      // Base if it already loaded; legacy Lebanon fallback otherwise (the centring
+      // effect above corrects as soon as the base arrives).
+      const b = baseRef.current
       map.current = new window.mapboxgl.Map({
         container: mapContainer.current,
         style: 'mapbox://styles/mapbox/dark-v11',
-        center: LEBANON_CENTER,
-        zoom: 8,
+        center: b ? [b.lon, b.lat] : FALLBACK_CENTER,
+        zoom: b ? (b.zoom ?? 9) : 8,
         attributionControl: false,
       })
       map.current.on('load', () => setMapLoaded(true))
@@ -194,6 +245,33 @@ export default function NgoSetupPage() {
     }
   }
 
+  function onQuery(v: string) {
+    setQuery(v)
+    if (searchTimer.current) clearTimeout(searchTimer.current)
+    if (!v.trim()) { setHits([]); return }
+    searchTimer.current = setTimeout(async () => setHits(await searchPlaces(v, baseRef.current)), 350)
+  }
+  function pickPlace(h: PlaceHit) {
+    setPicked(h); setQuery(h.label); setHits([])
+    if (map.current) map.current.flyTo({ center: [h.lon, h.lat], zoom: 10 })
+  }
+  async function saveBase() {
+    if (!picked) return
+    setBusy(true); setStatus(null)
+    try {
+      const res = await fetch('/api/ngo/org', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ base_lat: picked.lat, base_lon: picked.lon, base_zoom: 10, base_label: picked.label.slice(0, 120) }),
+      })
+      if (res.ok) {
+        setBase({ lat: picked.lat, lon: picked.lon, zoom: 10, label: picked.label })
+        setPicked(null)
+        setStatus(t('base_saved'))
+      } else setStatus(t('e_base'))
+    } catch { setStatus(t('e_base')) }
+    finally { setBusy(false) }
+  }
+
   async function clearArea() {
     if (!(await confirm({ title: t('confirm_clear_title'), body: t('confirm_clear_body'), danger: true, confirmLabel: t('confirm_clear') }))) return
     setBusy(true); setStatus(null)
@@ -214,6 +292,36 @@ export default function NgoSetupPage() {
         <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>{t('title')}</div>
         <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 12 }}>
           {canEdit ? t('desc_edit') : t('desc_view')}
+        </div>
+
+        {/* Worldwide place search — find your city before drawing; org_admin can pin it as the base. */}
+        <div style={{ position: 'relative', marginBottom: 10 }}>
+          <input
+            value={query}
+            onChange={(e) => onQuery(e.target.value)}
+            placeholder={t('search_ph')}
+            style={{ width: '100%', height: 34, padding: '0 10px', boxSizing: 'border-box', background: '#0d1117', border: '1px solid #21262d', borderRadius: 6, color: '#e6edf3', fontSize: 12, fontFamily: 'system-ui', outline: 'none' }}
+          />
+          {hits.length > 0 && (
+            <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10, background: '#0d1117', border: '1px solid #21262d', borderRadius: 6, overflow: 'hidden', marginTop: 4 }}>
+              {hits.map((h) => (
+                <button key={h.label} type="button" onClick={() => pickPlace(h)}
+                  style={{ display: 'block', width: '100%', textAlign: 'start', padding: '8px 10px', background: 'transparent', border: 'none', borderBottom: '1px solid #1b2027', color: '#e6edf3', fontSize: 12, cursor: 'pointer', fontFamily: 'system-ui', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {h.label}
+                </button>
+              ))}
+            </div>
+          )}
+          {canEdit && picked && (
+            <button type="button" onClick={saveBase} disabled={busy} style={{ ...btn(false), marginTop: 6, color: '#58a6ff', borderColor: 'rgba(88,166,255,0.4)' }}>
+              📍 {t('set_base')}
+            </button>
+          )}
+          {base?.label && !picked && (
+            <div style={{ fontSize: 11, color: '#8b949e', marginTop: 6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {t('base_prefix')} {base.label}
+            </div>
+          )}
         </div>
 
         {canEdit && (

@@ -110,7 +110,11 @@ The NGO dashboard **reads** `clusters` and `alerts` to show incidents. NGOs neve
 - Blue — news_verified
 - Purple — official_verified
 
-**Lebanon bounding box:** lat 33.05–34.69, lon 35.10–36.62
+**Lebanon bounding box:** lat 33.05–34.69, lon 35.10–36.62 — CIVILIAN side only (public
+map/report/alerts and the verification pipeline are Lebanon-tuned). The NGO dashboard is
+**worldwide**: each org stores a base location (`ngo_organisations.base_lat/lon/zoom/label`,
+picked via place search at signup or on `/ngo/setup`); the board/setup/field maps centre on
+it and all NGO geocoding biases to it. Never hardcode Lebanon coordinates in NGO surfaces.
 
 ### New NGO tables — ADDITIVE migrations only
 

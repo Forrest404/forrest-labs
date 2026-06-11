@@ -163,6 +163,7 @@ interface FieldState {
   active_roll_call: { id: string; message: string | null; answered: boolean } | null
   checkin_window_minutes?: number
   active_panic?: ActivePanic | null
+  org_base?: { lat: number; lon: number; zoom: number | null } | null
 }
 const REASONS = ['injured', 'under_fire', 'detained', 'vehicle', 'medical', 'moving'] as const
 const CANCEL_WINDOW_S = 10
@@ -414,13 +415,17 @@ export default function NgoFieldPage() {
   // the library can't load) it degrades to a coordinates + "open in phone maps" panel.
   function initMap() {
     if (!mapEl.current || mapRef.current || !window.mapboxgl) return
+    // Fallback chain: own last GPS → assigned dispatch → org base (worldwide
+    // onboarding) → legacy Lebanon default.
     const own = lastKnownGps()
+    const orgBase = state?.org_base ?? null
     const center: [number, number] = own ? [own.lon, own.lat]
       : (dispatch?.lon != null && dispatch?.lat != null) ? [dispatch.lon, dispatch.lat]
-      : [35.86, 33.87] // Lebanon
+      : orgBase ? [orgBase.lon, orgBase.lat]
+      : [35.86, 33.87] // legacy fallback (pre-worldwide orgs)
     const m = new window.mapboxgl.Map({
       container: mapEl.current, style: 'mapbox://styles/mapbox/dark-v11',
-      center, zoom: own || dispatch?.lon != null ? 13 : 8, attributionControl: false,
+      center, zoom: own || dispatch?.lon != null ? 13 : (orgBase ? (orgBase.zoom ?? 9) : 8), attributionControl: false,
     })
     mapRef.current = m
     m.on('load', () => {

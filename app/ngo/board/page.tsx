@@ -328,6 +328,10 @@ export default function NgoBoardPage() {
   const [legendOpen, setLegendOpen] = useState(true)
   const userMarker = useRef<any>(null)
   const searchTimer = useRef<any>(null)
+  // Worldwide onboarding: centre once on the org (base or area centroid); the org
+  // centre also biases the place search.
+  const centredRef = useRef(false)
+  const orgCenterRef = useRef<{ lat: number; lon: number } | null>(null)
 
   function changeMapStyle(id: string) {
     const s = MAP_STYLES.find((x) => x.id === id)
@@ -459,6 +463,24 @@ export default function NgoBoardPage() {
       const cinc: CustomIncident[] = data.custom_incidents ?? []
       const wrk: Worker[] = data.workers ?? []
       dataRef.current = { incidents: inc, teams: tms, area: data.operational_area, panics: pnc, customIncidents: cinc, workers: wrk, facilities: dataRef.current?.facilities ?? [] }
+
+      // Worldwide onboarding: centre the map on the org once — base location if set,
+      // else the operational-area centroid; legacy orgs with neither keep the default.
+      if (!centredRef.current && map.current) {
+        const b = data.base as { lat: number; lon: number; zoom: number | null } | null
+        const ring: number[][] | undefined = data.operational_area?.coordinates?.[0]
+        if (b) {
+          centredRef.current = true
+          orgCenterRef.current = { lat: b.lat, lon: b.lon }
+          map.current.jumpTo({ center: [b.lon, b.lat], zoom: b.zoom ?? 8 })
+        } else if (Array.isArray(ring) && ring.length >= 4) {
+          const lats = ring.map((p) => p[1]), lons = ring.map((p) => p[0])
+          const c = { lat: (Math.min(...lats) + Math.max(...lats)) / 2, lon: (Math.min(...lons) + Math.max(...lons)) / 2 }
+          centredRef.current = true
+          orgCenterRef.current = c
+          map.current.fitBounds([[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]], { padding: 80, duration: 0 })
+        }
+      }
       setIncidents(inc)
       setTeams(tms)
       setPanics(pnc)
@@ -608,7 +630,10 @@ export default function NgoBoardPage() {
     searchTimer.current = setTimeout(async () => {
       try {
         const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
-        const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(v)}.json?access_token=${token}&country=lb&proximity=35.86,33.87&limit=5&types=place,locality,neighborhood,address,poi`
+        // Worldwide search, biased to the org's centre (base / area centroid) when known.
+        const c = orgCenterRef.current
+        const prox = c ? `&proximity=${c.lon},${c.lat}` : ''
+        const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(v)}.json?access_token=${token}${prox}&limit=5&types=place,locality,neighborhood,address,poi`
         const res = await fetch(url)
         const d = await res.json()
         setSearchResults((d.features ?? []).map((f: any) => ({ name: f.place_name as string, lon: f.center[0] as number, lat: f.center[1] as number })))

@@ -17,11 +17,17 @@ export async function GET(request: NextRequest) {
   // columns (migrations not applied) don't error. Defaults: 240 min, ack visible.
   let checkinWindow = 240
   let ackVisibleDefault = true
+  // Org base location (worldwide onboarding) — the field map's fallback centre when
+  // the worker has no GPS fix yet. Null pre-migration / when unset.
+  let orgBase: { lat: number; lon: number; zoom: number | null } | null = null
   try {
     const { data: org } = await supabase
       .from('ngo_organisations').select('*').eq('id', session!.orgId).maybeSingle()
     if (org && (org as any).checkin_window_minutes != null) checkinWindow = (org as any).checkin_window_minutes
     if (org && (org as any).panic_ack_visible_default != null) ackVisibleDefault = (org as any).panic_ack_visible_default
+    if (org && (org as any).base_lat != null && (org as any).base_lon != null) {
+      orgBase = { lat: (org as any).base_lat, lon: (org as any).base_lon, zoom: (org as any).base_zoom ?? null }
+    }
   } catch { /* columns may be absent */ }
 
   const teamId = await resolveTeamId(supabase, userId)
@@ -108,5 +114,6 @@ export async function GET(request: NextRequest) {
     active_roll_call: activeRollCall,
     checkin_window_minutes: checkinWindow,
     active_panic: activePanic,
+    org_base: orgBase,
   })
 }
