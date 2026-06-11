@@ -42,7 +42,19 @@ export async function POST(request: NextRequest) {
     .insert({ org_id: session!.orgId, cluster_id: clusterId || null, ngo_incident_id: incidentId || null, team_id: teamId, assigned_by: session!.userId, status: 'assigned', note })
     .select('id')
     .single()
-  if (error || !dispatch) return NextResponse.json({ error: 'Could not create dispatch' }, { status: 500 })
+  if (error || !dispatch) {
+    // Idempotency (H2): a partial unique index rejects a second ACTIVE dispatch of the same
+    // team to the same target. Return the existing one rather than a duplicate + a duplicate
+    // team alert — covers two leaders dispatching at once / a double-tap.
+    if ((error as { code?: string } | null)?.code === '23505') {
+      let q = supabase.from('ngo_dispatches').select('id')
+        .eq('org_id', session!.orgId).eq('team_id', teamId).in('status', ['assigned', 'en_route', 'on_scene'])
+      q = incidentId ? q.eq('ngo_incident_id', incidentId) : q.eq('cluster_id', clusterId)
+      const { data: existing } = await q.limit(1).maybeSingle()
+      if (existing) return NextResponse.json({ success: true, dispatch_id: existing.id, duplicate: true })
+    }
+    return NextResponse.json({ error: 'Could not create dispatch' }, { status: 500 })
+  }
 
   // Sanitised broadcast (security C1): no coordinates/place/map link on the relay; the
   // assigned team opens NOUR (authenticated) to see the incident location.
@@ -69,6 +81,7 @@ export async function GET(request: NextRequest) {
     .select('id, cluster_id, ngo_incident_id, team_id, status, note, assigned_at, en_route_at, on_scene_at, done_at, ngo_teams ( name, type ), ngo_incidents ( title, severity ), on_scene_reports ( people_assisted, services, new_hazards, created_at )')
     .eq('org_id', session!.orgId)
     .order('assigned_at', { ascending: false })
+    .limit(300)
 
   const dispatches = (rows ?? []).map((d: any) => {
     const team = Array.isArray(d.ngo_teams) ? d.ngo_teams[0] : d.ngo_teams
