@@ -220,8 +220,10 @@ function IncidentsInner() {
         @keyframes skeleton { 0%,100% { opacity: 0.4; } 50% { opacity: 0.8; } }
       `}</style>
 
-      {/* Left — cluster list */}
+      {/* Left — cluster list. On mobile, opening a record hides the list and the
+          detail panel takes the full width (the existing ✕ returns to the list). */}
       <div
+        className={selected ? 'adm-split-list' : undefined}
         style={{
           width: selected ? 420 : '100%',
           flexShrink: 0,
@@ -238,7 +240,7 @@ function IncidentsInner() {
               type="button"
               onClick={() => setFilter(tab.value)}
               style={{
-                height: 28,
+                height: 32,
                 padding: '0 12px',
                 borderRadius: 5,
                 fontSize: 12,
@@ -341,7 +343,7 @@ function IncidentsInner() {
 
       {/* Right — detail panel */}
       {selected && (
-        <div style={{ flex: 1, overflowY: 'auto', padding: 16, background: '#0d1117', minWidth: 0 }}>
+        <div className="adm-split-detail" style={{ flex: 1, overflowY: 'auto', padding: 16, background: '#0d1117', minWidth: 0 }}>
           {/* Header */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
             <div>

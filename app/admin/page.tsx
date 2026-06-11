@@ -166,7 +166,7 @@ export default function AdminDashboard() {
             50% { opacity: 0.8; }
           }
         `}</style>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+        <div className="adm-grid-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
           {Array.from({ length: 6 }).map((_, i) => (
             <div
               key={i}
@@ -359,6 +359,7 @@ export default function AdminDashboard() {
 
       {/* Metrics grid */}
       <div
+        className="adm-grid-3"
         style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(3, 1fr)',
@@ -460,7 +461,7 @@ export default function AdminDashboard() {
           No incidents yet
         </div>
       ) : (
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+        <table className="adm-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
           <thead>
             <tr style={{ borderBottom: '1px solid #21262d' }}>
               {['Location', 'Confidence', 'Reports', 'Status', 'Time', ''].map((col) => (

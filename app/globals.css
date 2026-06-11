@@ -87,5 +87,16 @@ button:disabled { cursor: not-allowed; }
      search bar so they never sit under it on a narrow screen */
   .board-chip { top: 54px !important; }
   .board-detail { top: 92px !important; }
+  /* admin/platform data tables: horizontal scroll instead of crushed columns */
+  .adm-table { display: block; overflow-x: auto; white-space: nowrap; max-width: 100%; }
+  /* admin split view (incidents): with a record open, detail takes the full
+     screen and the list hides — the panel's existing ✕ returns to the list */
+  .adm-split-list { display: none !important; }
+  .adm-split-detail { width: 100% !important; }
+  /* admin triage: stack the two-column review layout into one scrollable column */
+  .adm-stack { flex-direction: column !important; overflow-y: auto !important; }
+  .adm-stack > * { width: 100% !important; max-width: 100% !important; flex: 0 0 auto !important; border-right: none !important; }
+  /* admin dashboard metric cards: 3-up → 2-up on phones (skeleton shares the class) */
+  .adm-grid-3 { grid-template-columns: 1fr 1fr !important; }
 }
 

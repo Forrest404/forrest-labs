@@ -165,7 +165,7 @@ export default function WarningsPage() {
           No warning clusters yet
         </div>
       ) : (
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+        <table className="adm-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
           <thead>
             <tr style={{ borderBottom: '1px solid #21262d' }}>
               {['Location', 'Reports', 'Type', 'Confidence', 'Expires', 'Status', 'All clear', 'Actions'].map(
@@ -268,9 +268,9 @@ export default function WarningsPage() {
                     {w.status === 'active' ? (
                       <div style={{ display: 'flex', gap: 6 }}>
                         <button type="button" disabled={acting === w.id} onClick={() => actOn(w.id, 'all_clear')}
-                          style={{ fontSize: 10, fontWeight: 600, color: '#3fb950', background: 'rgba(63,185,80,0.1)', border: '1px solid rgba(63,185,80,0.3)', borderRadius: 4, padding: '3px 8px', cursor: 'pointer' }}>All clear</button>
+                          style={{ fontSize: 11, fontWeight: 600, color: '#3fb950', background: 'rgba(63,185,80,0.1)', border: '1px solid rgba(63,185,80,0.3)', borderRadius: 4, padding: '7px 12px', cursor: 'pointer' }}>All clear</button>
                         <button type="button" disabled={acting === w.id} onClick={() => actOn(w.id, 'discarded')}
-                          style={{ fontSize: 10, fontWeight: 600, color: '#f85149', background: 'rgba(248,81,73,0.1)', border: '1px solid rgba(248,81,73,0.3)', borderRadius: 4, padding: '3px 8px', cursor: 'pointer' }}>Discard</button>
+                          style={{ fontSize: 11, fontWeight: 600, color: '#f85149', background: 'rgba(248,81,73,0.1)', border: '1px solid rgba(248,81,73,0.3)', borderRadius: 4, padding: '7px 12px', cursor: 'pointer' }}>Discard</button>
                       </div>
                     ) : (
                       <span style={{ fontSize: 11, color: '#484f58' }}>—</span>

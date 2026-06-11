@@ -161,8 +161,19 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const [authed, setAuthed] = useState(false)
   const [time, setTime] = useState('')
   const [showShortcuts, setShowShortcuts] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
+  const [drawerOpen, setDrawerOpen] = useState(false)
   const router = useRouter()
   const pathname = usePathname()
+
+  // Mobile breakpoint + close-on-navigate (mirrors the NGO layout's drawer pattern).
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
+  useEffect(() => { setDrawerOpen(false) }, [pathname])
 
   // Skip auth check on login page
   const isLoginPage = pathname === '/admin/login'
@@ -225,6 +236,160 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
   if (!authed) return null
 
+  // Sidebar contents — shared by the desktop sidebar and the mobile drawer
+  // (the NGO layout's established mobile-nav pattern, ported; presentation only —
+  // navigation handlers are unchanged apart from also closing the drawer).
+  const sidebarBody = (
+    <>
+      {/* Logo */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          paddingBottom: 16,
+          borderBottom: '1px solid #21262d',
+          marginBottom: 12,
+        }}
+      >
+        <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
+          <circle cx="9" cy="9" r="7.5" stroke="#f85149" strokeWidth="1" />
+          <circle cx="9" cy="9" r="2" fill="#f85149" />
+          <line x1="9" y1="1" x2="9" y2="5" stroke="#f85149" strokeWidth="1" />
+          <line x1="9" y1="13" x2="9" y2="17" stroke="#f85149" strokeWidth="1" />
+          <line x1="1" y1="9" x2="5" y2="9" stroke="#f85149" strokeWidth="1" />
+          <line x1="13" y1="9" x2="17" y2="9" stroke="#f85149" strokeWidth="1" />
+        </svg>
+        <span style={{ fontSize: 13, color: '#e6edf3', fontWeight: 600 }}>NOUR</span>
+        <span
+          style={{
+            background: '#21262d',
+            borderRadius: 4,
+            padding: '2px 7px',
+            fontSize: 11,
+            color: '#484f58',
+          }}
+        >
+          Admin
+        </span>
+      </div>
+
+      {/* Nav items */}
+      {NAV_ITEMS.map((item) => {
+        const isActive = item.exact ? pathname === item.href : pathname.startsWith(item.href)
+        return (
+          <div
+            key={item.href}
+            onClick={() => { setDrawerOpen(false); router.push(item.href) }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 9,
+              height: 34,
+              padding: '0 10px',
+              borderRadius: 6,
+              fontSize: 13,
+              cursor: 'pointer',
+              marginBottom: 2,
+              background: isActive ? 'rgba(248,81,73,0.1)' : 'transparent',
+              color: isActive ? '#e6edf3' : '#8b949e',
+              fontWeight: isActive ? 500 : 400,
+            }}
+          >
+            <NavIcon name={item.icon} color={isActive ? '#e6edf3' : '#8b949e'} />
+            {item.label}
+          </div>
+        )
+      })}
+
+      {/* Divider */}
+      <div style={{ borderTop: '1px solid #21262d', margin: '8px 0' }} />
+
+      {/* Map link */}
+      <div
+        onClick={() => { setDrawerOpen(false); window.open('/map', '_blank') }}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 9,
+          height: 34,
+          padding: '0 10px',
+          borderRadius: 6,
+          fontSize: 13,
+          cursor: 'pointer',
+          marginBottom: 2,
+          color: '#8b949e',
+          background: 'transparent',
+        }}
+      >
+        Live map ↗
+      </div>
+
+      {/* Platform-operator console (separate /platform area; same admin login). */}
+      <div
+        onClick={() => { setDrawerOpen(false); router.push('/platform') }}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 9,
+          height: 34,
+          padding: '0 10px',
+          borderRadius: 6,
+          fontSize: 13,
+          cursor: 'pointer',
+          marginBottom: 2,
+          color: '#a371f7',
+          background: 'transparent',
+        }}
+      >
+        Platform console →
+      </div>
+
+      {/* Spacer */}
+      <div style={{ flex: 1 }} />
+
+      {/* Bottom section */}
+      <div>
+        {/* Status row */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 10px', marginBottom: 8 }}>
+          <span
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: '50%',
+              background: '#3fb950',
+              animation: 'pulse 1.5s ease-in-out infinite',
+            }}
+          />
+          <span style={{ fontSize: 11, color: '#3fb950', fontWeight: 500 }}>Live</span>
+        </div>
+
+        {/* Logout */}
+        <button
+          type="button"
+          onClick={() => {
+            fetch('/api/admin/auth/logout', { method: 'POST' }).then(() =>
+              router.push('/admin/login'),
+            )
+          }}
+          style={{
+            width: '100%',
+            height: 36,
+            background: 'transparent',
+            border: '1px solid #21262d',
+            borderRadius: 6,
+            color: '#8b949e',
+            fontSize: 12,
+            fontFamily: 'system-ui',
+            cursor: 'pointer',
+          }}
+        >
+          Sign out
+        </button>
+      </div>
+    </>
+  )
+
   return (
     <div
       style={{
@@ -243,166 +408,51 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         }
       `}</style>
 
-      {/* Sidebar */}
-      <div
-        style={{
-          width: 220,
-          flexShrink: 0,
-          background: '#0d1117',
-          borderRight: '1px solid #21262d',
-          display: 'flex',
-          flexDirection: 'column',
-          padding: '16px 12px',
-          overflowY: 'auto',
-        }}
-      >
-        {/* Logo */}
+      {/* Sidebar (desktop) */}
+      {!isMobile && (
         <div
           style={{
+            width: 220,
+            flexShrink: 0,
+            background: '#0d1117',
+            borderRight: '1px solid #21262d',
             display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            paddingBottom: 16,
-            borderBottom: '1px solid #21262d',
-            marginBottom: 12,
+            flexDirection: 'column',
+            padding: '16px 12px',
+            overflowY: 'auto',
           }}
         >
-          <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
-            <circle cx="9" cy="9" r="7.5" stroke="#f85149" strokeWidth="1" />
-            <circle cx="9" cy="9" r="2" fill="#f85149" />
-            <line x1="9" y1="1" x2="9" y2="5" stroke="#f85149" strokeWidth="1" />
-            <line x1="9" y1="13" x2="9" y2="17" stroke="#f85149" strokeWidth="1" />
-            <line x1="1" y1="9" x2="5" y2="9" stroke="#f85149" strokeWidth="1" />
-            <line x1="13" y1="9" x2="17" y2="9" stroke="#f85149" strokeWidth="1" />
-          </svg>
-          <span style={{ fontSize: 13, color: '#e6edf3', fontWeight: 600 }}>NOUR</span>
-          <span
+          {sidebarBody}
+        </div>
+      )}
+
+      {/* Mobile: slide-in drawer + backdrop (kept mounted so it can transition) */}
+      {isMobile && (
+        <div
+          onClick={() => setDrawerOpen(false)}
+          aria-hidden={!drawerOpen}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.6)',
+            opacity: drawerOpen ? 1 : 0,
+            visibility: drawerOpen ? 'visible' : 'hidden',
+            pointerEvents: drawerOpen ? 'auto' : 'none',
+            transition: 'opacity 200ms ease, visibility 200ms ease',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
             style={{
-              background: '#21262d',
-              borderRadius: 4,
-              padding: '2px 7px',
-              fontSize: 11,
-              color: '#484f58',
+              position: 'absolute', left: 0, top: 0, bottom: 0, width: 240, maxWidth: '85%',
+              background: '#0d1117', borderRight: '1px solid #21262d',
+              display: 'flex', flexDirection: 'column', padding: '16px 12px', overflowY: 'auto',
+              transform: drawerOpen ? 'translateX(0)' : 'translateX(-100%)',
+              transition: 'transform 220ms cubic-bezier(0.4, 0, 0.2, 1)', willChange: 'transform',
             }}
           >
-            Admin
-          </span>
-        </div>
-
-        {/* Nav items */}
-        {NAV_ITEMS.map((item) => {
-          const isActive = item.exact ? pathname === item.href : pathname.startsWith(item.href)
-          return (
-            <div
-              key={item.href}
-              onClick={() => router.push(item.href)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 9,
-                height: 34,
-                padding: '0 10px',
-                borderRadius: 6,
-                fontSize: 13,
-                cursor: 'pointer',
-                marginBottom: 2,
-                background: isActive ? 'rgba(248,81,73,0.1)' : 'transparent',
-                color: isActive ? '#e6edf3' : '#8b949e',
-                fontWeight: isActive ? 500 : 400,
-              }}
-            >
-              <NavIcon name={item.icon} color={isActive ? '#e6edf3' : '#8b949e'} />
-              {item.label}
-            </div>
-          )
-        })}
-
-        {/* Divider */}
-        <div style={{ borderTop: '1px solid #21262d', margin: '8px 0' }} />
-
-        {/* Map link */}
-        <div
-          onClick={() => window.open('/map', '_blank')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 9,
-            height: 34,
-            padding: '0 10px',
-            borderRadius: 6,
-            fontSize: 13,
-            cursor: 'pointer',
-            marginBottom: 2,
-            color: '#8b949e',
-            background: 'transparent',
-          }}
-        >
-          Live map ↗
-        </div>
-
-        {/* Platform-operator console (separate /platform area; same admin login). */}
-        <div
-          onClick={() => router.push('/platform')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 9,
-            height: 34,
-            padding: '0 10px',
-            borderRadius: 6,
-            fontSize: 13,
-            cursor: 'pointer',
-            marginBottom: 2,
-            color: '#a371f7',
-            background: 'transparent',
-          }}
-        >
-          Platform console →
-        </div>
-
-        {/* Spacer */}
-        <div style={{ flex: 1 }} />
-
-        {/* Bottom section */}
-        <div>
-          {/* Status row */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 10px', marginBottom: 8 }}>
-            <span
-              style={{
-                width: 6,
-                height: 6,
-                borderRadius: '50%',
-                background: '#3fb950',
-                animation: 'pulse 1.5s ease-in-out infinite',
-              }}
-            />
-            <span style={{ fontSize: 11, color: '#3fb950', fontWeight: 500 }}>Live</span>
+            {sidebarBody}
           </div>
-
-          {/* Logout */}
-          <button
-            type="button"
-            onClick={() => {
-              fetch('/api/admin/auth/logout', { method: 'POST' }).then(() =>
-                router.push('/admin/login'),
-              )
-            }}
-            style={{
-              width: '100%',
-              height: 32,
-              background: 'transparent',
-              border: '1px solid #21262d',
-              borderRadius: 6,
-              color: '#8b949e',
-              fontSize: 12,
-              fontFamily: 'system-ui',
-              cursor: 'pointer',
-            }}
-          >
-            Sign out
-          </button>
         </div>
-      </div>
+      )}
 
       {/* Main content area */}
       <div
@@ -427,15 +477,29 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             background: '#0d1117',
           }}
         >
-          <span style={{ fontSize: 14, fontWeight: 600, color: '#e6edf3' }}>
-            {getPageTitle(pathname)}
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+            {isMobile && (
+              <button
+                type="button"
+                onClick={() => setDrawerOpen(true)}
+                aria-label="Menu"
+                style={{ height: 36, width: 40, flexShrink: 0, background: 'rgba(255,255,255,0.04)', border: '1px solid #21262d', borderRadius: 8, color: '#e6edf3', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui' }}
+              >
+                ☰
+              </button>
+            )}
+            <span style={{ fontSize: 14, fontWeight: 600, color: '#e6edf3', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {getPageTitle(pathname)}
+            </span>
+          </div>
           <span
             style={{
               fontSize: 12,
-              color: '#484f58',
+              color: '#8b949e',
               fontVariantNumeric: 'tabular-nums',
               fontFamily: 'monospace',
+              flexShrink: 0,
+              whiteSpace: 'nowrap',
             }}
           >
             {time}

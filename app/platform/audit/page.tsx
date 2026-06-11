@@ -54,7 +54,7 @@ export default function PlatformAudit() {
       {loaded && !error && entries.length === 0 && <div style={{ color: '#484f58', fontSize: 14, padding: '40px 0', textAlign: 'center' }}>No actions recorded yet.</div>}
 
       {entries.length > 0 && (
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+        <table className="adm-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
           <thead>
             <tr style={{ borderBottom: '1px solid #21262d' }}>
               {['Time', 'Action', 'Subject', 'Detail', 'By'].map((c) => (

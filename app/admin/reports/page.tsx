@@ -145,7 +145,7 @@ export default function ReportsPage() {
         </div>
       ) : (
         <>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <table className="adm-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <thead>
               <tr style={{ borderBottom: '1px solid #21262d' }}>
                 {['Time', 'Location', 'Distance', 'Events', 'Media', 'Session', 'Cluster', 'Actions'].map(

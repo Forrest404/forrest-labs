@@ -511,7 +511,7 @@ export default function CommandPage() {
               </div>
             )}
 
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <table className="adm-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid #21262d' }}>
                   {['Team', 'Organisation', 'Type', 'Status', 'Location', 'Capacity', ''].map((col) => (
