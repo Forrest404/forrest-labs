@@ -66,6 +66,13 @@ function lastKnownGps(): { lat: number; lon: number; at: number } | null {
     return Number.isFinite(v?.lat) && Number.isFinite(v?.lon) ? v : null
   } catch { return null }
 }
+// Stable idempotency key, generated once per action and carried in the queued body.
+// A re-flushed offline check-in / panic re-sends the SAME token, so the server dedups
+// it instead of creating a duplicate row (a duplicate panic is dangerous noise).
+function newToken(): string {
+  try { if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID() } catch { /* no crypto */ }
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`
+}
 function getGps(timeoutMs = 8000): Promise<{ lat: number; lon: number } | null> {
   return new Promise((resolve) => {
     if (!('geolocation' in navigator)) return resolve(null)
@@ -451,7 +458,7 @@ export default function NgoFieldPage() {
       const { lat, lon } = await resolveCoords()
       const noLoc = lat == null || lon == null
       setNoGps(noLoc && !manual)
-      const sent = await send('/api/ngo/safety/check-in', { lat, lon }, 'check-in')
+      const sent = await send('/api/ngo/safety/check-in', { lat, lon, client_token: newToken() }, 'check-in')
       setCheckinQueued(!sent)
       setMsg(sent ? `${t('checked')} ✓${noLoc ? ` · ${t('no_gps')}` : ''}` : t('queued_send'))
       await loadState()
@@ -485,7 +492,7 @@ export default function NgoFieldPage() {
     if (!silent) setMsg(t('sending_alert'))
     // Fresh-if-possible, else last-known; the press is the complete action — GPS never blocks it.
     const { lat, lon } = await resolvePanicCoords()
-    const body = { lat, lon, silent }
+    const body = { lat, lon, silent, client_token: newToken() }
     let sent = false
     if (typeof navigator !== 'undefined' && navigator.onLine) {
       try { const r = await fetch('/api/ngo/safety/panic', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); if (r.ok) sent = true } catch { /* queue */ }

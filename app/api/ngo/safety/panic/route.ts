@@ -69,23 +69,39 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Not authorised' }, { status: 403 })
   }
 
-  let body: { lat?: number; lon?: number; silent?: boolean } = {}
+  let body: { lat?: number; lon?: number; silent?: boolean; client_token?: string } = {}
   try { body = await request.json() } catch { /* panic must fire even with no body */ }
   const lat = typeof body.lat === 'number' ? body.lat : null
   const lon = typeof body.lon === 'number' ? body.lon : null
   const silent = body.silent === true
+  const token = typeof body.client_token === 'string' ? body.client_token.slice(0, 80) : null
 
   const supabase = createServiceClient()
   const teamId = await resolveTeamId(supabase, session!.userId)
 
+  // Idempotent re-flush: if this exact queued panic already fired (same client_token),
+  // return the existing alert WITHOUT inserting again or re-firing the responder fan-out.
+  if (token) {
+    try {
+      const { data: dup } = await supabase.from('panic_events').select('id').eq('client_token', token).limit(1).maybeSingle()
+      if (dup) return NextResponse.json({ success: true, panic_id: dup.id, deduped: true })
+    } catch { /* column missing pre-migration — fall through to insert */ }
+  }
+
   // Scope the row to the org. Resilient to the revamp migration not being applied yet:
-  // if the org_id/silent columns are missing, retry the legacy shape so a panic NEVER
-  // fails to fire.
+  // if the org_id/silent/client_token columns are missing, retry the legacy shape so a
+  // panic NEVER fails to fire.
   const base = { ngo_user_id: session!.userId, team_id: teamId, last_lat: lat, last_lon: lon }
-  let { data: panic, error } = await supabase
-    .from('panic_events').insert({ ...base, org_id: session!.orgId, silent }).select('id').single()
+  const primary: Record<string, unknown> = { ...base, org_id: session!.orgId, silent }
+  if (token) primary.client_token = token
+  let { data: panic, error } = await supabase.from('panic_events').insert(primary).select('id').single()
   if (error && (error.code === 'PGRST204' || error.code === '42703')) {
     ({ data: panic, error } = await supabase.from('panic_events').insert(base).select('id').single())
+  }
+  // Race backstop: a concurrent flush already created this panic — return it, don't double-notify.
+  if (error && error.code === '23505' && token) {
+    const { data: dup } = await supabase.from('panic_events').select('id').eq('client_token', token).limit(1).maybeSingle()
+    if (dup) return NextResponse.json({ success: true, panic_id: dup.id, deduped: true })
   }
   if (error || !panic) return NextResponse.json({ error: 'Could not raise alert' }, { status: 500 })
 
