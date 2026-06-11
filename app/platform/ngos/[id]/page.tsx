@@ -123,7 +123,7 @@ export default function NgoDetail() {
       {users.length === 0 && <div style={{ color: '#484f58', fontSize: 13 }}>No users.</div>}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {users.map((u) => (
-          <div key={u.id} style={{ background: '#161b22', border: '1px solid #21262d', borderRadius: 8, padding: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+          <div key={u.id} style={{ background: '#161b22', border: '1px solid #21262d', borderRadius: 8, padding: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: 13, fontWeight: 600 }}>{u.full_name ?? u.email} <span style={{ fontSize: 11, color: STATUS_COLOUR[u.status] ?? '#8b949e', marginLeft: 6 }}>● {u.status}</span></div>
               <div style={{ fontSize: 12, color: '#8b949e', marginTop: 2 }}>{u.email} · {u.role}</div>
@@ -173,5 +173,5 @@ function btn(colour: string): React.CSSProperties {
   return { height: 34, padding: '0 16px', background: 'rgba(255,255,255,0.04)', border: `1px solid ${colour}66`, color: colour, borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'system-ui' }
 }
 function miniBtn(colour: string): React.CSSProperties {
-  return { height: 30, padding: '0 12px', background: 'rgba(255,255,255,0.04)', border: `1px solid ${colour}66`, color: colour, borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'system-ui' }
+  return { height: 34, padding: '0 12px', background: 'rgba(255,255,255,0.04)', border: `1px solid ${colour}66`, color: colour, borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'system-ui' }
 }
