@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { getNgoSession, requireRole } from '@/lib/ngo-auth'
 import { notifyTeam } from '@/lib/ngo-notify'
-import { geocode, mapLink } from '@/lib/ngo-dispatch'
 
 // Send a crew to a panicking coordinator: a leader/admin picks a team; we notify
-// that team (push + SMS) with the coordinator's last location + a map link, and
-// record a trackable dispatch (no cluster — a panic isn't an incident) that shows
-// in /ngo/dispatch and can be advanced/recalled like any other.
+// that team (push + SMS) to open NOUR for the location, and record a trackable
+// dispatch (no cluster — a panic isn't an incident) that shows in /ngo/dispatch and
+// can be advanced/recalled like any other. The dispatch is LINKED to the panic
+// (panic_id) so the responder sees the live location from the panic_events row —
+// which retention purges — instead of a name + coordinates frozen in the note (C1).
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getNgoSession(request)
   if (!requireRole(session, ['org_admin', 'team_leader'])) {
@@ -23,26 +24,29 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const supabase = createServiceClient()
 
   // Panic must belong to the caller's org (via its user). team must too.
-  const { data: panic } = await supabase.from('panic_events').select('id, last_lat, last_lon, ngo_user_id').eq('id', id).maybeSingle()
+  const { data: panic } = await supabase.from('panic_events').select('id, ngo_user_id').eq('id', id).maybeSingle()
   if (!panic) return NextResponse.json({ error: 'Panic not found' }, { status: 404 })
-  const { data: owner } = await supabase.from('ngo_users').select('org_id, full_name').eq('id', panic.ngo_user_id).maybeSingle()
+  const { data: owner } = await supabase.from('ngo_users').select('org_id').eq('id', panic.ngo_user_id).maybeSingle()
   if (!owner || owner.org_id !== session!.orgId) return NextResponse.json({ error: 'Panic not found' }, { status: 404 })
   const { data: team } = await supabase.from('ngo_teams').select('id, name').eq('id', teamId).eq('org_id', session!.orgId).maybeSingle()
   if (!team) return NextResponse.json({ error: 'Team not found' }, { status: 404 })
 
-  const hasLoc = panic.last_lat != null && panic.last_lon != null
-  const place = hasLoc ? await geocode(panic.last_lat, panic.last_lon) : 'location unknown'
-  const link = hasLoc ? mapLink(panic.last_lat, panic.last_lon) : ''
-  const who = owner.full_name ?? 'a field coordinator'
-
   // Record as a dispatch (cluster_id null — this responds to a panic, not an incident).
-  await supabase.from('ngo_dispatches').insert({
+  // The note is identity-free; the live location comes from the linked panic row.
+  const row: Record<string, unknown> = {
     org_id: session!.orgId, cluster_id: null, team_id: teamId, assigned_by: session!.userId,
-    status: 'assigned', note: `Panic response — ${who} @ ${place}${link ? ` ${link}` : ''}`,
-  })
+    status: 'assigned', note: 'Panic response', panic_id: panic.id,
+  }
+  let { error } = await supabase.from('ngo_dispatches').insert(row)
+  // Pre-migration fallback: panic_id column not there yet → insert without it.
+  if (error && (error.code === '42703' || error.code === 'PGRST204')) {
+    delete row.panic_id
+    ;({ error } = await supabase.from('ngo_dispatches').insert(row))
+  }
+  if (error) return NextResponse.json({ error: 'Could not dispatch' }, { status: 500 })
 
-  // Sanitised broadcast (security C1): name/place/map link stay in the dispatch note
-  // (authenticated dashboard) above; the relay carries only a generic notice.
+  // Sanitised broadcast (security C1): the relay carries only a generic notice; the
+  // responding team opens NOUR to see the worker's live location.
   await notifyTeam(supabase, teamId, {
     event: 'panic_dispatch',
     title: '🆘 Panic response',

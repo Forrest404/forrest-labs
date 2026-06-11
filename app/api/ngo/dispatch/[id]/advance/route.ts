@@ -37,8 +37,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const update: Record<string, any> = { status: next }
   if (STAMP[next]) update[STAMP[next]] = new Date().toISOString()
 
-  const { error } = await supabase.from('ngo_dispatches').update(update).eq('id', id)
+  // Optimistic concurrency (audit H2): only advance if the status is still what we read.
+  // Two concurrent advances then can't both fire the 'done' side-effects / notifications —
+  // exactly one update matches, the other affects zero rows and returns without side-effects.
+  const { data: updated, error } = await supabase
+    .from('ngo_dispatches').update(update).eq('id', id).eq('status', d.status).select('id')
   if (error) return NextResponse.json({ error: 'Could not advance dispatch' }, { status: 500 })
+  if (!updated || updated.length === 0) {
+    return NextResponse.json({ success: true, status: next, already: true })
+  }
 
   // The team went through every step → the incident is dealt with. Auto-mark it
   // complete (best-effort; never fails the advance). A custom incident is resolved;

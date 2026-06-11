@@ -289,7 +289,7 @@ export default function AuditPage() {
         </div>
       ) : (
         <>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <table className="adm-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <thead>
               <tr style={{ borderBottom: '1px solid #21262d' }}>
                 {['Time', 'Action', 'Type', 'Entity', 'Session', 'IP', 'Notes'].map((col) => (

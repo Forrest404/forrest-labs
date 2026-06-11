@@ -1,5 +1,6 @@
 import 'server-only'
 import { createHash } from 'crypto'
+import { fetchWithTimeout } from '@/lib/fetch-timeout'
 
 // Single server-side transactional-email module. All app email goes through here so the
 // provider can be swapped in one place. Provider = Resend (REST). Mirrors the stub
@@ -34,7 +35,7 @@ export async function sendEmail(opts: { to: string; subject: string; html: strin
     return { ok: false, stubbed: true }
   }
   try {
-    const res = await fetch('https://api.resend.com/emails', {
+    const res = await fetchWithTimeout('https://api.resend.com/emails', {
       method: 'POST',
       headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ from, to: opts.to, subject: opts.subject, html: opts.html, text: opts.text }),

@@ -40,7 +40,9 @@ const LANG = {
     org_dash_title: 'Partner dashboard', org_dash_body: 'NGO coordinators get real-time access to confirmed incidents and team dispatch — separate from civilian data.', org_dash_link: 'Request access →',
     org_export_title: 'Data export', org_export_body: 'All confirmed incident data is available as GeoJSON and CSV for import into your existing GIS and reporting tools.', org_export_link: 'Download sample →',
     org_api_title: 'API access', org_api_body: 'Live incident feed available for programmatic integration with existing humanitarian information systems.', org_api_link: 'View documentation →',
-    footer_built: 'Built to protect civilians', footer_year: 'NOUR · 2026', nav_privacy: 'Privacy',
+    footer_built: 'Built to protect civilians', footer_year: 'NOUR · 2026', nav_privacy: 'Privacy', nav_resources: 'Emergency help', nav_methodology: 'How it works',
+    get_alerts: 'Get alerts for your area', feed_title: 'Latest verified incidents', feed_view_all: 'View all on the map →', feed_empty: 'No verified incidents right now.',
+    feed_confirmed: 'Confirmed', feed_auto: 'Auto-confirmed', ago_now: 'just now', ago_m: 'm', ago_h: 'h', ago_d: 'd',
   },
   fr: {
     nav_map: 'Carte Opérationnelle',
@@ -76,7 +78,9 @@ const LANG = {
     org_dash_title: 'Tableau de bord partenaire', org_dash_body: "Les coordinateurs ONG accèdent en temps réel aux incidents confirmés et au déploiement des équipes — séparément des données civiles.", org_dash_link: "Demander l'accès →",
     org_export_title: 'Export de données', org_export_body: 'Toutes les données confirmées sont disponibles en GeoJSON et CSV pour vos outils SIG et de rapport existants.', org_export_link: 'Télécharger un exemple →',
     org_api_title: 'Accès API', org_api_body: "Flux d'incidents en direct pour l'intégration programmatique avec les systèmes d'information humanitaires existants.", org_api_link: 'Voir la documentation →',
-    footer_built: 'Conçu pour protéger les civils', footer_year: 'NOUR · 2026', nav_privacy: 'Confidentialité',
+    footer_built: 'Conçu pour protéger les civils', footer_year: 'NOUR · 2026', nav_privacy: 'Confidentialité', nav_resources: 'Aide d’urgence', nav_methodology: 'Comment ça marche',
+    get_alerts: 'Recevez des alertes pour votre zone', feed_title: 'Derniers incidents vérifiés', feed_view_all: 'Tout voir sur la carte →', feed_empty: 'Aucun incident vérifié pour le moment.',
+    feed_confirmed: 'Confirmé', feed_auto: 'Auto-confirmé', ago_now: 'à l’instant', ago_m: 'm', ago_h: 'h', ago_d: 'j',
   },
   ar: {
     nav_map: 'خريطة العمليات',
@@ -112,7 +116,9 @@ const LANG = {
     org_dash_title: 'لوحة الشريك', org_dash_body: 'منسّقو المنظمات بيوصلوا بالوقت الحقيقي للحوادث المؤكدة وتوزيع الفرق — منفصل عن بيانات المدنيين.', org_dash_link: 'اطلب الوصول →',
     org_export_title: 'تصدير البيانات', org_export_body: 'كل بيانات الحوادث المؤكدة متوفرة بصيغة GeoJSON و CSV لاستيرادها بأدوات GIS والتقارير.', org_export_link: 'حمّل عيّنة →',
     org_api_title: 'وصول API', org_api_body: 'تدفق الحوادث المباشر متاح للتكامل البرمجي مع أنظمة المعلومات الإنسانية الموجودة.', org_api_link: 'شوف التوثيق →',
-    footer_built: 'مبني لحماية المدنيين', footer_year: 'فورست لابس · ٢٠٢٦', nav_privacy: 'الخصوصية',
+    footer_built: 'مبني لحماية المدنيين', footer_year: 'فورست لابس · ٢٠٢٦', nav_privacy: 'الخصوصية', nav_resources: 'مساعدة طارئة', nav_methodology: 'كيف يعمل',
+    get_alerts: 'احصل على تنبيهات لمنطقتك', feed_title: 'أحدث الحوادث المؤكدة', feed_view_all: 'عرض الكل على الخريطة →', feed_empty: 'لا توجد حوادث مؤكدة حالياً.',
+    feed_confirmed: 'مؤكد', feed_auto: 'مؤكد تلقائياً', ago_now: 'الآن', ago_m: 'د', ago_h: 'س', ago_d: 'ي',
   },
 } as const
 
@@ -155,6 +161,8 @@ export default function HomePage() {
   const [isMobile, setIsMobile] = useState(false)
   // Live system status behind the "uptime" tile — refreshed with the stats poll.
   const [health, setHealth] = useState<'healthy' | 'degraded' | 'down'>('healthy')
+  // Mini incident feed (latest verified incidents) — low-bandwidth / quick-glance path.
+  const [feed, setFeed] = useState<{ id: string; status: string; created_at: string }[]>([])
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const nodesRef = useRef<CanvasNode[]>([])
@@ -162,6 +170,14 @@ export default function HomePage() {
   const supabase = useRef(createClient())
 
   const t = useCallback((key: LangKey): string => LANG[lang][key], [lang])
+
+  const feedTimeAgo = useCallback((iso: string): string => {
+    const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
+    if (s < 60) return t('ago_now')
+    const m = Math.floor(s / 60); if (m < 60) return `${m}${t('ago_m')}`
+    const h = Math.floor(m / 60); if (h < 24) return `${h}${t('ago_h')}`
+    return `${Math.floor(h / 24)}${t('ago_d')}`
+  }, [t])
 
   // ── Number animation ────────────────────────────────────────────────────
 
@@ -213,6 +229,13 @@ export default function HomePage() {
     const onResize = () => setIsMobile(window.innerWidth < 600)
     window.addEventListener('resize', onResize)
     fetchStats()
+    // Latest verified incidents for the mini-feed (best-effort; silent on failure).
+    fetch('/api/events?limit=4', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d?.features) setFeed(d.features.slice(0, 4).map((f: any) => ({ id: f.properties.id, status: f.properties.status, created_at: f.properties.created_at })))
+      })
+      .catch(() => { /* ignore */ })
     return () => window.removeEventListener('resize', onResize)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -413,13 +436,18 @@ export default function HomePage() {
           .hp-two-col{flex-direction:column !important}
           .hp-privacy-row{flex-direction:column !important}
           .hp-org-row{flex-direction:column !important}
-          .hp-nav-links{display:none !important}
+          /* mobile header: keep the life-safety Report CTA reachable from the top bar;
+             hide only the secondary links (map + NGO — both still in the hero CTAs) */
+          .hp-nav-extra{display:none !important}
+          .hp-nav-links{gap:8px !important;margin-left:4px !important}
+          .hp-lang-btn{padding:0 6px !important}
           .hp-footer-inner{flex-direction:column !important;text-align:center !important}
         }
       `}</style>
 
       {/* Canvas background */}
-      <canvas ref={canvasRef} style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 0, pointerEvents: 'none' }} />
+      {/* 100% (not 100vw) — 100vw includes the scrollbar and causes a horizontal overflow. */}
+      <canvas ref={canvasRef} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: 0, pointerEvents: 'none' }} />
 
       {/* CRT scanline overlay */}
       <div style={{ position: 'fixed', inset: 0, zIndex: 1, pointerEvents: 'none', background: 'repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.03) 2px,rgba(0,0,0,0.03) 4px)' }} />
@@ -446,7 +474,7 @@ export default function HomePage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           {/* Language switcher */}
           {(['en', 'fr', 'ar'] as Lang[]).map((l) => (
-            <button key={l} type="button" onClick={() => changeLang(l)} style={{
+            <button key={l} type="button" onClick={() => changeLang(l)} className="hp-lang-btn" style={{
               height: 28, padding: '0 10px', fontSize: 11, fontFamily: 'monospace', letterSpacing: '0.08em',
               borderRadius: 4, cursor: 'pointer',
               background: lang === l ? 'rgba(239,68,68,0.15)' : 'transparent',
@@ -455,9 +483,9 @@ export default function HomePage() {
             }}>{l.toUpperCase()}</button>
           ))}
           <div className="hp-nav-links" style={{ display: 'flex', alignItems: 'center', gap: 12, marginLeft: 8 }}>
-            <a href="/map" style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', textDecoration: 'none', fontFamily: 'monospace' }}>{t('nav_map')}</a>
+            <a href="/map" className="hp-nav-extra" style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', textDecoration: 'none', fontFamily: 'monospace' }}>{t('nav_map')}</a>
             {/* NGO entry — blue to stay distinct from the civilian red Report CTA. */}
-            <a href="/ngo/login" style={{ fontSize: 13, fontWeight: 500, color: '#58a6ff', border: '1px solid rgba(88,166,255,0.5)', padding: '6px 14px', borderRadius: 6, textDecoration: 'none', fontFamily: 'monospace' }}>{t('ngo_login')}</a>
+            <a href="/ngo/login" className="hp-nav-extra" style={{ fontSize: 13, fontWeight: 500, color: '#58a6ff', border: '1px solid rgba(88,166,255,0.5)', padding: '6px 14px', borderRadius: 6, textDecoration: 'none', fontFamily: 'monospace' }}>{t('ngo_login')}</a>
             <a href="/report" style={{ fontSize: 13, fontWeight: 500, color: '#ffffff', background: '#ef4444', padding: '7px 16px', borderRadius: 6, textDecoration: 'none', fontFamily: 'monospace' }}>{t('nav_report')} →</a>
           </div>
         </div>
@@ -540,6 +568,7 @@ export default function HomePage() {
         </div>
 
         <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.2)', fontFamily: 'monospace', letterSpacing: '0.05em', marginTop: 16 }}>{t('cta_note')}</p>
+        <a href="/map?alerts=1" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 12, fontSize: 13, color: '#f59e0b', textDecoration: 'none', fontFamily: 'monospace' }}>🔔 {t('get_alerts')} →</a>
 
         {/* NGO entry — separate, blue, audience-distinct from the civilian CTAs
             above. Lives in the hero (visible on mobile, unlike the header links
@@ -557,6 +586,30 @@ export default function HomePage() {
         {/* Scroll chevron */}
         <div style={{ marginTop: 48, animation: 'bounce-chevron 2s ease-in-out infinite', fontFamily: 'monospace', fontSize: 18, color: 'rgba(239,68,68,0.4)' }}>↓</div>
       </section>
+
+      {/* ── MINI INCIDENT FEED (low-bandwidth / quick glance) ────────────── */}
+      {feed.length > 0 && (
+        <section style={{ position: 'relative', zIndex: 2, padding: '0 24px', maxWidth: 640, margin: '0 auto', width: '100%' }}>
+          <div style={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, background: 'rgba(255,255,255,0.02)', padding: 18 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 12 }}>
+              <div style={{ fontFamily: 'monospace', fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)' }}>{t('feed_title')}</div>
+              <a href="/map" style={{ fontSize: 12, color: '#58a6ff', textDecoration: 'none', fontFamily: 'monospace' }}>{t('feed_view_all')}</a>
+            </div>
+            <div style={{ display: 'grid', gap: 8 }}>
+              {feed.map((f) => {
+                const auto = f.status === 'auto_confirmed'
+                return (
+                  <a key={f.id} href={`/map?incident=${f.id}`} style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none', color: 'rgba(255,255,255,0.75)', fontSize: 14 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: auto ? '#f97316' : '#ef4444', flexShrink: 0 }} />
+                    <span style={{ flex: 1 }}>{auto ? t('feed_auto') : t('feed_confirmed')}</span>
+                    <span style={{ fontFamily: 'monospace', fontSize: 12, color: 'rgba(255,255,255,0.35)' }}>{feedTimeAgo(f.created_at)}</span>
+                  </a>
+                )
+              })}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* ── HOW IT WORKS ─────────────────────────────────────────────────── */}
       <section style={{ position: 'relative', zIndex: 2, padding: '120px 24px', maxWidth: 760, margin: '0 auto' }}>
@@ -666,6 +719,8 @@ export default function HomePage() {
           <div style={{ display: 'flex', gap: 16 }}>
             <a href="/report" style={{ color: '#ef4444', textDecoration: 'none', fontFamily: 'monospace', fontSize: 12 }}>{t('nav_report')} →</a>
             <a href="/map" style={{ color: 'rgba(255,255,255,0.3)', textDecoration: 'none', fontFamily: 'monospace', fontSize: 12 }}>{t('nav_map')}</a>
+            <a href="/methodology" style={{ color: 'rgba(255,255,255,0.3)', textDecoration: 'none', fontFamily: 'monospace', fontSize: 12 }}>{t('nav_methodology')}</a>
+            <a href="/resources" style={{ color: '#f85149', textDecoration: 'none', fontFamily: 'monospace', fontSize: 12 }}>{t('nav_resources')}</a>
             <a href="/privacy" style={{ color: 'rgba(255,255,255,0.3)', textDecoration: 'none', fontFamily: 'monospace', fontSize: 12 }}>{t('nav_privacy')}</a>
           </div>
         </div>

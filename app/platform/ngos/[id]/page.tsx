@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation'
 
 interface OrgDetail {
   id: string; name: string; type: string; country: string | null; status: string; created_at: string
+  deleted_at: string | null
   area_description: string | null
   share_team_presence: boolean; share_operational_area: boolean
   team_count: number
@@ -23,6 +24,8 @@ export default function NgoDetail() {
   const [error, setError] = useState(false)
   const [note, setNote] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
+  const [dangerArm, setDangerArm] = useState(false) // permanent-delete confirmation armed
+  const [confirmText, setConfirmText] = useState('') // must match the org name to enable delete
 
   const load = useCallback(async () => {
     setError(false)
@@ -65,6 +68,19 @@ export default function NgoDetail() {
     finally { setBusy(null) }
   }, [])
 
+  // Permanent hard-delete (operator tier): removes the org + ALL its data via cascade. Distinct
+  // from the org_admin "soft close". The existing DELETE endpoint cascades + writes the audit log.
+  const deleteOrg = useCallback(async () => {
+    if (!org) return
+    setBusy('delete'); setNote(null)
+    try {
+      const r = await fetch(`/api/ngo-review/${org.id}`, { method: 'DELETE' })
+      if (r.ok) { router.push('/platform/ngos'); return }
+      setNote((await r.json().catch(() => ({})))?.error ?? 'Delete failed.')
+    } catch { setNote('Delete failed.') }
+    finally { setBusy(null) }
+  }, [org, router])
+
   if (!loaded) return <div style={{ color: '#8b949e', fontSize: 13 }}>Loading…</div>
   if (error || !org) return (
     <div>
@@ -95,13 +111,19 @@ export default function NgoDetail() {
         </div>
       </div>
 
+      {org.deleted_at && (
+        <div style={{ background: 'rgba(210,153,34,0.1)', border: '1px solid rgba(210,153,34,0.4)', color: '#d29922', borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 16 }}>
+          🌙 This organisation was closed by its own admin on {new Date(org.deleted_at).toLocaleDateString()} — everyone is signed out. Reactivate to reinstate it, or permanently delete it below.
+        </div>
+      )}
+
       {note && <div style={infoBox}>{note}</div>}
 
       <div style={{ fontSize: 13, fontWeight: 600, margin: '8px 0 10px' }}>Users ({users.length})</div>
       {users.length === 0 && <div style={{ color: '#484f58', fontSize: 13 }}>No users.</div>}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {users.map((u) => (
-          <div key={u.id} style={{ background: '#161b22', border: '1px solid #21262d', borderRadius: 8, padding: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+          <div key={u.id} style={{ background: '#161b22', border: '1px solid #21262d', borderRadius: 8, padding: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: 13, fontWeight: 600 }}>{u.full_name ?? u.email} <span style={{ fontSize: 11, color: STATUS_COLOUR[u.status] ?? '#8b949e', marginLeft: 6 }}>● {u.status}</span></div>
               <div style={{ fontSize: 12, color: '#8b949e', marginTop: 2 }}>{u.email} · {u.role}</div>
@@ -114,6 +136,29 @@ export default function NgoDetail() {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* ── DANGER ZONE — permanent hard delete (operator only). Type-the-name confirm; the
+          DELETE endpoint cascades all ngo_* data + audit-logs. Civilian data is unaffected. ── */}
+      <div style={{ marginTop: 28, background: 'rgba(248,81,73,0.05)', border: '1px solid rgba(248,81,73,0.4)', borderRadius: 10, padding: 16, display: 'grid', gap: 10 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: '#f85149' }}>⚠ Danger zone</div>
+        <div style={{ fontSize: 12, color: '#8b949e' }}>
+          Permanently delete <b style={{ color: '#e6edf3' }}>{org.name}</b> and <b>all of its data</b> — every user, team, check-in, panic, dispatch, broadcast and incident. This <b>cannot be undone</b> (use Suspend for a reversible block). Civilian reports are unaffected.
+        </div>
+        {!dangerArm
+          ? <button type="button" onClick={() => { setDangerArm(true); setConfirmText(''); setNote(null) }} style={btn('#f85149')}>Permanently delete NGO…</button>
+          : (
+            <div style={{ display: 'grid', gap: 8, maxWidth: 380 }}>
+              <label style={{ fontSize: 12, color: '#8b949e' }}>Type <b style={{ color: '#e6edf3' }}>{org.name}</b> to confirm</label>
+              <input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder={org.name}
+                style={{ height: 36, padding: '0 10px', background: '#0d1117', border: '1px solid #21262d', borderRadius: 6, color: '#e6edf3', fontSize: 14, fontFamily: 'system-ui', outline: 'none' }} />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button type="button" disabled={busy === 'delete' || confirmText.trim() !== org.name.trim()} onClick={deleteOrg}
+                  style={{ ...btn('#f85149'), opacity: busy === 'delete' || confirmText.trim() !== org.name.trim() ? 0.5 : 1 }}>{busy === 'delete' ? 'Deleting…' : 'Permanently delete'}</button>
+                <button type="button" disabled={busy === 'delete'} onClick={() => { setDangerArm(false); setConfirmText('') }} style={btn('#8b949e')}>Cancel</button>
+              </div>
+            </div>
+          )}
       </div>
     </div>
   )
@@ -128,5 +173,5 @@ function btn(colour: string): React.CSSProperties {
   return { height: 34, padding: '0 16px', background: 'rgba(255,255,255,0.04)', border: `1px solid ${colour}66`, color: colour, borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'system-ui' }
 }
 function miniBtn(colour: string): React.CSSProperties {
-  return { height: 30, padding: '0 12px', background: 'rgba(255,255,255,0.04)', border: `1px solid ${colour}66`, color: colour, borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'system-ui' }
+  return { height: 34, padding: '0 12px', background: 'rgba(255,255,255,0.04)', border: `1px solid ${colour}66`, color: colour, borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'system-ui' }
 }

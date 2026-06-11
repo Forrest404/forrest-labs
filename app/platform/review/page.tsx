@@ -122,4 +122,4 @@ function btn(colour: string): React.CSSProperties {
   return { height: 34, padding: '0 16px', background: 'rgba(255,255,255,0.04)', border: `1px solid ${colour}66`, color: colour, borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'system-ui' }
 }
 const backdrop: React.CSSProperties = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }
-const modal: React.CSSProperties = { width: 420, maxWidth: '90%', background: '#161b22', border: '1px solid #21262d', borderRadius: 12, padding: 22 }
+const modal: React.CSSProperties = { width: 420, maxWidth: '90%', maxHeight: '85vh', overflowY: 'auto', background: '#161b22', border: '1px solid #21262d', borderRadius: 12, padding: 22 }

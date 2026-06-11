@@ -51,6 +51,9 @@ export async function POST(request: NextRequest) {
     safe: true,
     responded_at: new Date().toISOString(),
   })
+  // Race backstop (H3): the check-then-insert above can race a concurrent double-tap; the
+  // unique index makes the loser a 23505, which is simply "already responded" — not an error.
+  if (error && (error as { code?: string }).code === '23505') return NextResponse.json({ success: true, already: true })
   if (error) return NextResponse.json({ error: 'Could not record response' }, { status: 500 })
   return NextResponse.json({ success: true })
 }

@@ -42,7 +42,19 @@ export async function POST(request: NextRequest) {
     .insert({ org_id: session!.orgId, cluster_id: clusterId || null, ngo_incident_id: incidentId || null, team_id: teamId, assigned_by: session!.userId, status: 'assigned', note })
     .select('id')
     .single()
-  if (error || !dispatch) return NextResponse.json({ error: 'Could not create dispatch' }, { status: 500 })
+  if (error || !dispatch) {
+    // Idempotency (H2): a partial unique index rejects a second ACTIVE dispatch of the same
+    // team to the same target. Return the existing one rather than a duplicate + a duplicate
+    // team alert — covers two leaders dispatching at once / a double-tap.
+    if ((error as { code?: string } | null)?.code === '23505') {
+      let q = supabase.from('ngo_dispatches').select('id')
+        .eq('org_id', session!.orgId).eq('team_id', teamId).in('status', ['assigned', 'en_route', 'on_scene'])
+      q = incidentId ? q.eq('ngo_incident_id', incidentId) : q.eq('cluster_id', clusterId)
+      const { data: existing } = await q.limit(1).maybeSingle()
+      if (existing) return NextResponse.json({ success: true, dispatch_id: existing.id, duplicate: true })
+    }
+    return NextResponse.json({ error: 'Could not create dispatch' }, { status: 500 })
+  }
 
   // Sanitised broadcast (security C1): no coordinates/place/map link on the relay; the
   // assigned team opens NOUR (authenticated) to see the incident location.
@@ -69,6 +81,7 @@ export async function GET(request: NextRequest) {
     .select('id, cluster_id, ngo_incident_id, team_id, status, note, assigned_at, en_route_at, on_scene_at, done_at, ngo_teams ( name, type ), ngo_incidents ( title, severity ), on_scene_reports ( people_assisted, services, new_hazards, created_at )')
     .eq('org_id', session!.orgId)
     .order('assigned_at', { ascending: false })
+    .limit(300)
 
   const dispatches = (rows ?? []).map((d: any) => {
     const team = Array.isArray(d.ngo_teams) ? d.ngo_teams[0] : d.ngo_teams
@@ -99,8 +112,10 @@ export async function GET(request: NextRequest) {
 }
 
 // Clear dispatch history: delete this org's CLOSED dispatches (done / cancelled).
-// Active dispatches (assigned/en_route/on_scene) are never touched. on_scene_reports
-// cascade. Optional ?all=1 (org_admin only) clears active ones too. Org-scoped.
+// Active dispatches (assigned/en_route/on_scene) are never touched. A routine clear
+// PRESERVES any closed dispatch that has an on-scene report (operational evidence —
+// people assisted, hazards found — which cascade-deletes with the dispatch, audit H4).
+// Optional ?all=1 (org_admin only) is the deliberate full purge that clears everything.
 export async function DELETE(request: NextRequest) {
   const session = await getNgoSession(request)
   if (!requireRole(session, ['org_admin', 'team_leader'])) {
@@ -111,9 +126,22 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'Only an org admin can clear active dispatches' }, { status: 403 })
   }
   const supabase = createServiceClient()
+
+  // On a routine clear, find closed dispatches that carry an on-scene report and keep them.
+  let keepIds: string[] = []
+  if (!all) {
+    const { data: reported } = await supabase
+      .from('on_scene_reports')
+      .select('dispatch_id, ngo_dispatches!inner(org_id, status)')
+      .eq('ngo_dispatches.org_id', session!.orgId)
+      .in('ngo_dispatches.status', ['done', 'cancelled'])
+    keepIds = [...new Set((reported ?? []).map((r: any) => r.dispatch_id).filter(Boolean))]
+  }
+
   let q = supabase.from('ngo_dispatches').delete().eq('org_id', session!.orgId)
   if (!all) q = q.in('status', ['done', 'cancelled'])
+  if (keepIds.length) q = q.not('id', 'in', `(${keepIds.join(',')})`)
   const { data, error } = await q.select('id')
   if (error) return NextResponse.json({ error: 'Could not clear history' }, { status: 500 })
-  return NextResponse.json({ success: true, deleted: data?.length ?? 0 })
+  return NextResponse.json({ success: true, deleted: data?.length ?? 0, kept: keepIds.length })
 }

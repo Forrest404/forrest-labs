@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { RealtimePostgresChangesPayload } from '@supabase/realtime-js'
 
@@ -187,6 +187,60 @@ function formatScrubTime(d: Date): string {
 
 // ─── Map page ─────────────────────────────────────────────────────────────────
 
+// Public-map UI strings (EN/FR/AR). Shared language pref key 'fl_lang' with the rest of the
+// site. The basemap labels themselves are localised separately via map.setLanguage().
+type MapLang = 'en' | 'fr' | 'ar'
+const MAP_STRINGS: Record<MapLang, Record<string, string>> = {
+  en: {
+    search_ph: 'Search a place in Lebanon…', clear: 'Clear search', locate: 'Find my location',
+    geo_unavailable: 'Location isn’t available on this device.',
+    geo_failed: 'Couldn’t get your location. Check location permission.',
+    report: 'Report incident', report_short: 'Report', news: 'News', live: 'LIVE', official: 'OFFICIAL',
+    legend_strikes: 'Strikes', legend_warnings: 'Warnings',
+    st_official: 'Officially verified', st_news: 'News verified', st_civilian: 'Civilian confirmed', st_auto: 'AI auto-confirmed',
+    warn_active: 'Active evacuation', warn_clear: 'All clear reported',
+    list: 'List', incidents: 'Incidents', no_incidents: 'No incidents match the current filters.', reports: 'reports', updated: 'updated',
+    alerts_btn: 'Alerts', alerts_title: 'Area alerts', alerts_desc: 'Get a push when a verified incident or evacuation warning appears in your area.',
+    alerts_centre: 'Using the map’s current centre — pan the map or use “find my location” to set your area.',
+    radius_label: 'Alert radius', subscribe: 'Subscribe', subscribing: 'Subscribing…',
+    alerts_ready: 'Subscription ready', alerts_howto: 'Open this link on your phone to get alerts — it uses the free ntfy app, no account needed:',
+    copy_link: 'Copy link', copied: 'Copied ✓', open_link: 'Open', done: 'Done', alerts_err: 'Could not subscribe. Please try again.', km: 'km',
+    emergency_help: 'Emergency help', how_it_works: 'How it works',
+  },
+  fr: {
+    search_ph: 'Rechercher un lieu au Liban…', clear: 'Effacer', locate: 'Ma position',
+    geo_unavailable: 'La localisation n’est pas disponible sur cet appareil.',
+    geo_failed: 'Impossible d’obtenir votre position. Vérifiez l’autorisation de localisation.',
+    report: 'Signaler', report_short: 'Signaler', news: 'Actus', live: 'EN DIRECT', official: 'OFFICIEL',
+    legend_strikes: 'Frappes', legend_warnings: 'Avertissements',
+    st_official: 'Vérifié officiellement', st_news: 'Vérifié par les médias', st_civilian: 'Confirmé par des civils', st_auto: 'Auto-confirmé (IA)',
+    warn_active: 'Évacuation active', warn_clear: 'Fin d’alerte signalée',
+    list: 'Liste', incidents: 'Incidents', no_incidents: 'Aucun incident ne correspond aux filtres actuels.', reports: 'signalements', updated: 'mis à jour',
+    alerts_btn: 'Alertes', alerts_title: 'Alertes de zone', alerts_desc: 'Recevez une notification quand un incident vérifié ou un avertissement d’évacuation apparaît dans votre zone.',
+    alerts_centre: 'Centre actuel de la carte — déplacez la carte ou utilisez « ma position » pour définir votre zone.',
+    radius_label: 'Rayon d’alerte', subscribe: 'S’abonner', subscribing: 'Abonnement…',
+    alerts_ready: 'Abonnement prêt', alerts_howto: 'Ouvrez ce lien sur votre téléphone pour recevoir les alertes — via l’app gratuite ntfy, sans compte :',
+    copy_link: 'Copier le lien', copied: 'Copié ✓', open_link: 'Ouvrir', done: 'Terminé', alerts_err: 'Échec de l’abonnement. Réessayez.', km: 'km',
+    emergency_help: 'Aide d’urgence', how_it_works: 'Comment ça marche',
+  },
+  ar: {
+    search_ph: 'ابحث عن مكان في لبنان…', clear: 'مسح', locate: 'موقعي',
+    geo_unavailable: 'الموقع غير متاح على هذا الجهاز.',
+    geo_failed: 'تعذّر تحديد موقعك. تحقّق من إذن الموقع.',
+    report: 'الإبلاغ عن حادثة', report_short: 'إبلاغ', news: 'الأخبار', live: 'مباشر', official: 'رسمي',
+    legend_strikes: 'الضربات', legend_warnings: 'التحذيرات',
+    st_official: 'مؤكد رسمياً', st_news: 'مؤكد إخبارياً', st_civilian: 'مؤكد من المدنيين', st_auto: 'مؤكد آلياً (ذكاء اصطناعي)',
+    warn_active: 'إخلاء نشط', warn_clear: 'تم الإبلاغ عن انتهاء الخطر',
+    list: 'قائمة', incidents: 'الحوادث', no_incidents: 'لا توجد حوادث مطابقة للمرشّحات الحالية.', reports: 'بلاغات', updated: 'آخر تحديث',
+    alerts_btn: 'تنبيهات', alerts_title: 'تنبيهات المنطقة', alerts_desc: 'احصل على إشعار عند ظهور حادثة مؤكدة أو تحذير إخلاء في منطقتك.',
+    alerts_centre: 'يُستخدم مركز الخريطة الحالي — حرّك الخريطة أو استخدم «موقعي» لتحديد منطقتك.',
+    radius_label: 'نطاق التنبيه', subscribe: 'اشترك', subscribing: 'جارٍ الاشتراك…',
+    alerts_ready: 'تم تجهيز الاشتراك', alerts_howto: 'افتح هذا الرابط على هاتفك لتصلك التنبيهات — عبر تطبيق ntfy المجاني، دون حساب:',
+    copy_link: 'نسخ الرابط', copied: 'تم النسخ ✓', open_link: 'فتح', done: 'تم', alerts_err: 'تعذّر الاشتراك. حاول مرة أخرى.', km: 'كم',
+    emergency_help: 'مساعدة طارئة', how_it_works: 'كيف يعمل',
+  },
+}
+
 export default function MapPage() {
   // ── Existing state ───────────────────────────────────────────────────────
   const [mapLoaded, setMapLoaded] = useState(false)
@@ -201,6 +255,46 @@ export default function MapPage() {
   const [isMobile, setIsMobile] = useState(false)
   const [showFullReasoning, setShowFullReasoning] = useState(false)
   const [shareLabel, setShareLabel] = useState('Share this alert')
+
+  // ── Search / locate state ─────────────────────────────────────────────────
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<{ name: string; lat: number; lon: number }[]>([])
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [locating, setLocating] = useState(false)
+  const [geoError, setGeoError] = useState<string | null>(null)
+  const userMarker = useRef<any>(null)
+
+  // ── Area-alert subscription state ──────────────────────────────────────────
+  const [alertsOpen, setAlertsOpen] = useState(false)
+  const [alertArea, setAlertArea] = useState<{ lat: number; lon: number } | null>(null)
+  const [alertRadius, setAlertRadius] = useState(5000)
+  const [alertBusy, setAlertBusy] = useState(false)
+  const [alertErr, setAlertErr] = useState<string | null>(null)
+  const [alertResult, setAlertResult] = useState<{ topic: string; subscribe_url: string } | null>(null)
+  const [alertCopied, setAlertCopied] = useState(false)
+
+  // ── Freshness indicator ───────────────────────────────────────────────────
+  const [lastUpdated, setLastUpdated] = useState<number | null>(null)
+  const [, setFreshTick] = useState(0) // 1s tick keeps the "updated Xs ago" label live
+
+  // ── Language (shared 'fl_lang'); basemap labels localised via map.setLanguage() ───────────
+  const [lang, setLang] = useState<MapLang>('en')
+  const langRef = useRef<MapLang>('en')
+  useEffect(() => { langRef.current = lang }, [lang])
+  const isRtl = lang === 'ar'
+  const t = useCallback((k: string) => MAP_STRINGS[lang]?.[k] ?? MAP_STRINGS.en[k] ?? k, [lang])
+  useEffect(() => {
+    try { const s = localStorage.getItem('fl_lang'); if (s === 'en' || s === 'fr' || s === 'ar') setLang(s) } catch { /* storage off */ }
+  }, [])
+  const changeLang = useCallback((l: MapLang) => {
+    setLang(l)
+    try { localStorage.setItem('fl_lang', l) } catch { /* storage off */ }
+    try { map.current?.setLanguage(l) } catch { /* setLanguage unsupported on this style/version */ }
+  }, [])
+  // Re-apply when the language state settles (e.g. read from storage on mount, once style ready).
+  useEffect(() => {
+    try { map.current?.setLanguage(lang) } catch { /* ignore */ }
+  }, [lang])
 
   // ── New state ────────────────────────────────────────────────────────────
   const [mapStyle, setMapStyle] = useState('mapbox://styles/mapbox/dark-v11')
@@ -222,6 +316,7 @@ export default function MapPage() {
   // ── News feed state ────────────────────────────────────────────────────
   const [articles, setArticles] = useState<NewsArticle[]>([])
   const [newsOpen, setNewsOpen] = useState(false)
+  const [listOpen, setListOpen] = useState(false)
   const [newsLoading, setNewsLoading] = useState(true)
 
   // ── Time-travel state ─────────────────────────────────────────────────
@@ -252,6 +347,16 @@ export default function MapPage() {
   useEffect(() => { sentinelVisibleRef.current = sentinelVisible }, [sentinelVisible])
   useEffect(() => { warningClustersRef.current = warningClusters }, [warningClusters])
 
+  // ── Deep-link target parsed once on mount (consumed below, after fetchLocationName) ──
+  const pendingDeepLink = useRef<{ type: 'incident' | 'warning'; id: string } | null>(null)
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search)
+    const inc = p.get('incident')
+    const wrn = p.get('warning')
+    if (inc) pendingDeepLink.current = { type: 'incident', id: inc }
+    else if (wrn) pendingDeepLink.current = { type: 'warning', id: wrn }
+  }, [])
+
   // ── Helpers ──────────────────────────────────────────────────────────────
 
   function timeAgo(dateStr: string): string {
@@ -262,6 +367,15 @@ export default function MapPage() {
     if (mins < 60) return `${mins}m ago`
     if (hours < 24) return `${hours}h ago`
     return `${Math.floor(hours / 24)}d ago`
+  }
+
+  // Live "updated Xs ago" for the freshness label (from a ms timestamp set on each data refresh).
+  function freshAgo(ms: number): string {
+    const s = Math.floor((Date.now() - ms) / 1000)
+    if (s < 5) return 'just now'
+    if (s < 60) return `${s}s ago`
+    const m = Math.floor(s / 60)
+    return m < 60 ? `${m}m ago` : `${Math.floor(m / 60)}h ago`
   }
 
   function formatEventType(type: string): string {
@@ -308,6 +422,107 @@ export default function MapPage() {
       })
     }
   }, [])
+
+  // Open the deep-linked incident/warning panel once its data has loaded (?incident=/?warning=).
+  useEffect(() => {
+    const dl = pendingDeepLink.current
+    if (!dl || !mapLoaded) return
+    if (dl.type === 'incident') {
+      const c = clusters.find((x) => x.id === dl.id)
+      if (!c) return // not loaded yet (or filtered/unknown) — retry on the next data change
+      pendingDeepLink.current = null
+      setSelectedWarning(null)
+      setSelectedCluster(c)
+      fetchLocationName(c.centroid_lat, c.centroid_lon, c.id)
+      if (map.current) map.current.flyTo({ center: [c.centroid_lon, c.centroid_lat], zoom: 14, duration: 1200 })
+    } else {
+      const w = warningClusters.find((x) => x.id === dl.id)
+      if (!w) return
+      pendingDeepLink.current = null
+      setSelectedCluster(null)
+      setSelectedWarning(w)
+      if (map.current) map.current.flyTo({ center: [w.centroid_lon, w.centroid_lat], zoom: 14, duration: 1200 })
+    }
+  }, [clusters, warningClusters, mapLoaded, fetchLocationName])
+
+  // Forward geocode (place/address search) — bounded to Lebanon so results are local. Reuses the
+  // same public Mapbox token already used for reverse geocoding (no new secret/route).
+  const runSearch = useCallback(async (q: string) => {
+    const query = q.trim()
+    if (query.length < 2) { setSearchResults([]); return }
+    const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
+    const url =
+      `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json` +
+      `?access_token=${token}&country=lb&bbox=35.10,33.05,36.62,34.69&limit=5&language=en,ar&types=place,locality,neighborhood,address,poi`
+    try {
+      const res = await fetch(url)
+      const data = await res.json() as { features?: { place_name: string; center: [number, number] }[] }
+      setSearchResults((data.features ?? []).map((f) => ({ name: f.place_name, lon: f.center[0], lat: f.center[1] })))
+    } catch { setSearchResults([]) }
+  }, [])
+
+  // Debounce the search so we don't hit the geocoder on every keystroke.
+  useEffect(() => {
+    if (!searchOpen) return
+    const id = setTimeout(() => { runSearch(searchQuery) }, 300)
+    return () => clearTimeout(id)
+  }, [searchQuery, searchOpen, runSearch])
+
+  const flyToResult = useCallback((r: { name: string; lat: number; lon: number }) => {
+    if (map.current) map.current.flyTo({ center: [r.lon, r.lat], zoom: 13, duration: 1200 })
+    setSearchQuery(r.name)
+    setSearchResults([])
+    setSearchOpen(false)
+  }, [])
+
+  // "Near me" — recenter on the user's GPS and drop a marker. Battery-light: a one-shot fix,
+  // never continuous tracking. Fails gracefully (denied / unavailable / timeout).
+  const locateMe = useCallback(() => {
+    setGeoError(null)
+    if (typeof navigator === 'undefined' || !navigator.geolocation) { setGeoError(t('geo_unavailable')); return }
+    setLocating(true)
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLocating(false)
+        const { latitude, longitude } = pos.coords
+        if (!map.current || !window.mapboxgl) return
+        map.current.flyTo({ center: [longitude, latitude], zoom: 14, duration: 1200 })
+        try { userMarker.current?.remove() } catch { /* ignore */ }
+        userMarker.current = new window.mapboxgl.Marker({ color: '#58a6ff' }).setLngLat([longitude, latitude]).addTo(map.current)
+      },
+      () => { setLocating(false); setGeoError(t('geo_failed')) },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 },
+    )
+  }, [t])
+
+  // Open the area-alert modal seeded with the map's current centre as the chosen area.
+  const openAlerts = useCallback(() => {
+    let area = { lat: 33.8938, lon: 35.5018 }
+    try { const c = map.current?.getCenter?.(); if (c) area = { lat: c.lat, lon: c.lng } } catch { /* map not ready */ }
+    setAlertArea(area); setAlertResult(null); setAlertErr(null); setAlertCopied(false); setAlertsOpen(true)
+  }, [])
+
+  // Landing entry point: /map?alerts=1 opens the area-alert modal once the map has settled
+  // (so getCenter() reflects any ?lat/lon deep-link rather than the default centre).
+  useEffect(() => {
+    if (!new URLSearchParams(window.location.search).get('alerts')) return
+    const id = setTimeout(() => openAlerts(), 700)
+    return () => clearTimeout(id)
+  }, [openAlerts])
+
+  const subscribeAlerts = useCallback(async () => {
+    if (!alertArea || alertBusy) return
+    setAlertBusy(true); setAlertErr(null)
+    try {
+      const res = await fetch('/api/alerts/subscribe', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lat: alertArea.lat, lon: alertArea.lon, radius_metres: alertRadius, lang }),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (res.ok && d.topic) setAlertResult({ topic: d.topic, subscribe_url: d.subscribe_url })
+      else setAlertErr(d.error ?? t('alerts_err'))
+    } catch { setAlertErr(t('alerts_err')) } finally { setAlertBusy(false) }
+  }, [alertArea, alertRadius, alertBusy, lang, t])
 
   const updateMapSource = useCallback((clusterData: Cluster[]) => {
     if (!map.current) return
@@ -834,6 +1049,7 @@ export default function MapPage() {
     const warnRows = (warnData ?? []) as WarningCluster[]
     setWarningClusters(warnRows)
     updateWarningSource(warnRows)
+    setLastUpdated(Date.now())
   }, [updateMapSource, updateWarningSource])
 
   const setupRealtimeSubscription = useCallback(() => {
@@ -862,6 +1078,7 @@ export default function MapPage() {
               updateMapSource(updated)
               return updated
             })
+            setLastUpdated(Date.now())
           }
         }
       )
@@ -889,11 +1106,18 @@ export default function MapPage() {
               updateWarningSource(updated)
               return updated
             })
+            setLastUpdated(Date.now())
           }
         }
       )
       .subscribe()
   }, [updateMapSource, updateWarningSource])
+
+  // 1s tick keeps the "updated Xs ago" freshness label live (paused when the tab is hidden).
+  useEffect(() => {
+    const id = setInterval(() => { if (document.visibilityState === 'visible') setFreshTick((n) => n + 1) }, 1000)
+    return () => clearInterval(id)
+  }, [])
 
   // ── All clear handler ──────────────────────────────────────────────────
 
@@ -1010,10 +1234,12 @@ export default function MapPage() {
         updateWarningSource(warningClustersRef.current)
         attachMapHandlers()
         reAddOptionalLayers()
+        try { map.current.setLanguage(langRef.current) } catch { /* keep style default */ }
       })
 
       map.current.on('load', () => {
         setMapLoaded(true)
+        try { map.current.setLanguage(langRef.current) } catch { /* keep style default */ }
         loadClusters()
         setupRealtimeSubscription()
         attachMapHandlers()
@@ -1051,19 +1277,15 @@ export default function MapPage() {
     }
   }, [loadClusters, setupRealtimeSubscription, attachMapHandlers, reAddOptionalLayers, startPulseAnimation, startWarningPulse])
 
-  // ── Effect 2: filter ──────────────────────────────────────────────────
-
-  useEffect(() => {
-    if (!map.current || !map.current.getSource('clusters-dots')) return
-
+  // ── The clusters currently shown on the map (filters + time-travel). Shared by the map
+  //    source AND the incident list so the two always match. ────────────────────────────────
+  const visibleClusters = useMemo(() => {
     const now = Date.now()
     const scrubMs = scrubDate.getTime()
     const timeWindow = TIME_RANGES.find((r) => r.id === timeRange)
     const period = OPERATION_PERIODS.find((p) => p.id === operationFilter)
-
-    const filtered = clusters.filter((c) => {
+    return clusters.filter((c) => {
       const t = new Date(c.created_at).getTime()
-
       if (timeEnabled && t > scrubMs) return false
       if (timeWindow && now - t > timeWindow.ms) return false
       if (statusFilter === 'confirmed' && c.status !== 'confirmed') return false
@@ -1072,12 +1294,15 @@ export default function MapPage() {
         if (period.end && t >= period.end.getTime()) return false
       }
       if (eventTypeFilter !== 'all' && !c.dominant_event_types?.includes(eventTypeFilter)) return false
-
       return true
     })
+  }, [clusters, timeRange, statusFilter, operationFilter, eventTypeFilter, scrubDate, timeEnabled])
 
-    updateMapSource(filtered)
-  }, [timeRange, statusFilter, operationFilter, eventTypeFilter, clusters, scrubDate, timeEnabled, updateMapSource])
+  // ── Effect 2: filter → map source ──────────────────────────────────────
+  useEffect(() => {
+    if (!map.current || !map.current.getSource('clusters-dots')) return
+    updateMapSource(visibleClusters)
+  }, [visibleClusters, updateMapSource])
 
   // ── Effect 3: reset panel state when selection changes ────────────────
 
@@ -1269,7 +1494,14 @@ export default function MapPage() {
   // ── Share handler ─────────────────────────────────────────────────────
 
   const handleShare = useCallback(async () => {
-    const url = window.location.origin + '/map'
+    // Deep-link to the OPEN incident/warning so the recipient lands on it (the id opens the
+    // panel once data loads; lat/lon/zoom fly there immediately, even before data arrives).
+    let url = window.location.origin + '/map'
+    if (selectedCluster) {
+      url += `?incident=${selectedCluster.id}&lat=${selectedCluster.centroid_lat}&lon=${selectedCluster.centroid_lon}&zoom=14`
+    } else if (selectedWarning) {
+      url += `?warning=${selectedWarning.id}&lat=${selectedWarning.centroid_lat}&lon=${selectedWarning.centroid_lon}&zoom=14`
+    }
     if (navigator.share) {
       try {
         await navigator.share({ title: 'NOUR — Live Map', url })
@@ -1285,7 +1517,19 @@ export default function MapPage() {
         // clipboard unavailable
       }
     }
-  }, [])
+  }, [selectedCluster, selectedWarning])
+
+  // Open an incident from the list — mirrors the map-dot click (select + fly + load name).
+  const selectFromList = useCallback((c: Cluster) => {
+    setSelectedWarning(null)
+    setSelectedCluster(c)
+    fetchLocationName(c.centroid_lat, c.centroid_lon, c.id)
+    if (map.current) map.current.flyTo({ center: [c.centroid_lon, c.centroid_lat], zoom: 14, duration: 1200 })
+    if (isMobile) setListOpen(false)
+  }, [fetchLocationName, isMobile])
+
+  const STATUS_HEX: Record<string, string> = { official_verified: '#a371f7', news_verified: '#58a6ff', confirmed: '#ef4444', auto_confirmed: '#f97316' }
+  const statusKey = (s: string) => (s === 'official_verified' ? 'st_official' : s === 'news_verified' ? 'st_news' : s === 'confirmed' ? 'st_civilian' : 'st_auto')
 
   // ── Derived values ────────────────────────────────────────────────────
 
@@ -1325,7 +1569,7 @@ export default function MapPage() {
     borderRadius: 14,
     fontSize: 11,
     cursor: 'pointer',
-    minHeight: isMobile ? 34 : 28,
+    minHeight: isMobile ? 36 : 32,
     whiteSpace: 'nowrap' as const,
   })
 
@@ -1333,6 +1577,7 @@ export default function MapPage() {
 
   return (
     <div
+      dir={isRtl ? 'rtl' : 'ltr'}
       style={{
         position: 'relative',
         width: '100vw',
@@ -1412,12 +1657,12 @@ export default function MapPage() {
           </div>
           {activeWarningCount > 1 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-              <button type="button" onClick={() => setWarningBannerIndex((i) => (i - 1 + activeWarningCount) % activeWarningCount)} style={{ background: 'none', border: 'none', color: '#fdba74', fontSize: 14, cursor: 'pointer', padding: 2 }}>←</button>
+              <button type="button" onClick={() => setWarningBannerIndex((i) => (i - 1 + activeWarningCount) % activeWarningCount)} style={{ background: 'none', border: 'none', color: '#fdba74', fontSize: 14, cursor: 'pointer', padding: 2, minWidth: 32, minHeight: 32 }}>←</button>
               <span style={{ fontSize: 10, color: '#fdba74' }}>{(warningBannerIndex % activeWarningCount) + 1}/{activeWarningCount}</span>
-              <button type="button" onClick={() => setWarningBannerIndex((i) => (i + 1) % activeWarningCount)} style={{ background: 'none', border: 'none', color: '#fdba74', fontSize: 14, cursor: 'pointer', padding: 2 }}>→</button>
+              <button type="button" onClick={() => setWarningBannerIndex((i) => (i + 1) % activeWarningCount)} style={{ background: 'none', border: 'none', color: '#fdba74', fontSize: 14, cursor: 'pointer', padding: 2, minWidth: 32, minHeight: 32 }}>→</button>
             </div>
           )}
-          <button type="button" onClick={() => setWarningBannerDismissed(true)} style={{ background: 'none', border: 'none', color: '#fdba74', fontSize: 16, cursor: 'pointer', padding: '0 4px', flexShrink: 0, lineHeight: 1 }}>×</button>
+          <button type="button" onClick={() => setWarningBannerDismissed(true)} style={{ background: 'none', border: 'none', color: '#fdba74', fontSize: 16, cursor: 'pointer', padding: '0 8px', flexShrink: 0, lineHeight: 1, minWidth: 32, minHeight: 32 }}>×</button>
         </div>
       )}
 
@@ -1460,7 +1705,7 @@ export default function MapPage() {
               fontWeight: 600,
             }}
           >
-            {recentCluster?.status === 'official_verified' ? 'OFFICIAL' : 'LIVE'}
+            {recentCluster?.status === 'official_verified' ? t('official') : t('live')}
           </span>
         </div>
 
@@ -1497,20 +1742,56 @@ export default function MapPage() {
             {recentCluster
               ? `${locationNames[recentCluster.id] ?? 'Loading location...'} · ${recentCluster.report_count} reports · ${timeAgo(recentCluster.created_at)}`
               : 'Monitoring active — no confirmed incidents'}
+            {lastUpdated && <span style={{ color: 'rgba(255,255,255,0.4)' }}> · {t('updated')} {freshAgo(lastUpdated)}</span>}
           </div>
         </div>
+
+        {/* Incident list button */}
+        <button
+          type="button"
+          onClick={() => { setListOpen((v) => !v); setNewsOpen(false) }}
+          aria-label={`Toggle incident list, ${visibleClusters.length} incidents`}
+          aria-pressed={listOpen}
+          style={{
+            background: listOpen ? 'rgba(239,68,68,0.18)' : 'rgba(255,255,255,0.08)',
+            border: listOpen ? '0.5px solid rgba(239,68,68,0.4)' : '0.5px solid rgba(255,255,255,0.15)',
+            color: listOpen ? '#ef4444' : '#ffffff',
+            minWidth: isMobile ? 44 : undefined,
+            minHeight: isMobile ? 44 : 36,
+            padding: isMobile ? '0 10px' : '7px 12px',
+            borderRadius: 8,
+            fontSize: 13,
+            fontWeight: 500,
+            cursor: 'pointer',
+            flexShrink: 0,
+            whiteSpace: 'nowrap',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+            fontFamily: 'system-ui',
+            touchAction: 'manipulation',
+          }}
+        >
+          <svg width={isMobile ? 16 : 12} height={isMobile ? 16 : 12} viewBox="0 0 14 14" fill="none" aria-hidden>
+            <circle cx="2" cy="3" r="1.2" fill="currentColor" /><path d="M5 3h7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+            <circle cx="2" cy="7" r="1.2" fill="currentColor" /><path d="M5 7h7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+            <circle cx="2" cy="11" r="1.2" fill="currentColor" /><path d="M5 11h7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+          </svg>
+          <span style={{ display: isMobile ? 'none' : 'inline' }}>{t('list')}</span>
+        </button>
 
         {/* News feed button */}
         <button
           type="button"
-          onClick={() => setNewsOpen((v) => !v)}
+          onClick={() => { setNewsOpen((v) => !v); setListOpen(false) }}
           aria-label={`Toggle intelligence feed${articles.length > 0 ? `, ${articles.length} articles` : ''}`}
           style={{
             background: newsOpen ? 'rgba(88,166,255,0.18)' : 'rgba(255,255,255,0.08)',
             border: newsOpen ? '0.5px solid rgba(88,166,255,0.4)' : '0.5px solid rgba(255,255,255,0.15)',
             color: newsOpen ? '#58a6ff' : '#ffffff',
             minWidth: isMobile ? 44 : undefined,
-            minHeight: isMobile ? 44 : 32,
+            minHeight: isMobile ? 44 : 36,
             padding: isMobile ? '0 10px' : '7px 12px',
             borderRadius: 8,
             fontSize: 13,
@@ -1530,7 +1811,7 @@ export default function MapPage() {
             <rect x="1" y="2" width="12" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
             <path d="M3.5 5h7M3.5 7.5h7M3.5 10h4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
           </svg>
-          <span style={{ display: isMobile ? 'none' : 'inline' }}>News</span>
+          <span style={{ display: isMobile ? 'none' : 'inline' }}>{t('news')}</span>
           {articles.length > 0 && (
             <span style={{
               background: '#ef4444',
@@ -1548,6 +1829,26 @@ export default function MapPage() {
           )}
         </button>
 
+        {/* Language toggle (shared 'fl_lang'; also switches the basemap labels) */}
+        <div style={{ display: 'flex', border: '0.5px solid rgba(255,255,255,0.15)', borderRadius: 8, overflow: 'hidden', flexShrink: 0 }}>
+          {(['en', 'fr', 'ar'] as MapLang[]).map((l) => (
+            <button
+              key={l}
+              type="button"
+              onClick={() => changeLang(l)}
+              aria-label={`Language: ${l === 'ar' ? 'Arabic' : l === 'fr' ? 'French' : 'English'}`}
+              aria-pressed={lang === l}
+              style={{
+                background: lang === l ? 'rgba(239,68,68,0.25)' : 'transparent',
+                color: lang === l ? '#fff' : 'rgba(255,255,255,0.6)',
+                border: 'none', cursor: 'pointer', fontFamily: 'system-ui',
+                fontSize: 11, fontWeight: 600, padding: isMobile ? '0 7px' : '0 8px',
+                minHeight: isMobile ? 44 : 36, lineHeight: 1,
+              }}
+            >{l === 'ar' ? 'ع' : l.toUpperCase()}</button>
+          ))}
+        </div>
+
         {/* Report button */}
         <a
           href="/report"
@@ -1555,7 +1856,7 @@ export default function MapPage() {
             background: '#ef4444',
             color: '#ffffff',
             padding: isMobile ? '0 12px' : '7px 14px',
-            minHeight: isMobile ? 44 : undefined,
+            minHeight: isMobile ? 44 : 36,
             display: 'flex',
             alignItems: 'center',
             borderRadius: 8,
@@ -1566,8 +1867,95 @@ export default function MapPage() {
             whiteSpace: 'nowrap',
           }}
         >
-          {isMobile ? 'Report' : 'Report incident'}
+          {isMobile ? t('report_short') : t('report')}
         </a>
+      </div>
+
+      {/* ── Search a place + "find my location" (top-left) ──────────────── */}
+      <div
+        style={{
+          position: 'absolute',
+          top: isMobile ? (showBanner ? 94 : 56) : (showBanner ? 56 + 38 + 8 : 56 + 8),
+          left: 12,
+          width: isMobile ? 'calc(100vw - 64px)' : 280,
+          maxWidth: 'calc(100vw - 24px)',
+          zIndex: 6,
+          display: isMobile && newsOpen ? 'none' : 'flex',
+          flexDirection: 'column',
+          gap: 6,
+          transition: 'top 0.3s',
+        }}
+      >
+        <div style={{ display: 'flex', gap: 6 }}>
+          <div style={{ flex: 1, position: 'relative' }}>
+            <input
+              value={searchQuery}
+              onChange={(e) => { setSearchQuery(e.target.value); setSearchOpen(true); setGeoError(null) }}
+              onFocus={() => setSearchOpen(true)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && searchResults[0]) flyToResult(searchResults[0])
+                else if (e.key === 'Escape') { setSearchOpen(false); setSearchResults([]) }
+              }}
+              placeholder={t('search_ph')}
+              aria-label={t('search_ph')}
+              style={{
+                width: '100%', boxSizing: 'border-box', height: 38, padding: '0 30px 0 12px',
+                background: 'rgba(10,10,15,0.9)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
+                border: '0.5px solid rgba(255,255,255,0.15)', borderRadius: 10, color: '#fff', fontSize: 14,
+                fontFamily: 'system-ui', outline: 'none',
+              }}
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => { setSearchQuery(''); setSearchResults([]); setSearchOpen(false) }}
+                aria-label={t('clear')}
+                style={{ position: 'absolute', right: 2, top: 4, width: 30, height: 30, borderRadius: 6, background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: 18, lineHeight: '30px' }}
+              >×</button>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={locateMe}
+            disabled={locating}
+            aria-label={t('locate')}
+            title={t('locate')}
+            style={{ flexShrink: 0, width: 38, height: 38, borderRadius: 10, background: 'rgba(10,10,15,0.9)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', border: '0.5px solid rgba(255,255,255,0.15)', color: locating ? '#8b949e' : '#58a6ff', cursor: locating ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+              <circle cx="8" cy="8" r="3.2" stroke="currentColor" strokeWidth="1.4" />
+              <line x1="8" y1="0.5" x2="8" y2="3" stroke="currentColor" strokeWidth="1.4" />
+              <line x1="8" y1="13" x2="8" y2="15.5" stroke="currentColor" strokeWidth="1.4" />
+              <line x1="0.5" y1="8" x2="3" y2="8" stroke="currentColor" strokeWidth="1.4" />
+              <line x1="13" y1="8" x2="15.5" y2="8" stroke="currentColor" strokeWidth="1.4" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            onClick={openAlerts}
+            aria-label={t('alerts_title')}
+            title={t('alerts_title')}
+            style={{ flexShrink: 0, width: 38, height: 38, borderRadius: 10, background: 'rgba(10,10,15,0.9)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', border: '0.5px solid rgba(255,255,255,0.15)', color: '#f59e0b', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+              <path d="M8 1.6a3.4 3.4 0 0 0-3.4 3.4c0 3.2-1.3 4.2-1.3 4.2h9.4s-1.3-1-1.3-4.2A3.4 3.4 0 0 0 8 1.6Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+              <path d="M6.7 12.4a1.4 1.4 0 0 0 2.6 0" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+            </svg>
+          </button>
+        </div>
+        {searchOpen && searchResults.length > 0 && (
+          <div style={{ background: 'rgba(10,10,15,0.95)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', border: '0.5px solid rgba(255,255,255,0.12)', borderRadius: 10, overflow: 'hidden' }}>
+            {searchResults.map((r, i) => (
+              <button
+                key={`${r.lat},${r.lon},${i}`}
+                type="button"
+                onClick={() => flyToResult(r)}
+                style={{ display: 'block', width: '100%', textAlign: 'left', padding: '9px 12px', background: 'transparent', border: 'none', borderTop: i ? '0.5px solid rgba(255,255,255,0.07)' : 'none', color: '#e6edf3', fontSize: 13, cursor: 'pointer', fontFamily: 'system-ui' }}
+              >{r.name}</button>
+            ))}
+          </div>
+        )}
+        {geoError && <div style={{ background: 'rgba(248,81,73,0.15)', border: '0.5px solid rgba(248,81,73,0.4)', color: '#f85149', borderRadius: 8, padding: '6px 10px', fontSize: 12 }}>{geoError}</div>}
       </div>
 
       {/* ── Mobile controls toggle button ──────────────────────────────── */}
@@ -1602,13 +1990,22 @@ export default function MapPage() {
         </button>
       )}
 
-      {/* ── PART 1: Style switcher ─────────────────────────────────────── */}
+      {/* ── Map controls: style switcher + layers. On mobile both live in ONE
+           right-aligned scrollable column bounded to the viewport, so the second
+           panel can never sit off the bottom of a short phone; desktop keeps the
+           original absolute layout via display:contents. Visual-only — same
+           toggles and handlers. */}
       {(showControls || !isMobile) && (
+        <div style={isMobile
+          ? { position: 'absolute', top: showBanner ? 138 : 100, right: 12, bottom: 12, zIndex: 5, overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 12, maxWidth: 'calc(100vw - 24px)', pointerEvents: 'none' }
+          : { display: 'contents' }}>
         <div
           style={{
-            position: 'absolute',
-            top: isMobile ? (showBanner ? 138 : 100) : (showBanner ? 56 + 38 + 8 : 56 + 8),
-            right: 12,
+            position: isMobile ? 'static' : 'absolute',
+            top: isMobile ? undefined : (showBanner ? 56 + 38 + 8 : 56 + 8),
+            right: isMobile ? undefined : 12,
+            flexShrink: 0,
+            pointerEvents: 'auto',
             background: 'rgba(10,10,15,0.9)',
             backdropFilter: 'blur(12px)',
             WebkitBackdropFilter: 'blur(12px)',
@@ -1727,15 +2124,15 @@ export default function MapPage() {
             </button>
           </div>
         </div>
-      )}
 
       {/* ── PART 2: Layer controls ─────────────────────────────────────── */}
-      {(showControls || !isMobile) && (
         <div
           style={{
-            position: 'absolute',
-            top: isMobile ? (showBanner ? 138 + 268 + 12 : 100 + 268 + 12) : (showBanner ? 56 + 38 + 8 + 268 + 12 : 56 + 8 + 268 + 12),
-            right: 12,
+            position: isMobile ? 'static' : 'absolute',
+            top: isMobile ? undefined : (showBanner ? 56 + 38 + 8 + 268 + 12 : 56 + 8 + 268 + 12),
+            right: isMobile ? undefined : 12,
+            flexShrink: 0,
+            pointerEvents: 'auto',
             background: 'rgba(10,10,15,0.9)',
             backdropFilter: 'blur(12px)',
             WebkitBackdropFilter: 'blur(12px)',
@@ -1866,6 +2263,7 @@ export default function MapPage() {
             </div>
           ))}
         </div>
+        </div>
       )}
 
       {/* ── PART 3: Coordinates display ────────────────────────────────── */}
@@ -1902,34 +2300,40 @@ export default function MapPage() {
         }}
       >
         {/* STRIKES section */}
-        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>Strikes</div>
+        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>{t('legend_strikes')}</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'rgba(255,255,255,0.7)', marginBottom: 5 }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#a371f7', flexShrink: 0, marginLeft: 6, marginRight: 6 }} />
-          Officially verified (OCHA/MoPH)
+          {t('st_official')}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'rgba(255,255,255,0.7)', marginBottom: 5 }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#58a6ff', flexShrink: 0, marginLeft: 6, marginRight: 6 }} />
-          News verified
+          {t('st_news')}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'rgba(255,255,255,0.7)', marginBottom: 5 }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444', flexShrink: 0, marginLeft: 6, marginRight: 6 }} />
-          Civilian confirmed
+          {t('st_civilian')}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#f97316', flexShrink: 0, marginLeft: 6, marginRight: 6 }} />
-          AI auto-confirmed
+          {t('st_auto')}
         </div>
         {/* Divider */}
         <div style={{ borderTop: '0.5px solid rgba(255,255,255,0.1)', margin: '8px 0' }} />
         {/* WARNINGS section */}
-        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>Warnings</div>
+        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>{t('legend_warnings')}</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'rgba(255,255,255,0.7)', marginBottom: 5 }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#f97316', flexShrink: 0, marginLeft: 6, marginRight: 6, boxShadow: '0 0 0 2px rgba(249,115,22,0.3)' }} />
-          Active evacuation warning
+          {t('warn_active')}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', flexShrink: 0, marginLeft: 6, marginRight: 6 }} />
-          All clear reported
+          {t('warn_clear')}
+        </div>
+        {/* Help links */}
+        <div style={{ borderTop: '0.5px solid rgba(255,255,255,0.1)', margin: '8px 0' }} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+          <a href="/resources" style={{ fontSize: 11, color: '#f85149', textDecoration: 'none' }}>{t('emergency_help')} →</a>
+          <a href="/methodology" style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', textDecoration: 'none' }}>{t('how_it_works')} →</a>
         </div>
       </div>
 
@@ -2519,6 +2923,107 @@ export default function MapPage() {
           </button>
         </div>
       )}
+
+      {/* ── Area-alert subscription modal ──────────────────────────────── */}
+      {alertsOpen && (
+        <div onClick={() => setAlertsOpen(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={(e) => e.stopPropagation()} dir={isRtl ? 'rtl' : 'ltr'} style={{ width: 380, maxWidth: '100%', background: '#0f0f16', border: '0.5px solid rgba(255,255,255,0.15)', borderRadius: 14, padding: 20, color: '#e6edf3', fontFamily: 'system-ui' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <div style={{ fontSize: 16, fontWeight: 700 }}>🔔 {t('alerts_title')}</div>
+              <button type="button" onClick={() => setAlertsOpen(false)} aria-label={t('done')} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', fontSize: 22, lineHeight: 1, cursor: 'pointer' }}>×</button>
+            </div>
+            {!alertResult ? (
+              <>
+                <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', marginBottom: 10 }}>{t('alerts_desc')}</div>
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginBottom: 12 }}>{t('alerts_centre')}{alertArea ? ` (${alertArea.lat.toFixed(3)}, ${alertArea.lon.toFixed(3)})` : ''}</div>
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', marginBottom: 6 }}>{t('radius_label')}</div>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+                  {[2000, 5000, 10000].map((r) => (
+                    <button key={r} type="button" onClick={() => setAlertRadius(r)} style={{ flex: 1, minHeight: 40, borderRadius: 8, cursor: 'pointer', fontFamily: 'system-ui', fontSize: 13, fontWeight: 600, background: alertRadius === r ? 'rgba(245,158,11,0.2)' : 'rgba(255,255,255,0.05)', border: `0.5px solid ${alertRadius === r ? '#f59e0b' : 'rgba(255,255,255,0.15)'}`, color: alertRadius === r ? '#f59e0b' : 'rgba(255,255,255,0.7)' }}>{r / 1000} {t('km')}</button>
+                  ))}
+                </div>
+                {alertErr && <div style={{ fontSize: 12, color: '#f87171', marginBottom: 10 }}>{alertErr}</div>}
+                <button type="button" onClick={subscribeAlerts} disabled={alertBusy} style={{ width: '100%', minHeight: 46, borderRadius: 10, background: '#f59e0b', border: 'none', color: '#1a1a1a', fontSize: 15, fontWeight: 700, cursor: alertBusy ? 'default' : 'pointer', fontFamily: 'system-ui', opacity: alertBusy ? 0.7 : 1 }}>{alertBusy ? t('subscribing') : t('subscribe')}</button>
+              </>
+            ) : (
+              <>
+                <div style={{ fontSize: 14, fontWeight: 700, color: '#3fb950', marginBottom: 6 }}>✓ {t('alerts_ready')}</div>
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginBottom: 10 }}>{t('alerts_howto')}</div>
+                <div style={{ background: '#0a0a0f', border: '0.5px solid rgba(255,255,255,0.15)', borderRadius: 8, padding: '8px 10px', fontSize: 12, wordBreak: 'break-all', color: '#58a6ff', marginBottom: 10 }}>{alertResult.subscribe_url}</div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <a href={alertResult.subscribe_url} target="_blank" rel="noreferrer noopener" style={{ flex: 1, textAlign: 'center', minHeight: 44, lineHeight: '44px', borderRadius: 10, background: '#f59e0b', color: '#1a1a1a', fontWeight: 700, textDecoration: 'none', fontSize: 14 }}>{t('open_link')}</a>
+                  <button type="button" onClick={() => { navigator.clipboard?.writeText(alertResult.subscribe_url).then(() => { setAlertCopied(true); setTimeout(() => setAlertCopied(false), 2000) }).catch(() => {}) }} style={{ flex: 1, minHeight: 44, borderRadius: 10, background: 'rgba(255,255,255,0.08)', border: '0.5px solid rgba(255,255,255,0.15)', color: '#fff', cursor: 'pointer', fontFamily: 'system-ui', fontSize: 14, fontWeight: 600 }}>{alertCopied ? t('copied') : t('copy_link')}</button>
+                </div>
+                <button type="button" onClick={() => setAlertsOpen(false)} style={{ width: '100%', marginTop: 10, minHeight: 40, borderRadius: 10, background: 'transparent', border: '0.5px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontFamily: 'system-ui', fontSize: 13 }}>{t('done')}</button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Incident list drawer ───────────────────────────────────────── */}
+      {listOpen && isMobile && (
+        <div
+          onClick={() => setListOpen(false)}
+          style={{ position: 'absolute', top: showBanner ? 94 : 56, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 14, touchAction: 'none' }}
+        />
+      )}
+      <aside
+        aria-hidden={!listOpen}
+        aria-label={t('incidents')}
+        style={{
+          position: 'absolute',
+          top: isMobile ? (showBanner ? 94 : 56) : (showBanner ? 38 : 0),
+          bottom: 0,
+          left: 0,
+          width: isMobile ? 'min(94vw, 420px)' : 380,
+          maxWidth: '100vw',
+          background: 'rgba(10,10,15,0.97)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          borderRight: '0.5px solid rgba(255,255,255,0.08)',
+          transform: listOpen ? 'translateX(0)' : 'translateX(-110%)',
+          transition: 'transform 0.28s ease, top 0.3s',
+          zIndex: 15,
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: 0,
+          boxShadow: listOpen ? '4px 0 24px rgba(0,0,0,0.35)' : 'none',
+        }}
+      >
+        <div style={{ padding: isMobile ? '14px 14px 12px' : '14px 16px 12px', borderBottom: '0.5px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 11, color: '#ef4444', letterSpacing: '0.12em', fontWeight: 600, marginBottom: 2, textTransform: 'uppercase' }}>{t('incidents')}</div>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>{visibleClusters.length}{lastUpdated ? ` · ${t('updated')} ${freshAgo(lastUpdated)}` : ''}</div>
+          </div>
+          <button type="button" onClick={() => setListOpen(false)} aria-label="Close list" style={{ background: 'rgba(255,255,255,0.08)', border: '0.5px solid rgba(255,255,255,0.15)', color: '#fff', borderRadius: 8, width: 32, height: 32, cursor: 'pointer', flexShrink: 0, fontSize: 18, lineHeight: '30px' }}>×</button>
+        </div>
+        <div style={{ overflowY: 'auto', flex: 1, minHeight: 0 }}>
+          {visibleClusters.length === 0 && <div style={{ padding: 20, fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>{t('no_incidents')}</div>}
+          {visibleClusters.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => selectFromList(c)}
+              style={{
+                display: 'flex', alignItems: 'flex-start', gap: 10, width: '100%', textAlign: isRtl ? 'right' : 'left',
+                background: selectedCluster?.id === c.id ? 'rgba(239,68,68,0.10)' : 'transparent', border: 'none',
+                borderBottom: '0.5px solid rgba(255,255,255,0.06)', padding: '12px 14px', cursor: 'pointer', fontFamily: 'system-ui',
+              }}
+            >
+              <span style={{ width: 9, height: 9, borderRadius: '50%', background: STATUS_HEX[c.status] ?? '#8b949e', flexShrink: 0, marginTop: 4 }} />
+              <span style={{ minWidth: 0, flex: 1 }}>
+                <span style={{ display: 'block', color: '#e6edf3', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {locationNames[c.id] ?? (c.dominant_event_types?.[0] ? formatEventType(c.dominant_event_types[0]) : `${c.centroid_lat.toFixed(3)}, ${c.centroid_lon.toFixed(3)}`)}
+                </span>
+                <span style={{ display: 'block', color: 'rgba(255,255,255,0.55)', fontSize: 12, marginTop: 2 }}>
+                  {t(statusKey(c.status))} · {c.report_count} {t('reports')} · {timeAgo(c.created_at)}
+                </span>
+              </span>
+            </button>
+          ))}
+        </div>
+      </aside>
 
       {/* ── Intelligence feed drawer ───────────────────────────────────── */}
       {newsOpen && isMobile && (

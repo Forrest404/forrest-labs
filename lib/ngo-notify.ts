@@ -1,6 +1,7 @@
 import 'server-only'
 import { randomBytes } from 'crypto'
 import { sendEmail } from '@/lib/email'
+import { fetchWithTimeout } from '@/lib/fetch-timeout'
 
 // Notification fan-out for NGO safety events. Two channels:
 //  - push  → ntfy.sh (reuses the codebase's existing broadcast-channel pattern)
@@ -110,7 +111,7 @@ export async function sendPush(topic: string | null, opts: {
     // the header form silently FAILED every alert with an emoji title (panic/roll-call/
     // dispatch/broadcast). JSON carries them safely in the UTF-8 body. POST to the ntfy root;
     // the topic travels in the payload. ntfy JSON priority is 1..5.
-    const res = await fetch(NTFY_BASE_URL, {
+    const res = await fetchWithTimeout(NTFY_BASE_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -137,7 +138,7 @@ export async function sendSms(phone: string, body: string): Promise<{ ok: boolea
     return { ok: true, stubbed: true }
   }
   try {
-    await fetch(provider, {
+    await fetchWithTimeout(provider, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ to: phone, message: body }),
@@ -241,11 +242,13 @@ async function deliver(supabase: any, args: {
   // notif_push / off-duty / quiet-hours / per-event prefs (which a single org broadcast never
   // could). Recipients fan out in parallel so a large broadcast isn't N sequential sends.
   await Promise.all(recipients.map(async (u) => {
-    // OFF DUTY = fully silent. An off-duty operator receives NOTHING — including panic and
-    // roll-call — until they go back on duty. This is the one gate that applies even to
-    // CRITICAL/HIGH events. (Their OWN panic still alerts everyone else: off_duty only filters
-    // them as a *recipient*, never as a sender.) Logged as 'skipped' so it's visible.
-    if (u.off_duty) { await logDelivery(supabase, orgId, u.id, event, urgency, 'push', 'skipped'); return }
+    // OFF DUTY silences NON-CRITICAL events (dispatch, broadcasts, new-incident, etc.) so an
+    // off-duty operator isn't pestered. But a CRITICAL event — panic, roll-call, panic
+    // dispatch/escalation — ALWAYS delivers, on or off duty: a duress alert that reached
+    // nobody because every leader was off duty is the worst possible failure (audit H1; and
+    // CLAUDE.md "safety beats features"). Off_duty only filters a recipient, never a sender —
+    // a worker's own panic still alerts everyone else. Skips are logged so they're visible.
+    if (u.off_duty && urgency !== 'critical') { await logDelivery(supabase, orgId, u.id, event, urgency, 'push', 'skipped'); return }
 
     // Other non-protected gating: quiet hours, flood. (These don't apply to CRITICAL/HIGH —
     // those go through.) Suppression is LOGGED as 'skipped' so a muted NORMAL/LOW alert is

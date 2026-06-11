@@ -362,8 +362,9 @@ export default function TriagePage() {
         </div>
       </div>
 
-      {/* Main content */}
-      <div style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
+      {/* Main content — .adm-stack stacks the two review columns into one
+          scrollable column on mobile (visual only) */}
+      <div className="adm-stack" style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
         {/* Left column (55%) */}
         <div style={{ flex: 55, display: 'flex', flexDirection: 'column', minWidth: 0, borderRight: '1px solid #21262d' }}>
           {/* Mini map */}

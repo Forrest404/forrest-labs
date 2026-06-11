@@ -55,7 +55,9 @@ export async function GET() {
       system_version: '1.0.0'
     }, {
       headers: {
-        'Cache-Control': 'no-store',
+        // Public landing-page counters polled by every visitor — a short shared cache
+        // collapses thousands of identical DB hits without a meaningful staleness cost (M7).
+        'Cache-Control': 'public, max-age=10',
         'Access-Control-Allow-Origin': '*'
       }
     })

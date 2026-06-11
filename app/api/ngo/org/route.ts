@@ -158,3 +158,34 @@ export async function PATCH(request: NextRequest) {
   }
   return NextResponse.json({ success: true, checkin_window_saved: checkinWindowSaved, panic_config_saved: panicConfigSaved, retention_saved: retentionSaved, alerts_saved: alertsSaved })
 }
+
+// DELETE — "soft close" the organisation from the settings Danger zone (org_admin only).
+// Sets ngo_organisations.deleted_at AND status='suspended', so: (a) every session for this org
+// is revoked on its next request (everyone signed out), (b) login is blocked up-front (no
+// dashboard flash) with an "account no longer exists" message (driven by deleted_at), and
+// (c) the platform's Manage-NGOs view shows it suspended, where an operator can reinstate
+// (restore clears deleted_at) or permanently delete it. ALL data is retained; the civilian
+// pipeline is untouched. Requires typing the exact org name to confirm.
+export async function DELETE(request: NextRequest) {
+  const session = await getNgoSession(request)
+  if (!requireRole(session, ['org_admin'])) {
+    return NextResponse.json({ error: 'Not authorised' }, { status: 403 })
+  }
+  let body: { confirm_name?: string }
+  try { body = await request.json() } catch { body = {} }
+
+  const supabase = createServiceClient()
+  const { data: org } = await supabase
+    .from('ngo_organisations').select('id, name').eq('id', session!.orgId).maybeSingle()
+  if (!org) return NextResponse.json({ error: 'Organisation not found' }, { status: 404 })
+  if (String(body.confirm_name ?? '').trim() !== String(org.name).trim()) {
+    return NextResponse.json({ error: 'Type the exact organisation name to confirm.' }, { status: 400 })
+  }
+
+  const { error } = await supabase
+    .from('ngo_organisations').update({ deleted_at: new Date().toISOString(), status: 'suspended' }).eq('id', session!.orgId)
+  if (error) {
+    return NextResponse.json({ error: 'Could not close the organisation — the deleted_at migration may not be applied yet.' }, { status: 503 })
+  }
+  return NextResponse.json({ success: true })
+}

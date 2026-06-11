@@ -24,3 +24,79 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Systemic UI/UX foundation (visual only — no layout/logic impact).
+   Loaded globally via the root layout, so it applies across every surface
+   (public, NGO dashboard, field, admin, platform) without touching any
+   component. Keeps the existing inline-style design system intact.
+   ────────────────────────────────────────────────────────────────────────── */
+
+/* Kill the grey flash on tap (Android/iOS); we provide our own :active feedback. */
+* { -webkit-tap-highlight-color: transparent; }
+
+/* Keyboard focus visibility. Many inputs/buttons set outline:'none' INLINE, which
+   outranks a normal rule — so !important is required to restore a visible ring for
+   keyboard users. It only paints on :focus-visible (keyboard), never on mouse/touch. */
+:focus-visible {
+  outline: 2px solid #58a6ff !important;
+  outline-offset: 2px;
+}
+
+/* Smooth, fast feedback on interactive elements. Transitions only cheap properties;
+   no transform/layout, so nothing shifts. */
+button, a, [role="button"], summary, select {
+  transition: filter 120ms ease, background-color 120ms ease, border-color 120ms ease, opacity 120ms ease;
+}
+
+/* Hover only on devices that truly hover (desktop) — prevents sticky hover on touch.
+   brightness() is a subtle, theme-agnostic lift that works on the dark palette without
+   needing per-button classes. */
+@media (hover: hover) {
+  button:not(:disabled):hover,
+  a:hover,
+  [role="button"]:hover,
+  summary:hover {
+    filter: brightness(1.12);
+  }
+}
+
+/* Tactile press, on all input methods. */
+button:not(:disabled):active,
+a:active,
+[role="button"]:active {
+  filter: brightness(0.93);
+}
+
+button:disabled { cursor: not-allowed; }
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Responsive layout utilities (opt-in via className on inline-styled elements).
+   Each only adds a <=768px override, so desktop inline styles are untouched.
+   !important is needed because they override inline style props (flex/grid/padding).
+   ────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  /* page shell: trim the 24px side padding to 16px on phones */
+  .ngo-page { padding-left: 16px !important; padding-right: 16px !important; }
+  /* two-column flex row → stacked, full width */
+  .ngo-split { flex-direction: column !important; }
+  .ngo-split > * { flex: 1 1 auto !important; width: 100% !important; max-width: 100% !important; }
+  /* 2-up grid → single column */
+  .ngo-grid-2 { grid-template-columns: 1fr !important; }
+  /* board overlays: drop the status chip + marker detail below the centred
+     search bar so they never sit under it on a narrow screen */
+  .board-chip { top: 54px !important; }
+  .board-detail { top: 92px !important; }
+  /* admin/platform data tables: horizontal scroll instead of crushed columns */
+  .adm-table { display: block; overflow-x: auto; white-space: nowrap; max-width: 100%; }
+  /* admin split view (incidents): with a record open, detail takes the full
+     screen and the list hides — the panel's existing ✕ returns to the list */
+  .adm-split-list { display: none !important; }
+  .adm-split-detail { width: 100% !important; }
+  /* admin triage: stack the two-column review layout into one scrollable column */
+  .adm-stack { flex-direction: column !important; overflow-y: auto !important; }
+  .adm-stack > * { width: 100% !important; max-width: 100% !important; flex: 0 0 auto !important; border-right: none !important; }
+  /* admin dashboard metric cards: 3-up → 2-up on phones (skeleton shares the class) */
+  .adm-grid-3 { grid-template-columns: 1fr 1fr !important; }
+}
+

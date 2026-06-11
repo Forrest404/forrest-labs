@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 
 // Plain-language data-protection statement for NGO users (item 8). Linked from Settings.
 // It states what the system ACTUALLY does — retention is read live from the org so the
@@ -38,7 +39,7 @@ export default function NgoPrivacyPage() {
           Location data — check-ins, GPS points, resolved panic alerts, and roll-call data —
           is <b>permanently deleted</b> after <b>{window}</b>. This runs automatically on a
           schedule; an org admin can change the window or run an immediate purge from{' '}
-          <a href="/ngo/settings" style={link}>Settings</a>. We keep only the latest position,
+          <Link href="/ngo/settings" style={link}>Settings</Link>. We keep only the latest position,
           not a movement history — your team’s past path is not stored or reconstructable.
           Active (unresolved) panic alerts are kept until they’re resolved, then fall under
           the same deletion window.
@@ -65,7 +66,7 @@ export default function NgoPrivacyPage() {
         <ul style={ul}>
           <li>Field logins expire after <b>7 days</b>; admin/leader logins after 12 hours.</li>
           <li>An org admin can <b>sign a user out of all devices immediately</b> from{' '}
-            <a href="/ngo/users" style={link}>Users</a> — the seized device stops working at once.</li>
+            <Link href="/ngo/users" style={link}>Users</Link> — the seized device stops working at once.</li>
           <li>Logging out wipes the location data cached on the device.</li>
         </ul>
       </Section>
@@ -89,12 +90,12 @@ export default function NgoPrivacyPage() {
           This page is a plain-language summary. For the complete, formal terms — including
           legal bases, your rights, our service providers, international transfers, and
           retention — read the{' '}
-          <a href="/ngo/privacy/policy" style={link}>full Privacy Policy →</a>
+          <Link href="/ngo/privacy/policy" style={link}>full Privacy Policy →</Link>
         </p>
       </Section>
 
       <div style={{ marginTop: 24 }}>
-        <a href="/ngo/settings" style={link}>← Back to settings</a>
+        <Link href="/ngo/settings" style={link}>← Back to settings</Link>
       </div>
     </div>
   )

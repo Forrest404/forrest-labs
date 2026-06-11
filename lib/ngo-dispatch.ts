@@ -1,4 +1,5 @@
 import 'server-only'
+import { fetchWithTimeout } from '@/lib/fetch-timeout'
 
 // Shared dispatch helpers. Read-only on clusters.
 
@@ -52,7 +53,7 @@ export async function forwardGeocode(query: string): Promise<{ lat: number; lon:
     const url =
       `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query.trim())}.json` +
       `?access_token=${token}&limit=1&country=lb&proximity=35.5,33.9`
-    const res = await fetch(url)
+    const res = await fetchWithTimeout(url, {}, 4000)
     const data = (await res.json()) as { features?: { center: [number, number]; place_name: string }[] }
     const f = data.features?.[0]
     if (!f) return null
@@ -69,7 +70,7 @@ export async function geocode(lat: number, lon: number): Promise<string> {
   if (!token) return fallback
   try {
     const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${lon},${lat}.json?access_token=${token}&types=neighborhood,locality,place`
-    const res = await fetch(url)
+    const res = await fetchWithTimeout(url, {}, 4000)
     const data = (await res.json()) as { features?: { place_name: string }[] }
     return data.features?.[0]?.place_name ?? fallback
   } catch {

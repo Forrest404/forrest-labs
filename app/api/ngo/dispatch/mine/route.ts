@@ -48,6 +48,26 @@ export async function GET(request: NextRequest) {
       link = mapLink(cluster.centroid_lat, cluster.centroid_lon)
       lat = cluster.centroid_lat; lon = cluster.centroid_lon
     }
+  } else {
+    // Panic-response dispatch (no cluster/incident): the live location comes from the
+    // linked panic_events row, which retention purges — so it disappears when the panic
+    // is cleared rather than lingering in the note. Guarded for the pre-migration window
+    // where panic_id doesn't exist yet (the lookup errors → no location, no crash).
+    try {
+      const { data: link0 } = await supabase
+        .from('ngo_dispatches').select('panic_id').eq('id', d.id).maybeSingle()
+      const panicId = (link0 as { panic_id?: string } | null)?.panic_id
+      if (panicId) {
+        const { data: pan } = await supabase
+          .from('panic_events').select('last_lat, last_lon').eq('id', panicId).maybeSingle()
+        if (pan && pan.last_lat != null && pan.last_lon != null) {
+          place = await geocode(pan.last_lat, pan.last_lon)
+          hazard = 'duress'
+          link = mapLink(pan.last_lat, pan.last_lon)
+          lat = pan.last_lat; lon = pan.last_lon
+        }
+      }
+    } catch { /* panic_id column not present yet — no live location */ }
   }
   const { data: rep } = await supabase
     .from('on_scene_reports')
