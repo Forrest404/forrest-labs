@@ -1,6 +1,27 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+
+// Worldwide base-place search (Mapbox geocoding, public token — same one the maps use).
+// No country filter: an NGO anywhere can find their city. Hidden gracefully if the token
+// is absent (free-text country still works).
+const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
+interface PlaceHit { lat: number; lon: number; label: string; country: string | null }
+async function searchPlaces(q: string): Promise<PlaceHit[]> {
+  if (!MAPBOX_TOKEN || !q.trim()) return []
+  try {
+    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(q.trim())}.json` +
+      `?access_token=${MAPBOX_TOKEN}&limit=5&types=place,locality,region,country&language=en`
+    const res = await fetch(url)
+    const data = (await res.json()) as { features?: { center: [number, number]; place_name: string; place_type?: string[]; text?: string; context?: { id: string; text: string }[] }[] }
+    return (data.features ?? []).map((f) => ({
+      lon: f.center[0], lat: f.center[1], label: f.place_name,
+      country: f.place_type?.includes('country')
+        ? (f.text ?? null)
+        : (f.context?.find((c) => c.id.startsWith('country'))?.text ?? null),
+    }))
+  } catch { return [] }
+}
 
 const ORG_TYPES = [
   { value: 'ingo', label: 'International NGO' },
@@ -27,6 +48,23 @@ export default function NgoSignupPage() {
   const [busy, setBusy] = useState(false)
   const [done, setDone] = useState(false)
 
+  // Base location: worldwide place search → stored point that the org's maps centre on.
+  const [base, setBase] = useState<PlaceHit | null>(null)
+  const [baseQuery, setBaseQuery] = useState('')
+  const [baseHits, setBaseHits] = useState<PlaceHit[]>([])
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const onBaseQuery = (v: string) => {
+    setBaseQuery(v)
+    if (searchTimer.current) clearTimeout(searchTimer.current)
+    if (!v.trim()) { setBaseHits([]); return }
+    searchTimer.current = setTimeout(async () => setBaseHits(await searchPlaces(v)), 350)
+  }
+  const pickBase = (h: PlaceHit) => {
+    setBase(h); setBaseQuery(h.label); setBaseHits([])
+    // Autofill the country from the picked place (still editable below).
+    if (h.country) setForm((f) => ({ ...f, country: h.country! }))
+  }
+
   const set = (k: keyof typeof form) => (e: { target: { value: string } }) =>
     setForm((f) => ({ ...f, [k]: e.target.value }))
 
@@ -45,7 +83,10 @@ export default function NgoSignupPage() {
       const res = await fetch('/api/ngo/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          ...(base ? { base_lat: base.lat, base_lon: base.lon, base_zoom: 10, base_label: base.label } : {}),
+        }),
       })
       const data = await res.json()
       if (res.ok) setDone(true)
@@ -94,9 +135,35 @@ export default function NgoSignupPage() {
               {ORG_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
           </div>
+          {MAPBOX_TOKEN && (
+            <div style={{ position: 'relative' }}>
+              <label style={labelStyle}>Where are you based?</label>
+              <input
+                style={field}
+                value={baseQuery}
+                onChange={(e) => onBaseQuery(e.target.value)}
+                placeholder="Search your city or region — anywhere in the world"
+              />
+              {baseHits.length > 0 && (
+                <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10, background: '#0d1117', border: '1px solid #21262d', borderRadius: 6, overflow: 'hidden', marginTop: 4 }}>
+                  {baseHits.map((h) => (
+                    <button key={h.label} type="button" onClick={() => pickBase(h)}
+                      style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 12px', background: 'transparent', border: 'none', borderBottom: '1px solid #1b2027', color: '#e6edf3', fontSize: 13, cursor: 'pointer', fontFamily: 'system-ui', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {h.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {base && (
+                <div style={{ fontSize: 12, color: '#3fb950', marginTop: 6 }}>
+                  ✓ {base.label} — your maps will open here
+                </div>
+              )}
+            </div>
+          )}
           <div>
             <label style={labelStyle}>Country</label>
-            <input style={field} value={form.country} onChange={set('country')} placeholder="Lebanon" />
+            <input style={field} value={form.country} onChange={set('country')} placeholder="Your country" />
           </div>
           <div>
             <label style={labelStyle}>Operational area</label>
@@ -104,7 +171,7 @@ export default function NgoSignupPage() {
               style={{ ...field, height: 64, padding: 10, resize: 'vertical' }}
               value={form.operational_area}
               onChange={set('operational_area')}
-              placeholder="e.g. South Lebanon — Tyre & Nabatieh districts (map editor coming soon)"
+              placeholder="Describe where you operate — you'll draw it on a map after approval"
             />
           </div>
           <div style={{ height: 1, background: '#21262d', margin: '2px 0' }} />
