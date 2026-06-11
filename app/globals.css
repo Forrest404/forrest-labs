@@ -24,3 +24,49 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Systemic UI/UX foundation (visual only — no layout/logic impact).
+   Loaded globally via the root layout, so it applies across every surface
+   (public, NGO dashboard, field, admin, platform) without touching any
+   component. Keeps the existing inline-style design system intact.
+   ────────────────────────────────────────────────────────────────────────── */
+
+/* Kill the grey flash on tap (Android/iOS); we provide our own :active feedback. */
+* { -webkit-tap-highlight-color: transparent; }
+
+/* Keyboard focus visibility. Many inputs/buttons set outline:'none' INLINE, which
+   outranks a normal rule — so !important is required to restore a visible ring for
+   keyboard users. It only paints on :focus-visible (keyboard), never on mouse/touch. */
+:focus-visible {
+  outline: 2px solid #58a6ff !important;
+  outline-offset: 2px;
+}
+
+/* Smooth, fast feedback on interactive elements. Transitions only cheap properties;
+   no transform/layout, so nothing shifts. */
+button, a, [role="button"], summary, select {
+  transition: filter 120ms ease, background-color 120ms ease, border-color 120ms ease, opacity 120ms ease;
+}
+
+/* Hover only on devices that truly hover (desktop) — prevents sticky hover on touch.
+   brightness() is a subtle, theme-agnostic lift that works on the dark palette without
+   needing per-button classes. */
+@media (hover: hover) {
+  button:not(:disabled):hover,
+  a:hover,
+  [role="button"]:hover,
+  summary:hover {
+    filter: brightness(1.12);
+  }
+}
+
+/* Tactile press, on all input methods. */
+button:not(:disabled):active,
+a:active,
+[role="button"]:active {
+  filter: brightness(0.93);
+}
+
+button:disabled { cursor: not-allowed; }
+
