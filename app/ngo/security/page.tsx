@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { useConfirm } from '@/lib/ngo-ui'
+import { useConfirm, SkeletonRows } from '@/lib/ngo-ui'
 import { useNgoLang, makeT } from '@/lib/use-ngo-lang'
 
 const LANG = {
@@ -96,7 +96,7 @@ export default function NgoSecurityPage() {
 
       {msg && <div style={ok}>{msg}</div>}
       {error && <div style={err}>{error}</div>}
-      {enabled === null && <div style={{ color: '#8b949e', fontSize: 13 }}>{t('loading')}</div>}
+      {enabled === null && <SkeletonRows rows={2} height={72} />}
 
       {recoveryCodes && (
         <div style={card}>

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
-import { useConfirm } from '@/lib/ngo-ui'
+import { useConfirm, SkeletonRows } from '@/lib/ngo-ui'
 import { useNgoLang, makeT } from '@/lib/use-ngo-lang'
 
 const LANG = {
@@ -259,7 +259,7 @@ export default function NgoSettingsPage() {
       <h1 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>{t('title')}</h1>
       <div style={{ fontSize: 13, color: '#8b949e', marginTop: 2, marginBottom: 18 }}>{isAdmin ? t('sub_admin') : role === 'team_leader' ? t('sub_leader') : t('sub_basic')}</div>
 
-      {loading && <div style={{ color: '#8b949e', fontSize: 13 }}>{t('loading')}</div>}
+      {loading && <SkeletonRows rows={4} height={64} />}
       {error && !loading && <div style={errorBox}>{error} <button type="button" onClick={load} style={retryBtn}>{t('retry')}</button></div>}
       {msg && <div style={okBox}>{msg}</div>}
 

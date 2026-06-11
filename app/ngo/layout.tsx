@@ -175,18 +175,38 @@ export default function NgoLayout({ children }: { children: ReactNode }) {
           <button type="button" onClick={() => setDrawerOpen(true)} aria-label={t('menu')} style={{ position: 'relative', height: 36, width: 40, background: 'rgba(255,255,255,0.04)', border: '1px solid #21262d', borderRadius: 8, color: '#e6edf3', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui' }}>
             ☰
             {panicCount > 0 && (
-              <span style={{ position: 'absolute', top: -6, right: -6, background: '#da3633', color: '#fff', fontSize: 11, fontWeight: 700, borderRadius: 999, minWidth: 18, height: 18, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 5px' }}>{panicCount}</span>
+              <span style={{ position: 'absolute', top: -6, insetInlineEnd: -6, background: '#da3633', color: '#fff', fontSize: 11, fontWeight: 700, borderRadius: 999, minWidth: 20, height: 20, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 5px' }}>{panicCount}</span>
             )}
           </button>
         </header>
       )}
 
-      {/* Mobile: slide-in drawer + backdrop */}
-      {isMobile && drawerOpen && (
-        <div onClick={() => setDrawerOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.6)' }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ position: 'absolute', insetInlineStart: 0, top: 0, bottom: 0, width: 264, maxWidth: '85%', background: '#0d1117', borderRight: '1px solid #21262d', display: 'flex', flexDirection: 'column', padding: '16px 0' }}>
+      {/* Mobile: slide-in drawer + backdrop. Kept mounted (not conditionally rendered)
+          so it can transition smoothly; visibility/pointer-events gate interaction when
+          closed. Closed transform is direction-aware so it slides off the correct edge. */}
+      {isMobile && (
+        <div
+          onClick={() => setDrawerOpen(false)}
+          aria-hidden={!drawerOpen}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.6)',
+            opacity: drawerOpen ? 1 : 0,
+            visibility: drawerOpen ? 'visible' : 'hidden',
+            pointerEvents: drawerOpen ? 'auto' : 'none',
+            transition: 'opacity 200ms ease, visibility 200ms ease',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: 'absolute', insetInlineStart: 0, top: 0, bottom: 0, width: 264, maxWidth: '85%',
+              background: '#0d1117', borderInlineEnd: '1px solid #21262d', display: 'flex', flexDirection: 'column', padding: '16px 0',
+              transform: drawerOpen ? 'translateX(0)' : (isRtl ? 'translateX(100%)' : 'translateX(-100%)'),
+              transition: 'transform 220ms cubic-bezier(0.4, 0, 0.2, 1)', willChange: 'transform',
+            }}
+          >
             <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '0 12px 4px' }}>
-              <button type="button" onClick={() => setDrawerOpen(false)} aria-label="Close menu" style={{ height: 30, width: 30, background: 'transparent', border: 'none', color: '#8b949e', fontSize: 20, cursor: 'pointer', fontFamily: 'system-ui' }}>✕</button>
+              <button type="button" onClick={() => setDrawerOpen(false)} aria-label="Close menu" style={{ height: 40, width: 40, background: 'transparent', border: 'none', color: '#8b949e', fontSize: 20, cursor: 'pointer', fontFamily: 'system-ui' }}>✕</button>
             </div>
             {navBody}
           </div>
@@ -226,7 +246,7 @@ function NavBody({
         {loading && <div style={{ padding: '8px 12px', fontSize: 12, color: '#484f58' }}>{t('loading')}</div>}
         {!loading && grouped.map((g) => (
           <div key={g.section} style={{ marginBottom: 8 }}>
-            <div style={{ padding: '6px 12px 4px', fontSize: 10, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#484f58' }}>{t(SECTION_KEY[g.section] ?? g.section)}</div>
+            <div style={{ padding: '6px 12px 4px', fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6e7681' }}>{t(SECTION_KEY[g.section] ?? g.section)}</div>
             {g.items.map((item) => (
               <NavLink
                 key={item.href}

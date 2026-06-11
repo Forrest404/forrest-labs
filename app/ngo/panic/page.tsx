@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNewPanicAlert } from '@/lib/use-new-panic-alert'
 import { useNgoLang, makeT } from '@/lib/use-ngo-lang'
+import { SkeletonRows } from '@/lib/ngo-ui'
 
 const LANG = {
   en: {
@@ -188,7 +189,7 @@ export default function NgoPanicPage() {
         </div>
       )}
 
-      {!loaded && <div style={{ color: '#8b949e', fontSize: 13 }}>{t('loading')}</div>}
+      {!loaded && <SkeletonRows rows={3} height={84} />}
       {loaded && error && <div style={errBox}>{t('load_fail')} <button type="button" onClick={load} style={retryBtn}>{t('retry')}</button></div>}
       {loaded && !error && panics.length === 0 && (
         <div style={{ padding: '32px 16px', textAlign: 'center', background: 'rgba(63,185,80,0.08)', border: '1px solid rgba(63,185,80,0.35)', borderRadius: 12 }}>
