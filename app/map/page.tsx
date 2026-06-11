@@ -1569,7 +1569,7 @@ export default function MapPage() {
     borderRadius: 14,
     fontSize: 11,
     cursor: 'pointer',
-    minHeight: isMobile ? 34 : 28,
+    minHeight: isMobile ? 36 : 32,
     whiteSpace: 'nowrap' as const,
   })
 
@@ -1657,12 +1657,12 @@ export default function MapPage() {
           </div>
           {activeWarningCount > 1 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-              <button type="button" onClick={() => setWarningBannerIndex((i) => (i - 1 + activeWarningCount) % activeWarningCount)} style={{ background: 'none', border: 'none', color: '#fdba74', fontSize: 14, cursor: 'pointer', padding: 2 }}>←</button>
+              <button type="button" onClick={() => setWarningBannerIndex((i) => (i - 1 + activeWarningCount) % activeWarningCount)} style={{ background: 'none', border: 'none', color: '#fdba74', fontSize: 14, cursor: 'pointer', padding: 2, minWidth: 32, minHeight: 32 }}>←</button>
               <span style={{ fontSize: 10, color: '#fdba74' }}>{(warningBannerIndex % activeWarningCount) + 1}/{activeWarningCount}</span>
-              <button type="button" onClick={() => setWarningBannerIndex((i) => (i + 1) % activeWarningCount)} style={{ background: 'none', border: 'none', color: '#fdba74', fontSize: 14, cursor: 'pointer', padding: 2 }}>→</button>
+              <button type="button" onClick={() => setWarningBannerIndex((i) => (i + 1) % activeWarningCount)} style={{ background: 'none', border: 'none', color: '#fdba74', fontSize: 14, cursor: 'pointer', padding: 2, minWidth: 32, minHeight: 32 }}>→</button>
             </div>
           )}
-          <button type="button" onClick={() => setWarningBannerDismissed(true)} style={{ background: 'none', border: 'none', color: '#fdba74', fontSize: 16, cursor: 'pointer', padding: '0 4px', flexShrink: 0, lineHeight: 1 }}>×</button>
+          <button type="button" onClick={() => setWarningBannerDismissed(true)} style={{ background: 'none', border: 'none', color: '#fdba74', fontSize: 16, cursor: 'pointer', padding: '0 8px', flexShrink: 0, lineHeight: 1, minWidth: 32, minHeight: 32 }}>×</button>
         </div>
       )}
 
@@ -1757,7 +1757,7 @@ export default function MapPage() {
             border: listOpen ? '0.5px solid rgba(239,68,68,0.4)' : '0.5px solid rgba(255,255,255,0.15)',
             color: listOpen ? '#ef4444' : '#ffffff',
             minWidth: isMobile ? 44 : undefined,
-            minHeight: isMobile ? 44 : 32,
+            minHeight: isMobile ? 44 : 36,
             padding: isMobile ? '0 10px' : '7px 12px',
             borderRadius: 8,
             fontSize: 13,
@@ -1791,7 +1791,7 @@ export default function MapPage() {
             border: newsOpen ? '0.5px solid rgba(88,166,255,0.4)' : '0.5px solid rgba(255,255,255,0.15)',
             color: newsOpen ? '#58a6ff' : '#ffffff',
             minWidth: isMobile ? 44 : undefined,
-            minHeight: isMobile ? 44 : 32,
+            minHeight: isMobile ? 44 : 36,
             padding: isMobile ? '0 10px' : '7px 12px',
             borderRadius: 8,
             fontSize: 13,
@@ -1843,7 +1843,7 @@ export default function MapPage() {
                 color: lang === l ? '#fff' : 'rgba(255,255,255,0.6)',
                 border: 'none', cursor: 'pointer', fontFamily: 'system-ui',
                 fontSize: 11, fontWeight: 600, padding: isMobile ? '0 7px' : '0 8px',
-                minHeight: isMobile ? 44 : 30, lineHeight: 1,
+                minHeight: isMobile ? 44 : 36, lineHeight: 1,
               }}
             >{l === 'ar' ? 'ع' : l.toUpperCase()}</button>
           ))}
@@ -1856,7 +1856,7 @@ export default function MapPage() {
             background: '#ef4444',
             color: '#ffffff',
             padding: isMobile ? '0 12px' : '7px 14px',
-            minHeight: isMobile ? 44 : undefined,
+            minHeight: isMobile ? 44 : 36,
             display: 'flex',
             alignItems: 'center',
             borderRadius: 8,
@@ -1910,7 +1910,7 @@ export default function MapPage() {
                 type="button"
                 onClick={() => { setSearchQuery(''); setSearchResults([]); setSearchOpen(false) }}
                 aria-label={t('clear')}
-                style={{ position: 'absolute', right: 4, top: 6, width: 26, height: 26, borderRadius: 6, background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: 18, lineHeight: '26px' }}
+                style={{ position: 'absolute', right: 2, top: 4, width: 30, height: 30, borderRadius: 6, background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: 18, lineHeight: '30px' }}
               >×</button>
             )}
           </div>
@@ -1990,13 +1990,22 @@ export default function MapPage() {
         </button>
       )}
 
-      {/* ── PART 1: Style switcher ─────────────────────────────────────── */}
+      {/* ── Map controls: style switcher + layers. On mobile both live in ONE
+           right-aligned scrollable column bounded to the viewport, so the second
+           panel can never sit off the bottom of a short phone; desktop keeps the
+           original absolute layout via display:contents. Visual-only — same
+           toggles and handlers. */}
       {(showControls || !isMobile) && (
+        <div style={isMobile
+          ? { position: 'absolute', top: showBanner ? 138 : 100, right: 12, bottom: 12, zIndex: 5, overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 12, maxWidth: 'calc(100vw - 24px)', pointerEvents: 'none' }
+          : { display: 'contents' }}>
         <div
           style={{
-            position: 'absolute',
-            top: isMobile ? (showBanner ? 138 : 100) : (showBanner ? 56 + 38 + 8 : 56 + 8),
-            right: 12,
+            position: isMobile ? 'static' : 'absolute',
+            top: isMobile ? undefined : (showBanner ? 56 + 38 + 8 : 56 + 8),
+            right: isMobile ? undefined : 12,
+            flexShrink: 0,
+            pointerEvents: 'auto',
             background: 'rgba(10,10,15,0.9)',
             backdropFilter: 'blur(12px)',
             WebkitBackdropFilter: 'blur(12px)',
@@ -2115,15 +2124,15 @@ export default function MapPage() {
             </button>
           </div>
         </div>
-      )}
 
       {/* ── PART 2: Layer controls ─────────────────────────────────────── */}
-      {(showControls || !isMobile) && (
         <div
           style={{
-            position: 'absolute',
-            top: isMobile ? (showBanner ? 138 + 268 + 12 : 100 + 268 + 12) : (showBanner ? 56 + 38 + 8 + 268 + 12 : 56 + 8 + 268 + 12),
-            right: 12,
+            position: isMobile ? 'static' : 'absolute',
+            top: isMobile ? undefined : (showBanner ? 56 + 38 + 8 + 268 + 12 : 56 + 8 + 268 + 12),
+            right: isMobile ? undefined : 12,
+            flexShrink: 0,
+            pointerEvents: 'auto',
             background: 'rgba(10,10,15,0.9)',
             backdropFilter: 'blur(12px)',
             WebkitBackdropFilter: 'blur(12px)',
@@ -2253,6 +2262,7 @@ export default function MapPage() {
               </button>
             </div>
           ))}
+        </div>
         </div>
       )}
 

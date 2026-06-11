@@ -103,7 +103,7 @@ export default function ResourcesPage() {
     <div dir={isRtl ? 'rtl' : 'ltr'} style={{ minHeight: '100vh', background: '#0a0a0f', color: '#e6edf3', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
       <div style={{ maxWidth: 680, margin: '0 auto', padding: '20px 16px 48px' }}>
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 18 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
           <a href="/" style={{ color: '#8b949e', textDecoration: 'none', fontSize: 14 }}>{t('back')}</a>
           <div style={{ display: 'flex', border: '0.5px solid rgba(255,255,255,0.15)', borderRadius: 8, overflow: 'hidden' }}>
             {(['en', 'fr', 'ar'] as Lang[]).map((l) => (
@@ -128,7 +128,7 @@ export default function ResourcesPage() {
                 <span style={{ display: 'block', fontSize: 12, color: '#8b949e', marginTop: 2 }}>{t('tap_to_call')}</span>
               </span>
               <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                <span style={{ fontSize: 22, fontWeight: 800, color: '#f85149', letterSpacing: '0.04em' }}>{h.tel}</span>
+                <span style={{ fontSize: 22, fontWeight: 800, color: '#f85149', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>{h.tel}</span>
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden>
                   <path d="M5 3.5c0-.6.5-1 1-1h2.2c.5 0 .9.3 1 .8l.7 3a1 1 0 0 1-.3 1l-1.4 1.3a11 11 0 0 0 4.7 4.7l1.3-1.4a1 1 0 0 1 1-.3l3 .7c.5.1.8.5.8 1V17c0 .5-.4 1-1 1A13 13 0 0 1 5 5.2V3.5Z" fill="#3fb950" />
                 </svg>

@@ -436,13 +436,18 @@ export default function HomePage() {
           .hp-two-col{flex-direction:column !important}
           .hp-privacy-row{flex-direction:column !important}
           .hp-org-row{flex-direction:column !important}
-          .hp-nav-links{display:none !important}
+          /* mobile header: keep the life-safety Report CTA reachable from the top bar;
+             hide only the secondary links (map + NGO — both still in the hero CTAs) */
+          .hp-nav-extra{display:none !important}
+          .hp-nav-links{gap:8px !important;margin-left:4px !important}
+          .hp-lang-btn{padding:0 6px !important}
           .hp-footer-inner{flex-direction:column !important;text-align:center !important}
         }
       `}</style>
 
       {/* Canvas background */}
-      <canvas ref={canvasRef} style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 0, pointerEvents: 'none' }} />
+      {/* 100% (not 100vw) — 100vw includes the scrollbar and causes a horizontal overflow. */}
+      <canvas ref={canvasRef} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: 0, pointerEvents: 'none' }} />
 
       {/* CRT scanline overlay */}
       <div style={{ position: 'fixed', inset: 0, zIndex: 1, pointerEvents: 'none', background: 'repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.03) 2px,rgba(0,0,0,0.03) 4px)' }} />
@@ -469,7 +474,7 @@ export default function HomePage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           {/* Language switcher */}
           {(['en', 'fr', 'ar'] as Lang[]).map((l) => (
-            <button key={l} type="button" onClick={() => changeLang(l)} style={{
+            <button key={l} type="button" onClick={() => changeLang(l)} className="hp-lang-btn" style={{
               height: 28, padding: '0 10px', fontSize: 11, fontFamily: 'monospace', letterSpacing: '0.08em',
               borderRadius: 4, cursor: 'pointer',
               background: lang === l ? 'rgba(239,68,68,0.15)' : 'transparent',
@@ -478,9 +483,9 @@ export default function HomePage() {
             }}>{l.toUpperCase()}</button>
           ))}
           <div className="hp-nav-links" style={{ display: 'flex', alignItems: 'center', gap: 12, marginLeft: 8 }}>
-            <a href="/map" style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', textDecoration: 'none', fontFamily: 'monospace' }}>{t('nav_map')}</a>
+            <a href="/map" className="hp-nav-extra" style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', textDecoration: 'none', fontFamily: 'monospace' }}>{t('nav_map')}</a>
             {/* NGO entry — blue to stay distinct from the civilian red Report CTA. */}
-            <a href="/ngo/login" style={{ fontSize: 13, fontWeight: 500, color: '#58a6ff', border: '1px solid rgba(88,166,255,0.5)', padding: '6px 14px', borderRadius: 6, textDecoration: 'none', fontFamily: 'monospace' }}>{t('ngo_login')}</a>
+            <a href="/ngo/login" className="hp-nav-extra" style={{ fontSize: 13, fontWeight: 500, color: '#58a6ff', border: '1px solid rgba(88,166,255,0.5)', padding: '6px 14px', borderRadius: 6, textDecoration: 'none', fontFamily: 'monospace' }}>{t('ngo_login')}</a>
             <a href="/report" style={{ fontSize: 13, fontWeight: 500, color: '#ffffff', background: '#ef4444', padding: '7px 16px', borderRadius: 6, textDecoration: 'none', fontFamily: 'monospace' }}>{t('nav_report')} →</a>
           </div>
         </div>
