@@ -253,6 +253,12 @@ export default function MapPage() {
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [locationNames, setLocationNames] = useState<Record<string, string>>({})
   const [isMobile, setIsMobile] = useState(false)
+  // Measured top-bar height: on mobile the centre summary stacks up to 3 lines, so the
+  // bar is taller than the old hardcoded 56px — the search row + its buttons were then
+  // positioned over the bar's right-side controls. We measure and offset from the real
+  // height instead.
+  const topBarRef = useRef<HTMLDivElement>(null)
+  const [headerH, setHeaderH] = useState(56)
   const [showFullReasoning, setShowFullReasoning] = useState(false)
   const [shareLabel, setShareLabel] = useState('Share this alert')
 
@@ -1538,6 +1544,21 @@ export default function MapPage() {
   const activeWarningCount = activeWarnings.length
   const bannerWarning = activeWarnings[warningBannerIndex % Math.max(activeWarnings.length, 1)] ?? null
   const showBanner = activeWarningCount > 0 && !warningBannerDismissed
+  // Where the top-of-map overlays (search, controls) start on mobile: below the banner
+  // (38px) + the actual measured top-bar height + an 8px gap.
+  const mobileTop = (showBanner ? 38 : 0) + headerH + 8
+
+  // Keep headerH in sync with the top bar's real rendered height (summary line count,
+  // banner toggle, viewport changes all affect it).
+  useEffect(() => {
+    const el = topBarRef.current
+    if (!el) return
+    const measure = () => setHeaderH(el.offsetHeight)
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [isMobile, showBanner])
   const visibleCount = timeEnabled
     ? clusters.filter((c) => new Date(c.created_at).getTime() <= scrubDate.getTime()).length
     : clusters.length
@@ -1668,6 +1689,7 @@ export default function MapPage() {
 
       {/* Top bar */}
       <div
+        ref={topBarRef}
         style={{
           position: 'absolute',
           top: showBanner ? 38 : 0,
@@ -1875,7 +1897,7 @@ export default function MapPage() {
       <div
         style={{
           position: 'absolute',
-          top: isMobile ? (showBanner ? 94 : 56) : (showBanner ? 56 + 38 + 8 : 56 + 8),
+          top: isMobile ? mobileTop : (showBanner ? 56 + 38 + 8 : 56 + 8),
           left: 12,
           width: isMobile ? 'calc(100vw - 64px)' : 280,
           maxWidth: 'calc(100vw - 24px)',
@@ -1966,7 +1988,7 @@ export default function MapPage() {
           aria-label="Toggle map controls"
           style={{
             position: 'absolute',
-            top: showBanner ? 94 : 56,
+            top: mobileTop,
             right: 12,
             width: 36,
             height: 36,
@@ -1997,7 +2019,7 @@ export default function MapPage() {
            toggles and handlers. */}
       {(showControls || !isMobile) && (
         <div style={isMobile
-          ? { position: 'absolute', top: showBanner ? 138 : 100, right: 12, bottom: 12, zIndex: 5, overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 12, maxWidth: 'calc(100vw - 24px)', pointerEvents: 'none' }
+          ? { position: 'absolute', top: mobileTop + 46, right: 12, bottom: 12, zIndex: 5, overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 12, maxWidth: 'calc(100vw - 24px)', pointerEvents: 'none' }
           : { display: 'contents' }}>
         <div
           style={{
@@ -2965,7 +2987,7 @@ export default function MapPage() {
       {listOpen && isMobile && (
         <div
           onClick={() => setListOpen(false)}
-          style={{ position: 'absolute', top: showBanner ? 94 : 56, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 14, touchAction: 'none' }}
+          style={{ position: 'absolute', top: mobileTop, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 14, touchAction: 'none' }}
         />
       )}
       <aside
@@ -2973,7 +2995,7 @@ export default function MapPage() {
         aria-label={t('incidents')}
         style={{
           position: 'absolute',
-          top: isMobile ? (showBanner ? 94 : 56) : (showBanner ? 38 : 0),
+          top: isMobile ? mobileTop : (showBanner ? 38 : 0),
           bottom: 0,
           left: 0,
           width: isMobile ? 'min(94vw, 420px)' : 380,
@@ -3031,7 +3053,7 @@ export default function MapPage() {
           onClick={() => setNewsOpen(false)}
           style={{
             position: 'absolute',
-            top: showBanner ? 94 : 56,
+            top: mobileTop,
             left: 0,
             right: 0,
             bottom: 0,
@@ -3046,7 +3068,7 @@ export default function MapPage() {
         aria-label="Intelligence feed"
         style={{
           position: 'absolute',
-          top: isMobile ? (showBanner ? 94 : 56) : (showBanner ? 38 : 0),
+          top: isMobile ? mobileTop : (showBanner ? 38 : 0),
           bottom: 0,
           left: 0,
           width: isMobile ? 'min(94vw, 420px)' : 380,
