@@ -38,6 +38,11 @@ export async function GET(request: NextRequest) {
       share_team_presence: data.share_team_presence ?? false,
       share_operational_area: data.share_operational_area ?? false,
       has_operational_area: !!data.operational_area,
+      // Base location (worldwide onboarding) — null until set; maps centre on it.
+      base_lat: (data as any).base_lat ?? null,
+      base_lon: (data as any).base_lon ?? null,
+      base_zoom: (data as any).base_zoom ?? null,
+      base_label: (data as any).base_label ?? null,
       created_at: data.created_at,
     },
     // Read-only provider-configured status for the Integrations section (booleans only,
@@ -63,7 +68,7 @@ export async function PATCH(request: NextRequest) {
   try { body = await request.json() } catch { return NextResponse.json({ error: 'Invalid request' }, { status: 400 }) }
 
   // org_admin-only fields: reject if a non-admin tries to set any of them.
-  const ADMIN_ONLY = ['name', 'type', 'country', 'share_team_presence', 'share_operational_area', 'location_retention_hours', 'alert_new_incident', 'alert_missed_checkin', 'alert_panic', 'alert_low_ack']
+  const ADMIN_ONLY = ['name', 'type', 'country', 'share_team_presence', 'share_operational_area', 'location_retention_hours', 'alert_new_incident', 'alert_missed_checkin', 'alert_panic', 'alert_low_ack', 'base_lat', 'base_lon', 'base_zoom', 'base_label']
   if (!isAdmin && ADMIN_ONLY.some((k) => body[k] !== undefined)) {
     return NextResponse.json({ error: 'Only an org admin can change these settings.' }, { status: 403 })
   }
@@ -125,7 +130,25 @@ export async function PATCH(request: NextRequest) {
     if (body[k] !== undefined) alertUpdate[k] = !!body[k]
   }
 
-  if (Object.keys(base).length === 0 && windowValue === null && retentionValue === null && Object.keys(panicUpdate).length === 0 && Object.keys(alertUpdate).length === 0) {
+  // Base location (worldwide onboarding; admin-only; additive columns, saved tolerantly).
+  // lat+lon set together; range-validated.
+  const baseLocUpdate: Record<string, unknown> = {}
+  if (body.base_lat !== undefined || body.base_lon !== undefined) {
+    const bl = Number(body.base_lat), bo = Number(body.base_lon)
+    if (!Number.isFinite(bl) || bl < -90 || bl > 90 || !Number.isFinite(bo) || bo < -180 || bo > 180) {
+      return NextResponse.json({ error: 'Invalid base location' }, { status: 400 })
+    }
+    baseLocUpdate.base_lat = bl
+    baseLocUpdate.base_lon = bo
+  }
+  if (body.base_zoom !== undefined) {
+    const z = Number(body.base_zoom)
+    if (!Number.isFinite(z) || z < 1 || z > 18) return NextResponse.json({ error: 'Invalid base zoom' }, { status: 400 })
+    baseLocUpdate.base_zoom = z
+  }
+  if (body.base_label !== undefined) baseLocUpdate.base_label = body.base_label ? String(body.base_label).slice(0, 120) : null
+
+  if (Object.keys(base).length === 0 && windowValue === null && retentionValue === null && Object.keys(panicUpdate).length === 0 && Object.keys(alertUpdate).length === 0 && Object.keys(baseLocUpdate).length === 0) {
     return NextResponse.json({ error: 'Nothing to update' }, { status: 400 })
   }
 
@@ -156,7 +179,12 @@ export async function PATCH(request: NextRequest) {
     const { error } = await supabase.from('ngo_organisations').update(alertUpdate).eq('id', session!.orgId)
     alertsSaved = !error
   }
-  return NextResponse.json({ success: true, checkin_window_saved: checkinWindowSaved, panic_config_saved: panicConfigSaved, retention_saved: retentionSaved, alerts_saved: alertsSaved })
+  let baseLocSaved: boolean | null = null
+  if (Object.keys(baseLocUpdate).length) {
+    const { error } = await supabase.from('ngo_organisations').update(baseLocUpdate).eq('id', session!.orgId)
+    baseLocSaved = !error
+  }
+  return NextResponse.json({ success: true, checkin_window_saved: checkinWindowSaved, panic_config_saved: panicConfigSaved, retention_saved: retentionSaved, alerts_saved: alertsSaved, base_location_saved: baseLocSaved })
 }
 
 // DELETE — "soft close" the organisation from the settings Danger zone (org_admin only).

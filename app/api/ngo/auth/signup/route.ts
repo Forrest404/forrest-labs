@@ -28,6 +28,14 @@ export async function POST(request: NextRequest) {
   const phone = String(body.phone ?? '').trim()
   const password = String(body.password ?? '')
 
+  // Base location (worldwide onboarding): a point picked via place search on the form.
+  // Optional; range-validated; maps + geocoding centre/bias on it once approved.
+  const baseLat = (typeof body.base_lat === 'number' && body.base_lat >= -90 && body.base_lat <= 90) ? body.base_lat : null
+  const baseLon = (typeof body.base_lon === 'number' && body.base_lon >= -180 && body.base_lon <= 180) ? body.base_lon : null
+  const baseZoom = (typeof body.base_zoom === 'number' && body.base_zoom >= 1 && body.base_zoom <= 18) ? body.base_zoom : null
+  const baseLabel = body.base_label ? String(body.base_label).slice(0, 120) : null
+  const hasBase = baseLat != null && baseLon != null
+
   if (!orgName || !orgType || !fullName || !email || !password) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
   }
@@ -50,17 +58,29 @@ export async function POST(request: NextRequest) {
 
   // 1) Organisation — pending approval. operational_area kept as a JSON note until
   //    the map editor (Session 2) replaces it with a GeoJSON polygon.
-  const { data: org, error: orgError } = await supabase
+  const orgRow: Record<string, unknown> = {
+    name: orgName,
+    type: ORG_TYPES.includes(orgType) ? orgType : 'other',
+    country: country || null,
+    operational_area: operationalArea ? { description: operationalArea } : null,
+    status: 'pending',
+  }
+  if (hasBase) {
+    orgRow.base_lat = baseLat
+    orgRow.base_lon = baseLon
+    orgRow.base_zoom = baseZoom ?? 10
+    orgRow.base_label = baseLabel
+  }
+  let { data: org, error: orgError } = await supabase
     .from('ngo_organisations')
-    .insert({
-      name: orgName,
-      type: ORG_TYPES.includes(orgType) ? orgType : 'other',
-      country: country || null,
-      operational_area: operationalArea ? { description: operationalArea } : null,
-      status: 'pending',
-    })
+    .insert(orgRow)
     .select('id')
     .single()
+  // Pre-migration fallback: base_* columns not applied yet → register without them.
+  if (orgError && (orgError.code === '42703' || orgError.code === 'PGRST204') && hasBase) {
+    delete orgRow.base_lat; delete orgRow.base_lon; delete orgRow.base_zoom; delete orgRow.base_label
+    ;({ data: org, error: orgError } = await supabase.from('ngo_organisations').insert(orgRow).select('id').single())
+  }
 
   if (orgError || !org) {
     console.error('NGO signup — org insert failed:', orgError)

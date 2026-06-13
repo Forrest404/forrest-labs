@@ -44,15 +44,20 @@ export function distanceKm(lat1: number, lon1: number, lat2: number, lon2: numbe
   return Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) * 10) / 10
 }
 
-// Forward-geocode a typed address/place → coordinates + a label (Mapbox), biased to
-// Lebanon. Returns null if nothing matches or the token is missing.
-export async function forwardGeocode(query: string): Promise<{ lat: number; lon: number; label: string } | null> {
+// Forward-geocode a typed address/place → coordinates + a label (Mapbox), worldwide.
+// Optionally biased towards the caller's org base (proximity) — never country-filtered,
+// so an NGO anywhere in the world can resolve local addresses. Returns null if nothing
+// matches or the token is missing.
+export async function forwardGeocode(query: string, bias?: { lat: number; lon: number } | null): Promise<{ lat: number; lon: number; label: string } | null> {
   const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
   if (!token || !query.trim()) return null
   try {
+    const proximity = bias && Number.isFinite(bias.lat) && Number.isFinite(bias.lon)
+      ? `&proximity=${bias.lon},${bias.lat}`
+      : ''
     const url =
       `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query.trim())}.json` +
-      `?access_token=${token}&limit=1&country=lb&proximity=35.5,33.9`
+      `?access_token=${token}&limit=1${proximity}`
     const res = await fetchWithTimeout(url, {}, 4000)
     const data = (await res.json()) as { features?: { center: [number, number]; place_name: string }[] }
     const f = data.features?.[0]

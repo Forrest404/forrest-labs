@@ -22,13 +22,22 @@ export async function GET(request: NextRequest) {
   const orgId = session!.orgId
   const supabase = createServiceClient()
 
-  // Operational area (may be null until an org_admin draws one).
-  const { data: org } = await supabase
+  // Operational area (may be null until an org_admin draws one) + the org's base
+  // location (worldwide onboarding — the board map centres on it). base_* columns are
+  // additive; retry without them pre-migration so the board never 500s.
+  let { data: org, error: orgSelErr } = await supabase
     .from('ngo_organisations')
-    .select('operational_area')
+    .select('operational_area, base_lat, base_lon, base_zoom')
     .eq('id', orgId)
     .single()
+  if (orgSelErr) {
+    ;({ data: org } = await supabase.from('ngo_organisations').select('operational_area').eq('id', orgId).single())
+  }
   const area = (org?.operational_area as { type?: string; coordinates?: number[][][] } | null) ?? null
+  const ob = org as { base_lat?: number | null; base_lon?: number | null; base_zoom?: number | null } | null
+  const base = ob && ob.base_lat != null && ob.base_lon != null
+    ? { lat: ob.base_lat, lon: ob.base_lon, zoom: ob.base_zoom ?? null }
+    : null
 
   // Incidents — verified clusters, newest first. READ ONLY. Windowed by ?days
   // (default 10; 'all' = no limit; clamped 1–3650). Only incidents are time-filtered.
@@ -259,6 +268,7 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     operational_area: area,
+    base,
     incidents,
     handled_incidents: handledIncidents,
     custom_incidents: customIncidents,
